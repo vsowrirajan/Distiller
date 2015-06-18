@@ -19,6 +19,30 @@ public class IoStatRecord extends Record {
 		}
 	}
 	
+	public CpuUtilizationSample getCpu() {
+		return cpu;
+	}
+
+	public void setCpu(CpuUtilizationSample cpu) {
+		this.cpu = cpu;
+	}
+
+	public DeviceUtilizationSample getDevice() {
+		return device;
+	}
+
+	public void setDevice(DeviceUtilizationSample device) {
+		this.device = device;
+	}
+
+	public String getType() {
+		return type;
+	}
+
+	public void setType(String type) {
+		this.type = type;
+	}
+
 	@Override
 	public String toString(){
 		if(type.equals("cpu")){
