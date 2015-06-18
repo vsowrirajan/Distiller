@@ -1,11 +1,11 @@
 package com.mapr.distiller.server.recordtypes;
 
-public class IOStatRecord extends Record {
+public class IoStatRecord extends Record {
 	private CpuUtilizationSample cpu = null;
 	private DeviceUtilizationSample device = null;
 	private String type;
 	
-	public IOStatRecord(String type){
+	public IoStatRecord(String type){
 		if(type.equals("cpu")) {
 			cpu = new CpuUtilizationSample();
 			this.type = type;
