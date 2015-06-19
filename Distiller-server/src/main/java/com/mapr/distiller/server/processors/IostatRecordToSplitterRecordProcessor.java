@@ -8,8 +8,8 @@ import com.mapr.distiller.server.recordtypes.SystemCpuRecord;
 
 public class IostatRecordToSplitterRecordProcessor implements RecordProcessor {
 
-	IostatRecordToSplitterRecordProcessor() {
-	};
+	public IostatRecordToSplitterRecordProcessor() {
+	}
 
 	public Record process(Record record) throws Exception {
 		return process((IoStatRecord) record);

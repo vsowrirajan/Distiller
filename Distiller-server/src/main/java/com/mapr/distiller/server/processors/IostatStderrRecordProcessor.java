@@ -5,8 +5,8 @@ import com.mapr.distiller.server.recordtypes.WholeLineRecord;
 
 public class IostatStderrRecordProcessor implements RecordProcessor {
 
-	IostatStderrRecordProcessor() {
-	};
+	public IostatStderrRecordProcessor() {
+	}
 
 	public Record process(Record record) throws Exception {
 		// Never return a record, if iostat prints to stderr then something is
