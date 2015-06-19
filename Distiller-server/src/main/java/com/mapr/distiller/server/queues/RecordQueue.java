@@ -2,40 +2,29 @@ package com.mapr.distiller.server.queues;
 
 import com.mapr.distiller.server.recordtypes.Record;
 
-public abstract class RecordQueue {
-	private String id;
-	private int maxQueueLength;
+public interface RecordQueue {
+	public int queueSize();
 
-	public RecordQueue() {
-	}
+	public boolean put(Record record);
 
-	public RecordQueue(String id, int maxQueueLength) {
-		this.id = id + ":RecQ";
-		this.maxQueueLength = maxQueueLength;
-	}
+	public Record get();
 
-	public abstract int queueSize();
+	public Record get(String name);
 
-	public abstract boolean put(Record record);
+	public String printRecords();
 
-	public abstract Record get();
+	public String[] listProducers();
 
-	public abstract Record get(String name);
+	public String[] listConsumers();
 
-	public abstract String printRecords();
+	public String printNewestRecords(int numRecords);
 
-	public abstract String[] listProducers();
+	public Record[] dumpNewestRecords(int numRecords);
 
-	public abstract String[] listConsumers();
+	public Record[] dumpOldestRecords(int numRecords);
 
-	public abstract String printNewestRecords(int numRecords);
+	public Record[] dumpAllRecords();
 
-	public abstract Record[] dumpNewestRecords(int numRecords);
-
-	public abstract Record[] dumpOldestRecords(int numRecords);
-
-	public abstract Record[] dumpAllRecords();
-
-	public abstract Record[] dumpRecordsFromTimeRange(long startTime,
+	public Record[] dumpRecordsFromTimeRange(long startTime,
 			long endTime);
 }
