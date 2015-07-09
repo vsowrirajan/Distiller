@@ -6,7 +6,7 @@ public class SystemCpuRecord extends Record {
 	public SystemCpuRecord() {
 		super();
 	}
-	
+
 	public SystemCpuRecord(long timestamp, long previousTimestamp,
 			long durationms) {
 		super(timestamp, previousTimestamp, durationms);
@@ -15,6 +15,12 @@ public class SystemCpuRecord extends Record {
 	public SystemCpuRecord(long timestamp, long previousTimestamp,
 			long durationms, double user, double system, double idle) {
 		super(timestamp, previousTimestamp, durationms);
+		this.user = user;
+		this.system = system;
+		this.idle = idle;
+	}
+
+	public SystemCpuRecord(double user, double system, double idle) {
 		this.user = user;
 		this.system = system;
 		this.idle = idle;
