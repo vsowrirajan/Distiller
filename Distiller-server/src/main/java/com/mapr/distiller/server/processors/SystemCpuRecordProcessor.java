@@ -2,6 +2,7 @@ package com.mapr.distiller.server.processors;
 
 import java.util.List;
 
+import com.mapr.distiller.server.recordtypes.Record;
 import com.mapr.distiller.server.recordtypes.SystemCpuRecord;
 
 public class SystemCpuRecordProcessor implements
@@ -46,6 +47,7 @@ public class SystemCpuRecordProcessor implements
 		}
 	}
 
+	// Moving average of all the variables in a record
 	@Override
 	public SystemCpuRecord movingAverage(List<SystemCpuRecord> records) {
 		SystemCpuRecord systemCpuRecord = null;
@@ -69,6 +71,15 @@ public class SystemCpuRecordProcessor implements
 		systemCpuRecord = new SystemCpuRecord(user, system, idle);
 
 		return systemCpuRecord;
+	}
+
+	@Override
+	public SystemCpuRecord movingAverage(SystemCpuRecord oldRecord,
+			SystemCpuRecord newRecord) {
+		SystemCpuRecord output = null;
+
+		// TODO - Compare old record and new record and return the output record
+		return output;
 	}
 
 }
