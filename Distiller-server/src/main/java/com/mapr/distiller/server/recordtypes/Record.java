@@ -2,23 +2,36 @@ package com.mapr.distiller.server.recordtypes;
 
 public class Record {
 
-	private long timestamp, previousTimestamp, durationms;
+	private long timestamp, previousTimestamp;
 	
 	public Record() {
-		
+		this.timestamp = -1l;
+		this.previousTimestamp = -1l;	
 	}
 	
-	public Record(long timestamp, long previousTimestamp, long durationms) {
+	public Record(Record r) {
+		this.timestamp = r.getTimestamp();
+		this.previousTimestamp = r.getPreviousTimestamp();
+	}
+	
+	public Record(long timestamp, long previousTimestamp) {
 		this.timestamp = timestamp;
 		this.previousTimestamp = previousTimestamp;
-		this.durationms = durationms;
+	}
+
+	public Record(long timestamp) {
+		this.timestamp = timestamp;
+		this.previousTimestamp = -1l;
 	}
 
 	public long getTimestamp() {
 		return timestamp;
 	}
 
-	public void setTimestamp(long timestamp) {
+	public void setTimestamp(long timestamp) throws Exception{
+		if(this.previousTimestamp > timestamp)
+			throw new Exception("Invalid value for setTimestamp, timestamp:" + timestamp + 
+					" previousTimestamp:" + previousTimestamp);
 		this.timestamp = timestamp;
 	}
 
@@ -26,21 +39,25 @@ public class Record {
 		return previousTimestamp;
 	}
 
-	public void setPreviousTimestamp(long previousTimestamp) {
+	public void setPreviousTimestamp(long previousTimestamp) throws Exception {
+		if(this.timestamp < previousTimestamp)
+			throw new Exception("Invalid value for setPreviousTimestamp, timestamp:" + 
+					this.timestamp + " previousTimestamp:" + previousTimestamp);
 		this.previousTimestamp = previousTimestamp;
 	}
 
 	public long getDurationms() {
-		return durationms;
-	}
-
-	public void setDurationms(long durationms) {
-		this.durationms = durationms;
+		if(timestamp==-1 || previousTimestamp==-1)
+			return -1;
+		return timestamp - previousTimestamp;
 	}
 
 	@Override
 	public String toString() {
-		return "RecTime: " + previousTimestamp + " - " + timestamp + " ("
-				+ durationms + "ms)";
+		if(previousTimestamp==-1 && timestamp!=-1)
+			return "T:" + timestamp;
+		else if (previousTimestamp!=-1 && timestamp!=-1)
+			return "T:" + timestamp + " P:" + previousTimestamp + " D:" + getDurationms();
+		return "";
 	}
 }

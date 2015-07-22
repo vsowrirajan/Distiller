@@ -1,8 +1,6 @@
 package com.mapr.distiller.server.processors;
 
 import java.util.List;
-
-import com.mapr.distiller.server.recordtypes.Record;
 import com.mapr.distiller.server.recordtypes.SystemCpuRecord;
 
 public class SystemCpuRecordProcessor implements
@@ -14,17 +12,20 @@ public class SystemCpuRecordProcessor implements
 
 		switch (metric) {
 		case "idle":
-			return record.getIdle() > Double.parseDouble(thresholdValue);
+			if(record.getIdleCpuUtilPct() == -1d)
+				throw new Exception("Can not compare raw SystemCpuRecord to threshold");
+			else
+				return record.getIdleCpuUtilPct() > Double.parseDouble(thresholdValue);
 
-		case "system":
-			return record.getSystem() > Double.parseDouble(thresholdValue);
-
-		case "user":
-			return record.getUser() > Double.parseDouble(thresholdValue);
+		case "iowait":
+			if(record.getIowaitCpuUtilPct() == -1d)
+				throw new Exception("Can not compare raw SystemCpuRecord to threshold");
+			else
+				return record.getIowaitCpuUtilPct() > Double.parseDouble(thresholdValue);
 
 		default:
 			throw new Exception("Metric " + metric
-					+ " does not have a value in SystemCpuRecord");
+					+ " is not Thresholdable in SystemCpuRecord");
 		}
 	}
 
@@ -33,53 +34,35 @@ public class SystemCpuRecordProcessor implements
 			String thresholdValue) throws Exception {
 		switch (metric) {
 		case "idle":
-			return record.getIdle() < Double.parseDouble(thresholdValue);
+			if(record.getIdleCpuUtilPct() == -1d)
+				throw new Exception("Can not compare raw SystemCpuRecord to threshold");
+			else
+				return record.getIdleCpuUtilPct() < Double.parseDouble(thresholdValue);
 
-		case "system":
-			return record.getSystem() < Double.parseDouble(thresholdValue);
-
-		case "user":
-			return record.getUser() < Double.parseDouble(thresholdValue);
+		case "iowait":
+			if(record.getIowaitCpuUtilPct() == -1d)
+				throw new Exception("Can not compare raw SystemCpuRecord to threshold");
+			else
+				return record.getIowaitCpuUtilPct() < Double.parseDouble(thresholdValue);
 
 		default:
 			throw new Exception("Metric " + metric
-					+ " does not have a value in SystemCpuRecord");
+					+ " is not Thresholdable in SystemCpuRecord");
 		}
 	}
 
 	// Moving average of all the variables in a record
 	@Override
-	public SystemCpuRecord movingAverage(List<SystemCpuRecord> records) {
-		SystemCpuRecord systemCpuRecord = null;
-
-		double idle = 0;
-		double system = 0;
-		double user = 0;
-
-		int recordsSize = records.size();
-
-		for (SystemCpuRecord record : records) {
-			idle += record.getIdle();
-			system += record.getSystem();
-			user += record.getUser();
-		}
-
-		idle = idle / recordsSize;
-		system = system / recordsSize;
-		user = user / recordsSize;
-
-		systemCpuRecord = new SystemCpuRecord(user, system, idle);
-
-		return systemCpuRecord;
+	public SystemCpuRecord movingAverage(List<SystemCpuRecord> records) throws Exception {
+		//This code presumes, but does not check that, the records in the list are sorted by timestamp.
+		//If the list is not sorted then the results of this method are likely to be inaccurate.
+		return new SystemCpuRecord(records.get(0), records.get(records.size() - 1));
 	}
 
 	@Override
-	public SystemCpuRecord movingAverage(SystemCpuRecord oldRecord,
-			SystemCpuRecord newRecord) {
-		SystemCpuRecord output = null;
-
-		// TODO - Compare old record and new record and return the output record
-		return output;
+	public SystemCpuRecord movingAverage(SystemCpuRecord rec1,
+			SystemCpuRecord rec2) throws Exception{
+		return new SystemCpuRecord(rec1, rec2);
 	}
 
 }
