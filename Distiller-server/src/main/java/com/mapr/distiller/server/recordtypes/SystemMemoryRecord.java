@@ -11,14 +11,15 @@ public class SystemMemoryRecord extends Record {
 	 * These are variables that are not sourced directly from /proc
 	 * These values are computed only for records returned by calls to a diff function of this class
 	 */
-	double freeMemPct;
+	private double freeMemPct;
+	private BigInteger freeMemByteMilliseconds;
 	
 	/**
 	 * RAW VALUES
 	 * These are variables whose values are sourced directly from /proc when produceRecord is called
 	 */
 	//Values from /proc/meminfo
-	BigInteger MemTotal, MemFree, Buffers, Cached, SwapCached, Active,
+	private BigInteger MemTotal, MemFree, Buffers, Cached, SwapCached, Active,
 				Inactive, Active_anon_, Inactive_anon_, Active_file_, Inactive_file_,
 				Unevictable, Mlocked, SwapTotal, SwapFree, Dirty, Writeback,
 				AnonPages, Mapped, Shmem, Slab, SReclaimable, SUnreclaim,
@@ -28,13 +29,15 @@ public class SystemMemoryRecord extends Record {
 				HugePages_Rsvd, HugePages_Surp, Hugepagesize, DirectMap4k, DirectMap2M,
 				DirectMap1G;
 	//Values read from /proc/vmstat
-	BigInteger nr_dirty, pswpin, pswpout, pgmajfault, allocstall;
+	private BigInteger nr_dirty, pswpin, pswpout, pgmajfault, allocstall;
 
 	/**
 	 * CONSTRUCTORS
 	 */
 	public SystemMemoryRecord() throws Exception {
 		super(System.currentTimeMillis());
+		this.freeMemPct=-1d;
+		this.freeMemByteMilliseconds=null;
 		String[] parts;
 		String line;
 		RandomAccessFile proc_meminfo = null, proc_vmstat = null;
@@ -90,6 +93,90 @@ public class SystemMemoryRecord extends Record {
 			} catch (Exception e){}
 		}
 	}
+	public SystemMemoryRecord(SystemMemoryRecord rec1, SystemMemoryRecord rec2) throws Exception {
+		if(rec1.getTimestamp() == rec2.getTimestamp())
+			throw new Exception("Can not generate differential SystemMemoryRecord from input records with matching timestamp values");
+
+		//Figure out the time sequence of the records
+		SystemMemoryRecord oldRecord, newRecord;
+		if(rec1.getTimestamp() < rec2.getTimestamp()){
+			oldRecord = rec1;
+			newRecord = rec2;
+		} else {
+			oldRecord = rec2;
+			newRecord = rec1;
+		}
+		
+		//Check if these are raw SystemMemoryRecords
+		if(rec1.getFreeMemPct()==-1d && rec2.getFreeMemPct()==-1d){
+			//Copied values
+			setTimestamp(newRecord.getTimestamp());				//Set the end timestamp for this record to the timestamp of the newer record
+			setPreviousTimestamp(oldRecord.getTimestamp());		//Set the start timestamp for this record to the timestamp of the older record.
+			this.MemTotal = newRecord.getMemTotal();			//Copy the MemTotal from either input record, presume it doesn't change while the system is still running, this should really be in a separate class...
+			this.SwapTotal = newRecord.getSwapTotal();			//Copy the SwapTotal from either input record with the same caveat as mentioned for MemTotal
+			
+			//These values are set as the mean value between the two input records.  These are range-bounded values.
+			//The upper bound on these values is relative to MemTotal and the lowerbound is 0.  
+			//With raw SystemMemoryRecords, the value of these fields represents the in-range value for the given metric observed at the point in time at which the raw record was generated.
+			//We know the value in the range it was at for the start (oldRecord) and for the end (newRecord) so lets presume it uses the mean amount between those over this period of time.
+			//That is of course just speculation, memory usage in Linux is not tracked the way CPU usage is tracked (e.g. through jiffy counters), so this is the best we can do until/unless the kernel supports better.
+			this.MemFree = newRecord.getMemFree().add(oldRecord.getMemFree()).divide(new BigInteger("2"));		
+			this.SwapFree = newRecord.getSwapFree().add(oldRecord.getSwapFree()).divide(new BigInteger("2"));	
+			this.nr_dirty = newRecord.get_nr_dirty().add(oldRecord.get_nr_dirty()).divide(new BigInteger("2"));
+			
+			//In raw SystemMemoryRecords, these fields are monotonically increasing counters.
+			//The only thing interesting when comparing values observed from a monotonically increasing counter is the amount of the increase.
+			//This the following values represent the difference between the most recently observed value for the counter and the previously observed value.
+			this.pgmajfault = newRecord.get_pgmajfault().subtract(oldRecord.get_pgmajfault());
+			this.pswpin = newRecord.get_pswpin().subtract(oldRecord.get_pswpin());
+			this.pswpout = newRecord.get_pswpout().subtract(oldRecord.get_pswpout());
+			this.allocstall = newRecord.get_allocstall().subtract(oldRecord.get_allocstall());
+			
+			this.freeMemPct = MemFree.divide(MemTotal).doubleValue();											//The mean MemFree of the input records expressed as a percentage of MemTotal.  ...Actually, it's just divided by the MemTotal.  E.g. the acceptable values are 0<=V<=1.  Should it be multiplied by 100?
+			this.freeMemByteMilliseconds = MemFree.multiply(new BigInteger(Long.toString(getDurationms())));	//The amount of free memory over the elapsed time expressed in a jiffy-like manner
+			
+		//Check if these are differential SystemMemoryRecords
+		} else if(rec1.getFreeMemPct()!=-1d && rec2.getFreeMemPct()!=-1d){
+			//Check if these are chronologically consecutive differential records
+			if(oldRecord.getTimestamp() != newRecord.getPreviousTimestamp())
+				throw new Exception("Can not generate differential SystemMemoryRecord from non-consecutive differential SystemMemoryRecords");
+			
+			//Copied values
+			setTimestamp(newRecord.getTimestamp());					//Set the end timestamp to the timestamp of the newer record
+			setPreviousTimestamp(oldRecord.getPreviousTimestamp());	//Set the start timestamp to the start timestamp of the older record
+			this.MemTotal = newRecord.getMemTotal();				//Copy the MemTotal from either input record
+			this.SwapTotal = newRecord.getSwapTotal();				//Copy the SwapTotal from either input record
+	
+			//In differential SystemMemoryRecords, these values represent the best-guess of the average amount of memory used during the duration of time represented by the record.
+			//Since we are combining two such records, we should compute a new best-guess of the average amount used over the new total duration.
+			//To do this, express the value in the older and newer records in a CPU usage/jiffy-like form, add them, then divide by the aggregate duration.
+			this.MemFree = newRecord.getMemFree().multiply(new BigInteger(Long.toString(newRecord.getDurationms()))).add(
+					oldRecord.getMemFree().multiply(new BigInteger(Long.toString(oldRecord.getDurationms())))).divide(
+					new BigInteger(Long.toString(getDurationms())));
+			this.SwapFree = newRecord.getSwapFree().multiply(new BigInteger(Long.toString(newRecord.getDurationms()))).add(
+					oldRecord.getSwapFree().multiply(new BigInteger(Long.toString(oldRecord.getDurationms())))).divide(
+					new BigInteger(Long.toString(getDurationms())));
+			this.nr_dirty = newRecord.get_nr_dirty().multiply(new BigInteger(Long.toString(newRecord.getDurationms()))).add(
+					oldRecord.get_nr_dirty().multiply(new BigInteger(Long.toString(oldRecord.getDurationms())))).divide(
+					new BigInteger(Long.toString(getDurationms())));
+	
+			//In differential SystemMemoryRecords, these values represent the number of times a condition occurred over the period of time.
+			//Add the values together from older and newer records to get the aggregate sum.
+			this.pgmajfault = newRecord.get_pgmajfault().add(oldRecord.get_pgmajfault());
+			this.pswpin = newRecord.get_pswpin().add(oldRecord.get_pswpin());
+			this.pswpout = newRecord.get_pswpout().add(oldRecord.get_pswpout());
+			this.allocstall = newRecord.get_allocstall().add(oldRecord.get_allocstall());
+			
+			this.freeMemPct = MemFree.divide(MemTotal).doubleValue();											//The mean MemFree of the input records expressed as a percentage of MemTotal.
+			this.freeMemByteMilliseconds = MemFree.multiply(new BigInteger(Long.toString(getDurationms())));	//The amount of free memory over the elapsed time expressed in a jiffy-like manner
+			
+		//Otherwise, we are being asked to merge one raw record with one derived record and that is not valid.
+		} else {
+			throw new Exception("Can not generate differential SystemMemoryRecord from a raw record and a differential record");
+		}
+
+	}
+	
 
 	/**
 	 * PRODUCE RECORD METHODS
@@ -104,6 +191,7 @@ public class SystemMemoryRecord extends Record {
 		}
 		return true;
 	}
+
 
 	/**
 	 * OTHER METHODS
@@ -161,134 +249,37 @@ public class SystemMemoryRecord extends Record {
 		else { return false; }
 		return true;
 	}
-	public String toString(){
+ 	public BigInteger getMemTotal(){
+ 		return MemTotal;
+ 	}
+ 	public double getFreeMemPct(){
+ 		return freeMemPct;
+ 	}
+ 	public BigInteger getMemFree(){
+ 		return MemFree;
+ 	}
+ 	public BigInteger getSwapTotal(){
+ 		return SwapTotal;
+ 	}
+ 	public BigInteger getSwapFree(){
+ 		return SwapFree;
+ 	}
+ 	public BigInteger get_nr_dirty(){
+ 		return nr_dirty;
+ 	}
+ 	public BigInteger get_pswpin(){
+ 		return pswpin;
+ 	}
+ 	public BigInteger get_pswpout(){
+ 		return pswpout;
+ 	}
+ 	public BigInteger get_pgmajfault(){
+ 		return pgmajfault;
+ 	}
+ 	public BigInteger get_allocstall(){
+ 		return allocstall;
+ 	}
+ 	public String toString(){
 		return super.toString() + " memory.system total:" + MemTotal + " free:" + MemFree;
 	}
 }
-
-/**
-	public static String[] type1DiffSupport(){
-	return new String[] {	"SystemMemoryRecord.pswpin",
-							"SystemMemoryRecord.pswpout",
-							"SystemMemoryRecord.pgmajfault",
-							"SystemMemoryRecord.allocstall"		};
-}
-public static SystemMemoryRecord type1Diff(SystemMemoryRecord oldRecord, SystemMemoryRecord newRecord){
-	SystemMemoryRecord diffRecord = new SystemMemoryRecord();
-	return type1Diff(oldRecord, newRecord, diffRecord);
-}
-public static SystemMemoryRecord type1Diff(SystemMemoryRecord oldRecord, SystemMemoryRecord newRecord, SystemMemoryRecord diffRecord){
-	 // Not sure if we need this check....
-	//if(oldRecord.timestamp >= newRecord.timestamp){
-	//	return null;
-	//}
-	Record.type1Diff(oldRecord, newRecord, diffRecord);
-	diffRecord.pswpin = newRecord.pswpin.subtract(oldRecord.pswpin);
-	diffRecord.pswpout = newRecord.pswpout.subtract(oldRecord.pswpout);
-	diffRecord.pgmajfault = newRecord.pgmajfault.subtract(oldRecord.pgmajfault);
-	diffRecord.allocstall = newRecord.allocstall.subtract(oldRecord.allocstall);
-	return diffRecord;
-}
-public static String[] type2DiffSupport(){
-	return new String[] {	"SystemMemoryRecord.freeMemPct",
-							"SystemMemoryRecord.MemFree"		};
-}
-public static SystemMemoryRecord type2Diff(SystemMemoryRecord[] records){
-	SystemMemoryRecord diffRecord = new SystemMemoryRecord();
-	return type2Diff(records, diffRecord);
-}
-public static SystemMemoryRecord type2Diff(SystemMemoryRecord[] records, SystemMemoryRecord diffRecord){
-	if(records.length < 2) return null;
-	Record.type2Diff(records, diffRecord);
-	diffRecord.MemFree = new BigInteger("0");
-	for (int x=1; x<records.length; x++) {
-		 // Not sure if we need this check....
-		//if(records[x-1].timestamp >= records[x].timestamp){
-		//	return null;
-		//}
-		BigInteger elapsedTimems = new BigInteger(String.valueOf(records[x].timestamp - records[x-1].timestamp));
-		diffRecord.MemFree = diffRecord.MemFree.add(records[x].MemFree.divide(elapsedTimems.divide(new BigInteger("1000"))));
-	}
-	
-	diffRecord.freeMemPct = 100d * diffRecord.MemFree.divide(records[0].MemTotal).doubleValue();
-	return diffRecord;
-}
-public boolean isBelowThreshold(String metricStr, double val){
-	if(metricStr.equals("SystemMemoryRecord.freeMemPct"))
-		return freeMemPct < val;
-	return false;
-}
-public boolean isBelowThreshold(String metricStr, BigInteger val){
-	if(metricStr.equals("SystemMemoryRecord.MemFree") && MemFree.compareTo(val) == -1)
-		return true;
-	return false;
-}
-public boolean isAboveThreshold(String metricStr, BigInteger val){
-	if(metricStr.equals("SystemMemoryRecord.pswpin") && pswpin.compareTo(val) == 1)
-		return true;
-	else if(metricStr.equals("SystemMemoryRecord.pswpout") && pswpout.compareTo(val) == 1)
-		return true;
-	else if(metricStr.equals("SystemMemoryRecord.pgmajfault") && pgmajfault.compareTo(val) == 1)
-		return true;
-	else if(metricStr.equals("SystemMemoryRecord.allocstall") && allocstall.compareTo(val) == 1)
-		return true;
-	return false;
-}	
-public static SystemMemoryRecord diff(SystemMemoryRecord oldrec, SystemMemoryRecord newrec) {
-	SystemMemoryRecord diffrec = new SystemMemoryRecord();
-	diffrec.MemTotal = newrec.MemTotal;
-	diffrec.MemFree = newrec.MemFree;
-	diffrec.Buffers = newrec.Buffers;
-	diffrec.Cached = newrec.Cached;
-	diffrec.SwapCached = newrec.SwapCached;
-	diffrec.Active = newrec.Active;
-	diffrec.Inactive = newrec.Inactive;
-	diffrec.Active_anon_ = newrec.Active_anon_;
-	diffrec.Inactive_anon_ = newrec.Inactive_anon_;
-	diffrec.Active_file_ = newrec.Active_file_;
-	diffrec.Inactive_file_ = newrec.Inactive_file_;
-	diffrec.Unevictable = newrec.Unevictable;
-	diffrec.Mlocked = newrec.Mlocked;
-	diffrec.SwapTotal = newrec.SwapTotal;
-	diffrec.SwapFree = newrec.SwapFree;
-	diffrec.Dirty = newrec.Dirty;
-	diffrec.Writeback = newrec.Writeback;
-	diffrec.AnonPages = newrec.AnonPages;
-	diffrec.Mapped = newrec.Mapped;
-	diffrec.Shmem = newrec.Shmem;
-	diffrec.Slab = newrec.Slab;
-	diffrec.SReclaimable = newrec.SReclaimable;
-	diffrec.SUnreclaim = newrec.SUnreclaim;
-	diffrec.KernelStack = newrec.KernelStack;
-	diffrec.PageTables = newrec.PageTables;
-	diffrec.NFS_Unstable = newrec.NFS_Unstable;
-	diffrec.Bounce = newrec.Bounce;
-	diffrec.WritebackTmp = newrec.WritebackTmp;
-	diffrec.CommitLimit = newrec.CommitLimit;
-	diffrec.Committed_AS = newrec.Committed_AS;
-	diffrec.VmallocTotal = newrec.VmallocTotal;
-	diffrec.VmallocUsed = newrec.VmallocUsed;
-	diffrec.VmallocChunk = newrec.VmallocChunk;
-	diffrec.HardwareCorrupted = newrec.HardwareCorrupted;
-	diffrec.AnonHugePages = newrec.AnonHugePages;
-	diffrec.HugePages_Total = newrec.HugePages_Total;
-	diffrec.HugePages_Free = newrec.HugePages_Free;
-	diffrec.HugePages_Rsvd = newrec.HugePages_Rsvd;
-	diffrec.HugePages_Surp = newrec.HugePages_Surp;
-	diffrec.Hugepagesize = newrec.Hugepagesize;
-	diffrec.DirectMap4k = newrec.DirectMap4k;
-	diffrec.DirectMap2M = newrec.DirectMap2M;
-	diffrec.DirectMap1G = newrec.DirectMap1G;
-	
-	diffrec.nr_dirty = newrec.nr_dirty;
-	diffrec.pswpin = newrec.pswpin.subtract(oldrec.pswpin);
-	diffrec.pswpout = newrec.pswpout.subtract(oldrec.pswpout);
-	diffrec.pgmajfault = newrec.pgmajfault.subtract(oldrec.pgmajfault);
-	diffrec.allocstall = newrec.allocstall.subtract(oldrec.allocstall);
-	
-	diffrec.timestamp = newrec.timestamp;
-	diffrec.previousTimestamp = oldrec.timestamp;
-	//System.err.println("Generated memory.system record: " + diffrec.toString());
-	return diffrec;
-}
-**/
