@@ -84,6 +84,8 @@ public class SystemCpuRecord extends Record {
 			newRecord = rec1;
 		}
 		
+		this.setTimestamp(newRecord.getTimestamp());
+		this.setPreviousTimestamp(oldRecord.getTimestamp());
 		this.cpu_user = newRecord.get_cpu_user().subtract(oldRecord.get_cpu_user());
 		this.cpu_nice = newRecord.get_cpu_nice().subtract(oldRecord.get_cpu_nice());
 		this.cpu_sys = newRecord.get_cpu_sys().subtract(oldRecord.get_cpu_sys());
@@ -108,6 +110,7 @@ public class SystemCpuRecord extends Record {
 		this.iowaitCpuUtilPct = this.cpu_iowait.doubleValue() / this.total_jiffies.doubleValue();
 				
 	}
+
 	/**
 	 * PRODUCE RECORD METHODS
 	 */
@@ -176,70 +179,3 @@ public class SystemCpuRecord extends Record {
 		return iowaitCpuUtilPct;
 	}
 }
-
-	/**
-	public static String[] type1DiffSupport(){
-		return new String[] {	"SystemCpuRecord.idleCpuUtilPct",
-								"SystemCpuRecord.iowaitCpuUtilPct",
-								"SystemCpuRecord.cpu_user",
-								"SystemCpuRecord.cpu_nice",
-								"SystemCpuRecord.cpu_sys",
-								"SystemCpuRecord.cpu_idle",
-								"SystemCpuRecord.cpu_iowait",
-								"SystemCpuRecord.cpu_hardirq",
-								"SystemCpuRecord.cpu_softirq",
-								"SystemCpuRecord.cpu_steal",
-								"SystemCpuRecord.cpu_other",
-								"SystemCpuRecord.total_jiffies"	};
-	}
-	public static SystemCpuRecord type1Diff(SystemCpuRecord oldRecord, SystemCpuRecord newRecord){
-		SystemCpuRecord diffRecord = new SystemCpuRecord();
-		return type1Diff(oldRecord, newRecord, diffRecord);
-	}
-	public static SystemCpuRecord type1Diff(SystemCpuRecord oldRecord, SystemCpuRecord newRecord, SystemCpuRecord diffRecord){
-		//if(oldRecord.timestamp >= newRecord.timestamp){
-		//	return null;
-		//}
-		SystemCpuRecord.type1Diff(oldRecord, newRecord, diffRecord);
-		diffRecord.cpu_user = newRecord.cpu_user.subtract(oldRecord.cpu_user);
-		diffRecord.cpu_nice = newRecord.cpu_nice.subtract(oldRecord.cpu_nice);
-		diffRecord.cpu_sys = newRecord.cpu_sys.subtract(oldRecord.cpu_sys);
-		diffRecord.cpu_idle = newRecord.cpu_idle.subtract(oldRecord.cpu_idle);
-		diffRecord.cpu_iowait = newRecord.cpu_iowait.subtract(oldRecord.cpu_iowait);
-		diffRecord.cpu_hardirq = newRecord.cpu_hardirq.subtract(oldRecord.cpu_hardirq);
-		diffRecord.cpu_softirq = newRecord.cpu_softirq.subtract(oldRecord.cpu_softirq);
-		diffRecord.cpu_steal = newRecord.cpu_steal.subtract(oldRecord.cpu_steal);
-		diffRecord.cpu_other = newRecord.cpu_other.subtract(oldRecord.cpu_other);
-		diffRecord.total_jiffies = newRecord.total_jiffies.subtract(oldRecord.total_jiffies);
-
-		//Count iowait as idle time since other things could be done during idle time if so needed.
-		//We will track iowait % usage separately
-		//This var should be used to decide if the system is running low on free CPU capacity
-		//Since iowait means there is no useful work to be done by the CPU, we count it idle.
-		//That allows this metric to represent true load on the CPUs.
-		diffRecord.idleCpuUtilPct = diffRecord.cpu_idle.add(diffRecord.cpu_iowait).doubleValue() / 	//The number of jiffies consumed in idle//iowait
-									diffRecord.total_jiffies.doubleValue();							//Divided by the total elapsed jiffies
-
-		//The IO wait time indicates how much running processes are bottlenecking on IO.
-		//You can use this in conjunction with the iowaitCpuUtilPct for threads/processes to understand how things are bottlenecking on IO
-		diffRecord.iowaitCpuUtilPct = diffRecord.cpu_iowait.doubleValue() / diffRecord.total_jiffies.doubleValue();
-		
-		return diffRecord;
-	}
-	public static String[] type2DiffSupport(){
-		return null;
-	}
-	public static SystemCpuRecord type2Diff(SystemCpuRecord[] records){
-		return null;
-	}
-	public static SystemCpuRecord type2Diff(SystemCpuRecord[] records, SystemCpuRecord diffRecord){
-		return null;
-	}
-	public boolean isBelowThreshold(String metricStr, double val){
-		if(metricStr.equals("SystemCpuRecord.idleCpuUtilPct"))
-			return idleCpuUtilPct < val;
-		else if (metricStr.equals("SystemCpuRecord.iowaitCpuUtilPct"))
-			return iowaitCpuUtilPct < val;
-		return false;
-	}
-**/
