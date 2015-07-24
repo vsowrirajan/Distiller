@@ -33,6 +33,13 @@
 			<artifactId>xmlrpc-common</artifactId>
 			<version>${xmlrpc.version}</version>
 		</dependency>
+
+		<dependency>
+			<groupId>com.typesafe</groupId>
+			<artifactId>config</artifactId>
+			<version>1.0.2</version>
+		</dependency>
+
 	</dependencies>
 
 	<build>

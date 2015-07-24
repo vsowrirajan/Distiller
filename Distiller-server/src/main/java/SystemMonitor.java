@@ -9,10 +9,7 @@ import org.apache.xmlrpc.webserver.WebServer;
 import org.apache.xmlrpc.server.PropertyHandlerMapping;
 import org.apache.xmlrpc.XmlRpcException;
 
-import com.mapr.distiller.server.coordinators.IostatProcessRecordProducer;
-import com.mapr.distiller.server.coordinators.IostatRecordToComponentRecordProducer;
-import com.mapr.distiller.server.coordinators.SystemCpuRecordToSystemCpuHighRecordProducer;
-import com.mapr.distiller.server.coordinators.SystemCpuRecordToSystemCpuMovingAverageRecordProducer;
+import com.mapr.distiller.server.producers.raw.ProcRecordProducer;
 import com.mapr.distiller.server.queues.RecordQueue;
 import com.mapr.distiller.server.utils.DefaultConfiguration;
 
@@ -133,31 +130,17 @@ public class SystemMonitor {
 		SystemMonitor myRpcServer = new SystemMonitor(
 				Integer.parseInt(configuration.getProperty("rpc.server.port",
 						"23721")));
-
-		// Eventually, this next step should be to dynamically create Monitor's
-		// based on a configuration file. For now, there is a set of diagnostics
-		// that are statically defined and must be referenced by their given
-		// configuration properties.
-		// Start iostatProcessRecordProducer if enabled
-		IostatProcessRecordProducer iostatProcessRecordProducer = null;
-		IostatRecordToComponentRecordProducer iostatRecordToComponentRecordProducer = null;
-		SystemCpuRecordToSystemCpuHighRecordProducer systemCpuRecordToSystemCpuHighRecordProducer = null;
-		SystemCpuRecordToSystemCpuMovingAverageRecordProducer systemCpuRecordToSystemCpuMovingAverageRecordProducer = null;
-		if (Boolean.valueOf(configuration
-				.getProperty("monitor.iostat", "false"))) {
-			iostatProcessRecordProducer = new IostatProcessRecordProducer(
-					nameToRecordQueueMap);
-			iostatProcessRecordProducer.start();
-			iostatRecordToComponentRecordProducer = new IostatRecordToComponentRecordProducer(
-					nameToRecordQueueMap, "Iostat");
-			iostatRecordToComponentRecordProducer.start();
-			systemCpuRecordToSystemCpuHighRecordProducer = new SystemCpuRecordToSystemCpuHighRecordProducer(
-					nameToRecordQueueMap, "Iostat", 90d);
-			systemCpuRecordToSystemCpuHighRecordProducer.start();
-			systemCpuRecordToSystemCpuMovingAverageRecordProducer = new SystemCpuRecordToSystemCpuMovingAverageRecordProducer(
-					nameToRecordQueueMap, "Iostat", 10);
-			systemCpuRecordToSystemCpuMovingAverageRecordProducer.start();
-		}
+		
+		ConcurrentHashMap<String, Integer> rawMetricList = new ConcurrentHashMap<String, Integer>(1000);
+		rawMetricList.put("cpu.system", 3000);
+		rawMetricList.put("disk.system", 3000);
+		rawMetricList.put("memory.system", 3000);
+		rawMetricList.put("network.interfaces", 3000);
+		rawMetricList.put("process.resources", 3000);
+		rawMetricList.put("thread.resources", 3000);
+		rawMetricList.put("tcp.connection.stats", 3000);
+		ProcRecordProducer procRecordProducer = new ProcRecordProducer(nameToRecordQueueMap, rawMetricList);
+		procRecordProducer.start();
 
 		// Monitors are started, now wait until its time to shut down.
 		long lastStatus = 0l, statusInterval = 10000l;
@@ -186,24 +169,6 @@ public class SystemMonitor {
 					shouldExit = true;
 				}
 				System.err.println("SystemMonitor shutting down by request");
-			}
-		}
-
-		// Its time to shut down, inform all Monitors.
-		if (iostatProcessRecordProducer != null
-				&& iostatProcessRecordProducer.isAlive()) {
-			iostatProcessRecordProducer.exitRequest();
-		}
-
-		// Wait for all Monitors to shut down, interrupt them if this shutdown
-		// thread is interrupted.
-		while (iostatProcessRecordProducer.isAlive()) {
-			try {
-				Thread.sleep(1000);
-			} catch (Exception E) {
-				System.err
-						.println("SystemMonitor interrupted during shutdown, interrupting child thread iostatProcessRecordProducer");
-				iostatProcessRecordProducer.interrupt();
 			}
 		}
 
