@@ -7,6 +7,7 @@ import com.mapr.distiller.server.queues.RecordQueue;
 import com.mapr.distiller.server.utils.MetricConfig;
 
 public class SystemCpuMetricAction extends MetricAction {
+	Object object = new Object();
 
 	private RecordQueue inputQueue;
 	private RecordQueue outputQueue;
@@ -19,14 +20,13 @@ public class SystemCpuMetricAction extends MetricAction {
 
 	private boolean shouldPersist;
 
-	private boolean isGathericMetric;
-
 	public SystemCpuMetricAction(String id, String recordType,
 			String aggregationType, Map<String, String> aggregationMap) {
 		super(id);
 		this.recordType = recordType;
 		this.aggregationType = aggregationType;
 		this.aggregationMap = aggregationMap;
+		setGathericMetric(true);
 	}
 
 	// We also need one more argument which has a RecordQueue map to their names
@@ -40,17 +40,48 @@ public class SystemCpuMetricAction extends MetricAction {
 	@Override
 	public void run() {
 		System.out.println("****" + this.recordType + "****");
-		while (true) {
-			System.out.println(this.aggregationType);
-			try {
-				Thread.sleep(1000);
-			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
+		while (!Thread.interrupted()) {
+			if (isGathericMetric()) {
+				System.out.println(this.aggregationType);
+				try {
+					Thread.sleep(1000);
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
 			}
+
+			else {
+				while (!isGathericMetric()) {
+					try {
+						suspend();
+					} catch (InterruptedException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+				}
+			}
+		}
+
+		System.out.println("Thread got interrupted - Going down");
+	}
+
+	public void suspend() throws InterruptedException {
+		synchronized (object) {
+			System.out.println("Stopping metric with " + id);
+			isGathericMetric = false;
+			object.wait();
 		}
 	}
 
+	public void resume() {
+		synchronized (object) {
+			System.out.println("Resuming metric with " + id);
+			isGathericMetric = true;
+			object.notifyAll();
+		}
+	}
+	
 	@Override
 	public void selectSequentialRecords() {
 		// TODO Auto-generated method stub

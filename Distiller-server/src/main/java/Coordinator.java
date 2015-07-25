@@ -5,9 +5,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import com.mapr.distiller.server.metricactions.MetricAction;
 import com.mapr.distiller.server.metricactions.SystemCpuMetricAction;
@@ -20,18 +21,22 @@ import com.typesafe.config.ConfigObject;
 public class Coordinator {
 
 	private List<MetricConfig> metricConfigs;
-	private List<MetricAction> metricActions;
+	private Map<String, MetricAction> metricActionsIdMap;
 
 	private ExecutorService executor = Executors.newFixedThreadPool(5);
 
 	private Map<String, Boolean> metricActionsStateMap;
+	private Map<String, Future<MetricAction>> metricActionsIdFuturesMap;
 
 	public void start() {
 		metricActionsStateMap = new HashMap<String, Boolean>();
+		metricActionsIdFuturesMap = new HashMap<String, Future<MetricAction>>();
 
-		for (MetricAction metricAction : metricActions) {
-			metricActionsStateMap.put(metricAction.getId(), true);
-			executor.submit(metricAction);
+		for (MetricAction metricAction : metricActionsIdMap.values()) {
+			String id = metricAction.getId();
+			metricActionsStateMap.put(id, true);
+			Future<?> future = executor.submit(metricAction);
+			metricActionsIdFuturesMap.put(id, (Future<MetricAction>) future);
 		}
 	}
 
@@ -84,23 +89,41 @@ public class Coordinator {
 		}
 	}
 
+	public void startMetric(String id) {
+		Future<MetricAction> future = metricActionsIdFuturesMap.get(id);
+		MetricAction metricAction = metricActionsIdMap.get(id);
+		metricAction.resume();
+		metricActionsIdMap.put(id, metricAction);
+		// future.cancel(true);
+		metricActionsStateMap.put(id, true);
+	}
+
+	public void stopMetric(String id) throws InterruptedException {
+		Future<MetricAction> future = metricActionsIdFuturesMap.get(id);
+		MetricAction metricAction = metricActionsIdMap.get(id);
+		metricAction.suspend();
+		metricActionsIdMap.put(id, metricAction);
+		// future.cancel(true);
+		metricActionsStateMap.put(id, false);
+	}
+
 	public void createMetricActions() {
 		List<MetricConfig> metricConfigs = getMetricConfigs();
-		this.metricActions = new ArrayList<MetricAction>();
+		this.metricActionsIdMap = new HashMap<String, MetricAction>();
 
 		for (MetricConfig config : metricConfigs) {
 			MetricAction metricAction;
 			switch (config.getRecordType()) {
 			case "SystemCpuRecord":
 				metricAction = SystemCpuMetricAction.getInstance(config);
-				this.metricActions.add(metricAction);
+				this.metricActionsIdMap.put(metricAction.getId(), metricAction);
 				break;
 
 			case "SystemMemoryRecord":
 				// Just a filler - Have to change this after implementing
 				// SystemMemoryAction
 				metricAction = SystemCpuMetricAction.getInstance(config);
-				this.metricActions.add(metricAction);
+				this.metricActionsIdMap.put(metricAction.getId(), metricAction);
 				break;
 			default:
 				throw new IllegalArgumentException(
@@ -114,11 +137,12 @@ public class Coordinator {
 		return metricConfigs;
 	}
 
-	public List<MetricAction> getMetricActions() {
-		return metricActions;
+	public Map<String, MetricAction> getMetricActionsIdMap() {
+		return metricActionsIdMap;
 	}
 
-	public static void main(String[] args) throws IOException {
+	public static void main(String[] args) throws IOException,
+			InterruptedException {
 		String configLocation = args[0];
 		Config config = ConfigFactory.parseFile(new File(configLocation));
 		Coordinator coordinator = new Coordinator();
@@ -126,7 +150,8 @@ public class Coordinator {
 		List<MetricConfig> metricConfigs = coordinator.getMetricConfigs();
 
 		for (MetricConfig metricConfig : metricConfigs) {
-			System.out.println(metricConfig.getInputQueue() + " - "
+			System.out.println(metricConfig.getId() + " - "
+					+ metricConfig.getInputQueue() + " - "
 					+ metricConfig.getOutputQueue() + " - "
 					+ metricConfig.getRecordType() + " - "
 					+ metricConfig.getAggregationType() + " - "
@@ -136,9 +161,19 @@ public class Coordinator {
 
 		coordinator.createMetricActions();
 		System.out.println("Metric actions size "
-				+ coordinator.getMetricActions().size());
+				+ coordinator.getMetricActionsIdMap().size() + " - "
+				+ coordinator.getMetricActionsIdMap());
 		coordinator.start();
 
-	}
+		//TimeUnit.SECONDS.sleep(3);
 
+		String id = "Metric 1";
+
+		TimeUnit.SECONDS.sleep(3);
+		System.out.println("Going to stop metric " + id);
+		coordinator.stopMetric(id);
+		TimeUnit.SECONDS.sleep(3);
+		System.out.println("Going to resume metric " + id);
+		coordinator.startMetric(id);
+	}
 }
