@@ -25,7 +25,7 @@ public class SubscriptionRecordQueue implements RecordQueue {
 		this.subscriptionRecordQueue = Collections
 				.synchronizedList(new ArrayList<Record>(maxQueueLength));
 		this.maxQueueLength = maxQueueLength;
-		this.id = id + ":SubRecQ";
+		this.id = id;
 	}
 	
 	public int maxQueueSize(){

@@ -93,30 +93,30 @@ public class ProcRecordProducer extends Thread {
 					if(event.getTargetTime() - System.currentTimeMillis() <= 1000){
 						//Track if we are able to gather the metric
 						boolean gatheredMetric = false;
-
+						
 						//Sleep until it's time to gather the metric
 						try {
 							Thread.sleep(event.getTargetTime() - System.currentTimeMillis());
 						} catch (Exception e) {}
-						if(event.getTargetTime() >= System.currentTimeMillis()){
+						if(event.getTargetTime() <= System.currentTimeMillis()){
 							actionStartTime = System.currentTimeMillis();
 							try {
 								//It's time to gather the metric...
 								if(event.getMetricName().equals("Diskstat"))
 									//Try to produce the record into the output queue
-									gatheredMetric = generateDiskstatRecords(queueManager.getQueue(event.getMetricName()), event.getProducerName());
+									gatheredMetric = generateDiskstatRecords(queueManager.getQueue(event.getQueueName()), event.getProducerName());
 								else if(event.getMetricName().equals("NetworkInterface"))
-									gatheredMetric = generateNetworkInterfaceRecords(queueManager.getQueue(event.getMetricName()), event.getProducerName());
+									gatheredMetric = generateNetworkInterfaceRecords(queueManager.getQueue(event.getQueueName()), event.getProducerName());
 								else if(event.getMetricName().equals("ProcessResource"))
-									gatheredMetric = generateProcessResourceRecords(queueManager.getQueue(event.getMetricName()), event.getProducerName());
+									gatheredMetric = generateProcessResourceRecords(queueManager.getQueue(event.getQueueName()), event.getProducerName());
 								else if(event.getMetricName().equals("SystemCpu"))
-									gatheredMetric = generateSystemCpuRecord(queueManager.getQueue(event.getMetricName()), event.getProducerName());
+									gatheredMetric = generateSystemCpuRecord(queueManager.getQueue(event.getQueueName()), event.getProducerName());
 								else if (event.getMetricName().equals("SystemMemory"))
-									gatheredMetric = generateSystemMemoryRecord(queueManager.getQueue(event.getMetricName()), event.getProducerName());
+									gatheredMetric = generateSystemMemoryRecord(queueManager.getQueue(event.getQueueName()), event.getProducerName());
 								else if (event.getMetricName().equals("TcpConnectionStat"))
-									gatheredMetric = generateTcpConnectionStatRecords(queueManager.getQueue(event.getMetricName()), event.getProducerName());
+									gatheredMetric = generateTcpConnectionStatRecords(queueManager.getQueue(event.getQueueName()), event.getProducerName());
 								else if (event.getMetricName().equals("ThreadResource"))
-									gatheredMetric = generateThreadResourceRecords(queueManager.getQueue(event.getMetricName()), event.getProducerName());
+									gatheredMetric = generateThreadResourceRecords(queueManager.getQueue(event.getQueueName()), event.getProducerName());
 								else 
 									throw new Exception("GatherMetricEvent for unknown metric type:" + event.getMetricName());
 							} catch (Exception e) {
