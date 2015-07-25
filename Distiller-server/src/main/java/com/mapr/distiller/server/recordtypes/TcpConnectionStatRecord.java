@@ -36,7 +36,7 @@ public class TcpConnectionStatRecord extends Record {
 	/**
 	 * PRODUCE RECORD METHODS
 	 */
-	public static boolean produceRecords(RecordQueue tcp_connection_stats){
+	public static boolean produceRecords(RecordQueue tcp_connection_stats, String producerName){
 		try {
 			RandomAccessFile proc_net_tcp = null;
 			long startTime = System.currentTimeMillis();
@@ -96,7 +96,7 @@ public class TcpConnectionStatRecord extends Record {
 								socketId = linkTarget.split("\\[")[1].split("\\]")[0];
 								String[] parts = null;
 								if( (parts = recordMap.get(socketId)) != null )
-									if(tcp_connection_stats.put(new TcpConnectionStatRecord(parts, pid)))
+									if(tcp_connection_stats.put(producerName, new TcpConnectionStatRecord(parts, pid)))
 										recordsGenerated++;
 								//System.err.println("pid: " + pid + " socketId: " + socketId + " path: " + fdPaths[x].toString());
 							}

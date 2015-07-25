@@ -181,9 +181,9 @@ public class SystemMemoryRecord extends Record {
 	/**
 	 * PRODUCE RECORD METHODS
 	 */
-	public static boolean produceRecord(RecordQueue memory_system){
+	public static boolean produceRecord(RecordQueue memory_system, String producerName){
 		try {
-			memory_system.put(new SystemMemoryRecord());
+			memory_system.put(producerName, new SystemMemoryRecord());
 		} catch (Exception e) {
 			System.err.println("Failed to generate a SystemMemoryRecord");
 			e.printStackTrace();

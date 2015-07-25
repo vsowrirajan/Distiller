@@ -64,7 +64,7 @@ public class RecordProducer extends Thread {
 						throw e;
 					}
 					if (outputRecord != null) {
-						if (!outputRecordQueue.put(outputRecord)) {
+						if (!outputRecordQueue.put(id, outputRecord)) {
 							System.err.println(id
 									+ ": Failed to put outputRecord "
 									+ outputRecord + " into RecordQueue "
@@ -106,7 +106,7 @@ public class RecordProducer extends Thread {
 						throw e;
 					}
 					if (outputRecord != null) {
-						if (!outputRecordQueue.put(outputRecord)) {
+						if (!outputRecordQueue.put(id, outputRecord)) {
 							System.err.println(id
 									+ ": Failed to put outputRecord "
 									+ outputRecord + " into RecordQueue "

@@ -67,9 +67,9 @@ public class ThreadResourceRecord extends Record {
 	/**
 	 * PRODUCE RECORD METHODS
 	 */
-	public static boolean produceRecord(RecordQueue thread_resources, String path, int ppid, int clockTick){
+	public static boolean produceRecord(RecordQueue thread_resources, String producerName, String path, int ppid, int clockTick){
 		try{
-			thread_resources.put(new ThreadResourceRecord(path, ppid, clockTick));
+			thread_resources.put(producerName, new ThreadResourceRecord(path, ppid, clockTick));
 		} catch (Exception e) {
 			System.err.println("Failed to generate a ThreadResourceRecord");
 			e.printStackTrace();

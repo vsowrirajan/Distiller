@@ -3,28 +3,65 @@ package com.mapr.distiller.server.queues;
 import com.mapr.distiller.server.recordtypes.Record;
 
 public interface RecordQueue {
+	//Return the name of the RecordQueue
+	public String getQueueName();
+	
+	//Return the maximum queue size
+	public int maxQueueSize();
+	
+	//Return the number of elements in the queue.
 	public int queueSize();
 
-	public boolean put(Record record);
+	//Add a Record onto the end of the queue
+	public boolean put(String producer, Record record);
 
-	public Record get();
+	//Get the next sequential Record for the specific subscriber
+	public Record get(String subscriber) throws Exception;
 
-	public Record get(String name);
-
-	public String printRecords();
-
+	//Return a String array where each element represents the name of a registered Producer
 	public String[] listProducers();
 
+	//Return a String array where each element represents the name of a registered Consumer
 	public String[] listConsumers();
+	
+	//Returns true if the given name is registered as a producer
+	public boolean hasProducer(String name);
+	
+	//Returns a true if the given name is registered as a consumer
+	public boolean hasConsumer(String name);
+	
+	//Returns true if the producer with the given name is successfully registered as a producer
+	public boolean registerProducer(String name);
+	
+	//Returns true if the consumer with the given name is successfully registered as a consumer
+	public boolean registerConsumer(String name);
+	
+	//Returns true if the producer with the given name was successfully removed as a producer (false if no change)
+	public boolean unregisterProducer(String name);
+	
+	//Returns true if the consumer with the given name was successfully removed as a consumer (false if no change)
+	public boolean unregisterConsumer(String name);
 
-	public String printNewestRecords(int numRecords);
+	//Iterate through the records in the queue, calling Record.toString() for each Record that the specified consumer can consume
+	//What happens if this gets too big???
+	public String printRecords(String subscriber);
+	
+	//Iterate through the records in the queue starting from the most recently added Record, calling Record.toString() for each Record that the specified consumer can consume
+	public String printNewestRecords(String consumer, int numRecords);
+		
+	/**
+		Will implement these later as needed...
+	
 
-	public Record[] dumpNewestRecords(int numRecords);
+	
 
-	public Record[] dumpOldestRecords(int numRecords);
+	public Record[] dumpNewestRecords(String consumer, int numRecords);
 
-	public Record[] dumpAllRecords();
+	public Record[] dumpOldestRecords(String consumer, int numRecords);
 
-	public Record[] dumpRecordsFromTimeRange(long startTime,
+	public Record[] dumpAllRecords(String consumer);
+
+	public Record[] dumpRecordsFromTimeRange(String consumer, long startTime,
 			long endTime);
+	**/
 }
