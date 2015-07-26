@@ -46,42 +46,47 @@ public class SystemCpuMetricAction extends MetricAction {
 				try {
 					Thread.sleep(1000);
 				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
+					System.out.println("Thread got interrupted - Going down");
+					break;
 				}
 			}
 
 			else {
-				while (!isGathericMetric()) {
-					try {
-						suspend();
-					} catch (InterruptedException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
+				try {
+					synchronized (object) {
+						object.wait();
 					}
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
 				}
 			}
 		}
 
-		System.out.println("Thread got interrupted - Going down");
+		System.out.println("Exiting Metric action due to kill action");
 	}
 
+	@Override
 	public void suspend() throws InterruptedException {
-		synchronized (object) {
-			System.out.println("Stopping metric with " + id);
-			isGathericMetric = false;
-			object.wait();
-		}
+		System.out.println("Stopping metric with id = " + id);
+		isGathericMetric = false;
 	}
 
+	@Override
 	public void resume() {
 		synchronized (object) {
-			System.out.println("Resuming metric with " + id);
+			System.out.println("Resuming metric with id = " + id);
 			isGathericMetric = true;
 			object.notifyAll();
 		}
 	}
-	
+
+	@Override
+	public void kill() {
+		System.out.println("Kill metric with id = " + id);
+		isGathericMetric = false;
+	}
+
 	@Override
 	public void selectSequentialRecords() {
 		// TODO Auto-generated method stub

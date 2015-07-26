@@ -25,6 +25,8 @@ public abstract class MetricAction implements Runnable {
 	public abstract void suspend() throws InterruptedException;
 	
 	public abstract void resume();
+	
+	public abstract void kill();
 
 	public abstract void selectSequentialRecords();
 

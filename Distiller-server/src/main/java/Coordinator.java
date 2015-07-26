@@ -1,5 +1,6 @@
 import java.io.File;
 import java.io.IOException;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -90,21 +91,25 @@ public class Coordinator {
 	}
 
 	public void startMetric(String id) {
-		Future<MetricAction> future = metricActionsIdFuturesMap.get(id);
 		MetricAction metricAction = metricActionsIdMap.get(id);
 		metricAction.resume();
 		metricActionsIdMap.put(id, metricAction);
-		// future.cancel(true);
 		metricActionsStateMap.put(id, true);
 	}
 
 	public void stopMetric(String id) throws InterruptedException {
-		Future<MetricAction> future = metricActionsIdFuturesMap.get(id);
 		MetricAction metricAction = metricActionsIdMap.get(id);
 		metricAction.suspend();
 		metricActionsIdMap.put(id, metricAction);
-		// future.cancel(true);
 		metricActionsStateMap.put(id, false);
+	}
+	
+	public void killMetric(String id) {
+		MetricAction metricAction = metricActionsIdMap.get(id);
+		metricAction.kill();
+		Future<MetricAction> future = metricActionsIdFuturesMap.get(id);
+		metricActionsStateMap.put(id, false);
+		future.cancel(true);
 	}
 
 	public void createMetricActions() {
@@ -143,9 +148,13 @@ public class Coordinator {
 
 	public static void main(String[] args) throws IOException,
 			InterruptedException {
-		String configLocation = args[0];
-		Config config = ConfigFactory.parseFile(new File(configLocation));
 		Coordinator coordinator = new Coordinator();
+		String configLocation = "/home/venkat/git/Distiller/Distiller-server/src/main/resources/distiller.conf";
+		System.out.println(configLocation);
+		Config config = ConfigFactory.parseFile(new File(configLocation));
+		if (config == null) {
+			System.out.println("Config not loaded properly");
+		}
 		coordinator.createMetricConfigs(config);
 		List<MetricConfig> metricConfigs = coordinator.getMetricConfigs();
 
@@ -165,15 +174,22 @@ public class Coordinator {
 				+ coordinator.getMetricActionsIdMap());
 		coordinator.start();
 
-		//TimeUnit.SECONDS.sleep(3);
+		// TimeUnit.SECONDS.sleep(3);
 
 		String id = "Metric 1";
 
 		TimeUnit.SECONDS.sleep(3);
-		System.out.println("Going to stop metric " + id);
 		coordinator.stopMetric(id);
 		TimeUnit.SECONDS.sleep(3);
-		System.out.println("Going to resume metric " + id);
 		coordinator.startMetric(id);
+		TimeUnit.SECONDS.sleep(3);
+		coordinator.stopMetric("Metric 2");
+		TimeUnit.SECONDS.sleep(3);
+		coordinator.startMetric("Metric 2");
+		TimeUnit.SECONDS.sleep(3);
+		coordinator.killMetric("Metric 1");
+		TimeUnit.SECONDS.sleep(3);
+		coordinator.killMetric("Metric 2");
+		coordinator.executor.shutdown();
 	}
 }
