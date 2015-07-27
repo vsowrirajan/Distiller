@@ -15,33 +15,48 @@ public class SubscriptionRecordQueue implements RecordQueue {
 	private int maxQueueLength;
 
 	private List<Record> subscriptionRecordQueue;
-	private ConcurrentHashMap<String, Integer> subscribers, producers;
+	private ConcurrentHashMap<String, Integer> consumers, producers;
 	private static Object lock = new Object();
 	private static Object valueAdded = new Object();
 
 	public SubscriptionRecordQueue(String id, int maxQueueLength) {
-		this.subscribers = new ConcurrentHashMap<String, Integer>(10, 0.75f, 4);
+		this.consumers = new ConcurrentHashMap<String, Integer>(10, 0.75f, 4);
 		this.producers = new ConcurrentHashMap<String, Integer>(10, 0.75f, 4);
 		this.subscriptionRecordQueue = Collections
 				.synchronizedList(new ArrayList<Record>(maxQueueLength));
 		this.maxQueueLength = maxQueueLength;
-		this.id = id + ":SubRecQ";
+		this.id = id;
+	}
+	
+	public int maxQueueSize(){
+		return maxQueueLength;
+	}
+	public String getQueueName(){
+		return id;
+	}
+	
+	public boolean hasConsumer(String name){
+		return consumers.containsKey(name);
+	}
+	
+	public boolean hasProducer(String name){
+		return producers.containsKey(name);
 	}
 
-	public boolean subscribe(String subscriber) {
-		if (subscriber == null || subscriber.equals("")) {
+	public boolean registerConsumer(String consumer) {
+		if (consumer == null || consumer.equals("")) {
 			System.err
 					.println("ERROR: Subscription request received for null subscriber name.");
 			return false;
 		}
 		synchronized (lock) {
-			if (!subscribers.containsKey(subscriber)) {
-				subscribers.put(subscriber, new Integer(0));
+			if (!consumers.containsKey(consumer)) {
+				consumers.put(consumer, new Integer(0));
 				return true;
 			} else {
 				System.err
 						.println("ERROR: Duplicate subscription request received for "
-								+ subscriber);
+								+ consumer);
 			}
 		}
 		return false;
@@ -66,15 +81,21 @@ public class SubscriptionRecordQueue implements RecordQueue {
 		return false;
 	}
 
-	public void unregisterProducer(String producer) {
+	public boolean unregisterProducer(String producer) {
 		synchronized (lock) {
+			if(!producers.containsKey(producer))
+				return false;
 			producers.remove(producer);
+			return true;
 		}
 	}
 
-	public void unsubscribe(String subscriber) {
+	public boolean unregisterConsumer(String consumer) {
 		synchronized (lock) {
-			subscribers.remove(subscriber);
+			if(!consumers.containsKey(consumer))
+				return false;
+			consumers.remove(consumer);
+			return true;
 		}
 	}
 
@@ -99,10 +120,10 @@ public class SubscriptionRecordQueue implements RecordQueue {
 
 	public String[] listConsumers() {
 		synchronized (lock) {
-			String[] ret = new String[subscribers.size()];
-			Iterator<Map.Entry<String, Integer>> i = subscribers.entrySet()
+			String[] ret = new String[consumers.size()];
+			Iterator<Map.Entry<String, Integer>> i = consumers.entrySet()
 					.iterator();
-			for (int x = 0; x < subscribers.size(); x++) {
+			for (int x = 0; x < consumers.size(); x++) {
 				Map.Entry<String, Integer> pair = (Map.Entry<String, Integer>) i
 						.next();
 				ret[x] = pair.getKey();
@@ -112,14 +133,14 @@ public class SubscriptionRecordQueue implements RecordQueue {
 		}
 	}
 
-	public String printRecords() {
+	public String printRecords(String consumerName) {
 		String records = "";
 		synchronized (lock) {
 			if (subscriptionRecordQueue.size() > 100) {
 				System.err
 						.println("Request to print all records will limit results to 100 as queue size is "
 								+ subscriptionRecordQueue.size());
-				return printNewestRecords(100);
+				return printNewestRecords(consumerName, 100);
 			}
 			ListIterator<Record> i = subscriptionRecordQueue.listIterator();
 			while (i.hasNext()) {
@@ -129,12 +150,15 @@ public class SubscriptionRecordQueue implements RecordQueue {
 		return records;
 	}
 
-	public String printNewestRecords(int numRecords) {
+	public String printNewestRecords(String consumerName, int numRecords) {
 		String records = "";
 		synchronized (lock) {
 			if (numRecords > subscriptionRecordQueue.size()) {
 				numRecords = subscriptionRecordQueue.size();
 			}
+			int consumerPosition = consumers.get(consumerName).intValue();
+			if(subscriptionRecordQueue.size() - consumerPosition > numRecords)
+				numRecords = subscriptionRecordQueue.size() - consumerPosition;
 			ListIterator<Record> i = subscriptionRecordQueue
 					.listIterator(subscriptionRecordQueue.size() - numRecords);
 			for (int x = 0; x < numRecords; x++) {
@@ -227,7 +251,9 @@ public class SubscriptionRecordQueue implements RecordQueue {
 		return null;
 	}
 
-	public boolean put(Record record) {
+	public boolean put(String producerName, Record record) {
+		if(!producers.containsKey(producerName))
+			return false;
 		synchronized (lock) {
 			if (subscriptionRecordQueue.size() == maxQueueLength) {
 				int positionToRemove = (maxQueueLength / 2);
@@ -236,7 +262,7 @@ public class SubscriptionRecordQueue implements RecordQueue {
 								+ " DEBUG: "
 								+ id
 								+ " Request received to add element to full queue, dropping record from the middle of the queue.");
-				Iterator<Map.Entry<String, Integer>> iterator = subscribers
+				Iterator<Map.Entry<String, Integer>> iterator = consumers
 						.entrySet().iterator();
 				while (iterator.hasNext()) {
 					Map.Entry<String, Integer> pair = (Map.Entry<String, Integer>) iterator
@@ -244,7 +270,7 @@ public class SubscriptionRecordQueue implements RecordQueue {
 					if (((Integer) pair.getValue()).intValue() > positionToRemove) {
 						Integer newPosition = new Integer(
 								((Integer) pair.getValue()).intValue() - 1);
-						subscribers.put((String) pair.getKey(), newPosition);
+						consumers.put((String) pair.getKey(), newPosition);
 					} else {
 						System.err
 								.println(System.currentTimeMillis()
@@ -269,7 +295,21 @@ public class SubscriptionRecordQueue implements RecordQueue {
 	}
 
 	public Record get() {
-		return null;
+		int waitTime=10;
+		while(true){
+			synchronized(lock) {
+				if(subscriptionRecordQueue.size()>0)
+					return subscriptionRecordQueue.get(0);	
+			}
+			try {
+				synchronized (valueAdded) {
+					valueAdded.wait(waitTime);
+					if (waitTime < 1000) {
+						waitTime *= 10;
+					}
+				}
+			} catch (Exception e) {}
+		}
 	}
 
 	public Record get(String subscriberName) {
@@ -277,10 +317,13 @@ public class SubscriptionRecordQueue implements RecordQueue {
 		boolean needToWaitForRecord = false;
 		int waitTime = 10;
 		Record record = null;
+		if(subscriberName==null || subscriberName.equals("")){
+			return get();
+		}
 		while (!getComplete) {
 			// Synchronize on lock for reading/writing SubscriberQueue contents.
 			synchronized (lock) {
-				int positionToRead = subscribers.get(subscriberName).intValue();
+				int positionToRead = consumers.get(subscriberName).intValue();
 				// Check if we can read a value based on queue size and
 				// subscriber position.
 				if (positionToRead == maxQueueLength
@@ -291,13 +334,13 @@ public class SubscriptionRecordQueue implements RecordQueue {
 				} else {
 					record = subscriptionRecordQueue.get(positionToRead);
 					positionToRead++;
-					subscribers
+					consumers
 							.put(subscriberName, new Integer(positionToRead));
 					// Check if we can delete the element at the front of the
 					// queue.
 					if (positionToRead == 1) {
 						boolean canDrop = true;
-						Iterator<Map.Entry<String, Integer>> i = subscribers
+						Iterator<Map.Entry<String, Integer>> i = consumers
 								.entrySet().iterator();
 						while (i.hasNext()) {
 							Map.Entry<String, Integer> pair = (Map.Entry<String, Integer>) i
@@ -309,14 +352,14 @@ public class SubscriptionRecordQueue implements RecordQueue {
 						}
 						if (canDrop) {
 							subscriptionRecordQueue.remove(0);
-							i = subscribers.entrySet().iterator();
+							i = consumers.entrySet().iterator();
 							while (i.hasNext()) {
 								Map.Entry<String, Integer> pair = (Map.Entry<String, Integer>) i
 										.next();
 								int newPosition = ((Integer) pair.getValue())
 										.intValue();
 								newPosition--;
-								subscribers.put((String) pair.getKey(),
+								consumers.put((String) pair.getKey(),
 										new Integer(newPosition));
 							}
 						}
@@ -332,9 +375,7 @@ public class SubscriptionRecordQueue implements RecordQueue {
 							waitTime *= 10;
 						}
 					}
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
+				} catch (Exception e) {}
 			}
 		}
 		return record;

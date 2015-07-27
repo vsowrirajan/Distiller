@@ -1,7 +1,5 @@
 package com.mapr.distiller.server.processors;
 
-import java.util.List;
-
 import com.mapr.distiller.server.recordtypes.SystemMemoryRecord;
 
 public class SystemMemoryRecordProcessor implements

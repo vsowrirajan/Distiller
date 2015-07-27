@@ -85,9 +85,9 @@ public class ProcessResourceRecord extends Record {
 	/**
 	 * PRODUCE RECORD METHODS
 	 */
-	public static boolean produceRecord(RecordQueue process_resources, String path, int clockTick){
+	public static boolean produceRecord(RecordQueue process_resources, String producerName, String path, int clockTick){
 		try{
-			process_resources.put(new ProcessResourceRecord(path, clockTick));
+			process_resources.put(producerName, new ProcessResourceRecord(path, clockTick));
 		} catch (Exception e) {
 			System.err.println("Failed to generate a ProcessResourceRecord");
 			e.printStackTrace();

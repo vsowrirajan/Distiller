@@ -1,10 +1,9 @@
 package com.mapr.distiller.server.producers.raw;
 
 import java.util.Collections;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.TreeSet;
+import java.util.NoSuchElementException;
+import java.util.Iterator;
 import java.io.File;
 import java.net.NetworkInterface;
 import java.lang.Integer;
@@ -23,7 +22,8 @@ import com.mapr.distiller.server.recordtypes.ThreadResourceRecord;
 import com.mapr.distiller.server.scheduler.GatherMetricEvent;
 import com.mapr.distiller.server.scheduler.MetricEventComparator;
 import com.mapr.distiller.server.queues.RecordQueue;
-import com.mapr.distiller.server.queues.SubscriptionRecordQueue;
+import com.mapr.distiller.server.queues.RecordQueueManager;
+import com.mapr.distiller.server.datatypes.ProcMetricDescriptorManager;
 
 public class ProcRecordProducer extends Thread {
 	//This should be set true when ProcRecordProducer thread should exit.
@@ -35,360 +35,350 @@ public class ProcRecordProducer extends Thread {
 	//The number of clock ticks (jiffies) per second.  Typically 100 but custom kernels can be compiled otherwise
 	private int clockTick;
 	
-	//The length of time, in milliseconds, represented by a single clock tick (jiffy). Typically 10ms
-	private Double clockTickms;
-	
-	//Mapping for RecordQueues to their names
-	private ConcurrentHashMap<String, RecordQueue> nameToRecordQueueMap;
+	//RecordQueueManager for the output RecordQueues that will be used by ProcRecordProducer when it has metrics enabled
+	private RecordQueueManager queueManager;
 	
 	//When there is a failure gathering a metric, wait for this many milliseconds before trying again
 	private long GATHER_METRIC_RETRY_INTERVAL = 1000l;
-
-	//RecordQueues to hold output records for all the different types of metrics this RecordProducer can produce
-	private SubscriptionRecordQueue cpu_system = null, 			//Queue for "cpu.system" raw metrics, sourced from /proc/stat
-									disk_system = null, 		//Queue for "disk.system" raw metrics, sourced from /proc/diskstats
-									memory_system = null, 		//Queue for "memory.system" raw metrics, sourced from /proc/vmstat and /proc/meminfo
-									network_interfaces = null,	//Queue for "network.interfaces" raw metrics, sourced from /sys/class/net/<iface>
-									process_resources = null,	//Queue for "process.resources" raw metrics, sourced from /proc/[pid]/stat
-									thread_resources = null,	//Queue for "thread.resources" raw metrics, sourced from /proc/[pid]/task/[tid]/stat
-									tcp_connection_stats = null;//Queue for "tcp.connection.stats" raw metrics, sourced from /proc/net/tcp and /proc/[pid]/fd/*
 	
-	public ProcRecordProducer(ConcurrentHashMap<String, RecordQueue> nameToRecordQueueMap, ConcurrentHashMap<String, Integer> rawMetricList) {
+	//Manages the list of enabled ProcRecordProducer metrics
+	private ProcMetricDescriptorManager enabledMetricManager;
+	
+	public ProcRecordProducer(RecordQueueManager queueManager) {
 		//setClockTick();
-		this.nameToRecordQueueMap = nameToRecordQueueMap;
-		Iterator<Map.Entry<String, Integer>> i = rawMetricList.entrySet().iterator();
-		if(!i.hasNext()){
-			System.err.println("No metrics requested from ProcRecordProducer");
-		}
-		while(i.hasNext()) {
-			Map.Entry<String, Integer> pair = (Map.Entry<String, Integer>)i.next();
-			String metricName = pair.getKey();
-			int periodicity = pair.getValue().intValue();
-			
-			if(metricName.equals("cpu.system")){
-				if(!initialize_cpu_system(periodicity)){
-					System.err.println("Failed to initialize cpu.system metric");
-					System.exit(1);
-				}
-			} else if (metricName.equals("disk.system")){
-				if(!initialize_disk(periodicity)) {
-					System.err.println("Failed to initialize disk.system metric");
-					System.exit(1);
-				}
-			} else if (metricName.equals("memory.system")){
-				if(!initialize_memory_system(periodicity)) {
-					System.err.println("Failed to initialize memory.system metric");
-					System.exit(1);
-				}
-			} else if (metricName.equals("network.interfaces")) {
-				if(!initialize_network_interfaces(periodicity)) {
-					System.err.println("Failed to initialize network.interfaces metric");
-					System.exit(1);
-				}
-			} else if (metricName.equals("process.resources")) {
-				if(!initialize_process_resources(periodicity)) {
-					System.err.println("Failed to initialize process.resources metric");
-					System.exit(1);
-				}
-			} else if (metricName.equals("thread.resources")) {
-				if(!initialize_thread_resources(periodicity)) {
-					System.err.println("Failed to initialize process.resources metric");
-					System.exit(1);
-				}
-			} else if (metricName.equals("tcp.connection.stats")) {
-				if(!initialize_tcp_connection_stats(periodicity)) {
-					System.err.println("Failed to initialize process.resources metric");
-					System.exit(1);
-				}
-			} else {
-				System.err.println("Request received to gather an unknown metric: " + metricName);
-			}
-			System.err.println("Received request to gather metric " + metricName + " with periodicity " + periodicity + " ms");
-		}
-		
+		this.queueManager = queueManager;
+		this.enabledMetricManager = new ProcMetricDescriptorManager();
 	}
 	public void run() {
 		long timeSpentCollectingMetrics=0l;
 		long tStartTime = System.currentTimeMillis();
-		
+		long actionStartTime;
+		GatherMetricEvent event = null;
 		//Keep trying to generate requested metrics until explicitly requested to exit
 		while(!shouldExit){
-			//Read the next scheduled event from the schedule;
-			GatherMetricEvent event = metricSchedule.first();
-			
-			//Check how long until the event is supposed to be executed
-			//The time member in the GatherMetricEvent indicates the time at which the metric was last gathered
-			//The periodicity member indicates how long we try to wait (in ms) in between rounds of gathering the metric
-			//The time the metric should be gathered next is equal to the time the metric was last gathered (event.time) plus the 
-			//the periodicity.  Therefore the time we need to sleep can be calcaulted by substracting the time now from that target time
-			long actionStartTime = System.currentTimeMillis();
-			long sleepTime = event.getTargetTime() - actionStartTime;
+			//We need to check whats in metricSchedule, so synchronize on it since other threads might be modifying it at the same time
+			boolean waitingForMetrics=true;
+			while(waitingForMetrics){
+				synchronized(metricSchedule){
+					//Read the next scheduled event from the schedule;
+					try {
+						event = metricSchedule.first();
+						waitingForMetrics = false;
+					} catch (NoSuchElementException e){}
+				}
+				//If there were no metrics in the schedule, sleep for a second
+				if(waitingForMetrics){
+					try{
+						Thread.sleep(1000);
+					} catch (Exception e) {}
+				}
+			}
 			
 			//If the time until the event should be executed is greater than 1 second from now, then sleep for a second and check again
-			//TThis is useful when new metrics need to be gathered.  A new metric that needs to be gathered will have it's first sample
+			//This is useful when new metrics need to be gathered.  A new metric that needs to be gathered will have it's first sample
 			//gathered with a delay of 1 second at most.
 			//In contrast, if we didn't do this, if we were gathering metricA on a 5 second period, and right after we gathered metricA, we registered
 			//metricB with 1 second period, then metricB wouldn't get serviced until about 5 seconds, after we service metricA.  
-			if(sleepTime > 1000) {
+			if(event.getTargetTime() - System.currentTimeMillis() > 1000) {
 				try{
 					Thread.sleep(1000);
-				} catch (Exception e) {
-					System.err.println("interrupted while sleeping in ProcRecordProducer");
-					e.printStackTrace();
-				}
-			//If the time until the metric is supposed to gathered is <=1 second
-			} else {			
-				//Remove the metric event from the schedule since we will re-add it with an updated time once it's been gathered this iteration
-				metricSchedule.remove(event);
-				
-				//Sleep until it's time to gather the metric
-				if(sleepTime > 0l){
-					try{
-						Thread.sleep(sleepTime);
-					} catch (Exception e) {
-						System.err.println("interrupted while sleeping in ProcRecordProducer");
-						e.printStackTrace();
+				} catch (Exception e) {}
+			//We might have a metric to gather within the next 1 second, there is no backing out at this point, the metric must be collected
+			} else {	
+				//We may need to modify the metric schedule, so synchronize on it
+				synchronized(metricSchedule){
+					//Check the next metric to gather in the schedule
+					event = metricSchedule.first();
+					//If the metric should be gathered within the next 1 second, then commit to gathering it this iteration.
+					if(event.getTargetTime() - System.currentTimeMillis() <= 1000){
+						//Track if we are able to gather the metric
+						boolean gatheredMetric = false;
+						
+						//Sleep until it's time to gather the metric
+						try {
+							Thread.sleep(event.getTargetTime() - System.currentTimeMillis());
+						} catch (Exception e) {}
+						if(event.getTargetTime() <= System.currentTimeMillis()){
+							actionStartTime = System.currentTimeMillis();
+							try {
+								//It's time to gather the metric...
+								if(event.getMetricName().equals("Diskstat"))
+									//Try to produce the record into the output queue
+									gatheredMetric = generateDiskstatRecords(queueManager.getQueue(event.getQueueName()), event.getProducerName());
+								else if(event.getMetricName().equals("NetworkInterface"))
+									gatheredMetric = generateNetworkInterfaceRecords(queueManager.getQueue(event.getQueueName()), event.getProducerName());
+								else if(event.getMetricName().equals("ProcessResource"))
+									gatheredMetric = generateProcessResourceRecords(queueManager.getQueue(event.getQueueName()), event.getProducerName());
+								else if(event.getMetricName().equals("SystemCpu"))
+									gatheredMetric = generateSystemCpuRecord(queueManager.getQueue(event.getQueueName()), event.getProducerName());
+								else if (event.getMetricName().equals("SystemMemory"))
+									gatheredMetric = generateSystemMemoryRecord(queueManager.getQueue(event.getQueueName()), event.getProducerName());
+								else if (event.getMetricName().equals("TcpConnectionStat"))
+									gatheredMetric = generateTcpConnectionStatRecords(queueManager.getQueue(event.getQueueName()), event.getProducerName());
+								else if (event.getMetricName().equals("ThreadResource"))
+									gatheredMetric = generateThreadResourceRecords(queueManager.getQueue(event.getQueueName()), event.getProducerName());
+								else 
+									throw new Exception("GatherMetricEvent for unknown metric type:" + event.getMetricName());
+							} catch (Exception e) {
+								System.err.println("ProcRecordProducer: Caught an exception while gathering metric " + event.getMetricName());
+								e.printStackTrace();
+								gatheredMetric = false;
+							}
+							//Now that we've tried to gather the metric, we can remove the event from the schedule, regardless of whether we were successful
+							metricSchedule.remove(metricSchedule.first());
+							//If we failed to gather the metric...
+							if(!gatheredMetric)
+								//If the retry interval is less than the periodicity then try again after the retry interval has elapsed
+								if (GATHER_METRIC_RETRY_INTERVAL < event.getPeriodicity())
+									event.setTargetTime(event.getTargetTime() + GATHER_METRIC_RETRY_INTERVAL);
+								//Otherwise, try again after the periodicity has elapsed
+								else 
+									event.setTargetTime(event.getTargetTime() + event.getPeriodicity());
+							//If we successfully gathered the metric
+							else {
+								event.setPreviousTime(actionStartTime);
+								event.setTargetTime(event.getTargetTime() + event.getPeriodicity());
+							}
+							//Stuff happens and it's possible that we can't gather a metric in a reasonable amount of time, sometimes or all the time.
+							//So rather than allowing this to spin at 100% CPU, we should insert a delay in gathering a given metric if the time at which
+							//we want to gather the metric next to keep on schedule with periodicity is less than the current time.
+							if(event.getTargetTime() <= System.currentTimeMillis())
+								event.setTargetTime(System.currentTimeMillis() + event.getPeriodicity());
+							//Add the event back on to the schedule with the new target time.
+							metricSchedule.add(event);
+							timeSpentCollectingMetrics += System.currentTimeMillis() - actionStartTime;
+							long elapsedTime = System.currentTimeMillis() - tStartTime;
+							System.err.println("Running for " + timeSpentCollectingMetrics + " ms out of " + elapsedTime + " ms, " + (100 * timeSpentCollectingMetrics / elapsedTime));
+							if(elapsedTime > 60000l) {
+								timeSpentCollectingMetrics=0l;
+								tStartTime = System.currentTimeMillis();
+							}
+						}
 					}
-				}
-				
-				actionStartTime = System.currentTimeMillis();
-				//Gather the specific metric type
-				
-				/**
-				 * Eventually, in this section of code, we should group together metrics that are gathered with periodicities that are
-				 * identical or factors of each other.  E.g. if cpu.system is to be gathered once a second and process.resources to be
-				 * gathered once every two seconds, we should schedule them such that at t=1 we gather cpu.system, at t=2 we gather
-				 * cpu.system and cpu.resources
-				 */
-				if(event.getMetricName().equals("cpu.system")){	
-					//If we successfully gather the record
-					if(generateSystemCpuRecord(event.getPreviousTime(), actionStartTime)){
-						//Update the event with the time we gathered the metric and the new target time
-						event.setPreviousTime(actionStartTime);
-						event.setTargetTime(actionStartTime + event.getPeriodicity());
-					//If we failed to gather the record
-					} else {
-						//Schedule another attempt to gather the metric after the GATHER_METRIC_RETRY_INTERVAL
-						System.err.println("Failed to generate cpu.system metric");
-						event.setTargetTime(actionStartTime + GATHER_METRIC_RETRY_INTERVAL);
-					}
-					metricSchedule.add(event);
-				} else if (event.getMetricName().equals("disk.system")) {
-					if(generateDiskRecord(event.getPreviousTime(), actionStartTime)){
-						event.setPreviousTime(actionStartTime);
-						event.setTargetTime(actionStartTime + event.getPeriodicity());
-					} else {
-						System.err.println("Failed to generate disk.system metric");
-						event.setTargetTime(actionStartTime + GATHER_METRIC_RETRY_INTERVAL);
-					}
-					metricSchedule.add(event);
-				} else if (event.getMetricName().equals("memory.system")) {
-					if(generateSystemMemoryRecord(event.getPreviousTime(), actionStartTime)){
-						event.setPreviousTime(actionStartTime);
-						event.setTargetTime(actionStartTime + event.getPeriodicity());
-					} else {
-						System.err.println("Failed to generate memory.system metric");
-						event.setTargetTime(actionStartTime + GATHER_METRIC_RETRY_INTERVAL);
-					}
-					metricSchedule.add(event);
-				} else if (event.getMetricName().equals("network.interfaces")) {
-					if(generateNetworkInterfaceRecords(event.getPreviousTime(), actionStartTime)){
-						event.setPreviousTime(actionStartTime);
-						event.setTargetTime(actionStartTime + event.getPeriodicity());
-					} else {
-						System.err.println("Failed to generate network.interfaces metric");
-						event.setTargetTime(actionStartTime + GATHER_METRIC_RETRY_INTERVAL);
-					}
-					metricSchedule.add(event);
-				} else if (event.getMetricName().equals("process.resources")) {
-					if(generateProcessResourceRecords(event.getPreviousTime(), actionStartTime)){
-						event.setPreviousTime(actionStartTime);
-						event.setTargetTime(actionStartTime + event.getPeriodicity());
-					} else {
-						System.err.println("Failed to generate process.resources metric");
-						event.setTargetTime(actionStartTime + GATHER_METRIC_RETRY_INTERVAL);
-					}
-					metricSchedule.add(event);
-				} else if (event.getMetricName().equals("thread.resources")) {
-					if(generateThreadResourceRecords(event.getPreviousTime(), actionStartTime)){
-						event.setPreviousTime(actionStartTime);
-						event.setTargetTime(actionStartTime + event.getPeriodicity());
-					} else {
-						System.err.println("Failed to generate thread.resources metric");
-						event.setTargetTime(actionStartTime + GATHER_METRIC_RETRY_INTERVAL);
-					}
-					metricSchedule.add(event);
-				} else if (event.getMetricName().equals("tcp.connection.stats")) {
-					if(generateTcpConnectionStatRecords(event.getPreviousTime(), actionStartTime)){
-						event.setPreviousTime(actionStartTime);
-						event.setTargetTime(actionStartTime + event.getPeriodicity());
-					} else {
-						System.err.println("Failed to generate tcp.connection.stats metric");
-						event.setTargetTime(actionStartTime + GATHER_METRIC_RETRY_INTERVAL);
-					}
-					metricSchedule.add(event);
-				} else {
-					System.err.println("Request to gather an unknown metric type: " + event.getMetricName());
-				}
-				timeSpentCollectingMetrics += System.currentTimeMillis() - actionStartTime;
-				long elapsedTime = System.currentTimeMillis() - tStartTime;
-				System.err.println("Running for " + timeSpentCollectingMetrics + " ms out of " + elapsedTime + " ms, " + (100 * timeSpentCollectingMetrics / elapsedTime));
-				if(elapsedTime > 60000l) {
-					timeSpentCollectingMetrics=0l;
-					tStartTime = System.currentTimeMillis();
 				}
 			}
 		}
-		
-		//Time to shut down
-		//cpu_system.unregisterProducer("/proc");
+		//TODO: Do some shutdown stuff here...
 	}
 
-	//We shouldn't be creating the record queue here.  Metrics should be able to dynamically be turned on/off, so we should check if
-	//this queue already exists and re-use it if possible, and also ensure it's not already being produced into by some other producer.
-	private boolean initialize_thread_resources(int periodicity){
-		thread_resources = new SubscriptionRecordQueue("thread.resources", 131072);					//Probably shouldn't do this here
-		thread_resources.registerProducer("/proc");
-		GatherMetricEvent event = new GatherMetricEvent(0l, 0l, "thread.resources", periodicity);
-		metricSchedule.add(event);
-		nameToRecordQueueMap.put("thread.resources",  thread_resources);							//Probably shouldn't do this here
-		return true;
+	public boolean isValidMetricName(String metricName){
+		if(metricName.equals("Diskstat") || metricName.equals("NetworkInterface") || metricName.equals("ProcessResource") ||
+				metricName.equals("SystemCpu") || metricName.equals("SystemMemory") || metricName.equals ("TcpConnectionStat") ||
+				metricName.equals("ThreadResource") )
+			return true;
+		return false;
 	}
-	private boolean generateThreadResourceRecords(long previousTime, long now){
-		long st = System.currentTimeMillis();
-		int outputRecordsGenerated=0;
-		try {
-			FilenameFilter fnFilter = new FilenameFilter() {
-				public boolean accept(File dir, String name) {
-					if(name.charAt(0) >= '1' && name.charAt(0) <= '9')
-						return true;
-					return false;
-				}
-			};
-			File ppFile = new File("/proc");
-			File[] pPaths = ppFile.listFiles(fnFilter);
-			//For each process in /proc
-			for (int pn = 0; pn<pPaths.length; pn++){
-				int ppid = Integer.parseInt(pPaths[pn].getName());
-				String taskPathStr = pPaths[pn].toString() + "/task";
-				
-				File tpFile = new File(taskPathStr);
-				File[] tPaths = tpFile.listFiles(fnFilter);
-				if(tPaths != null) {
-					for (int x=0; x<tPaths.length; x++){
-						String statPath = tPaths[x].toString() + "/stat";
-						if(ThreadResourceRecord.produceRecord(thread_resources, statPath, ppid, clockTick))
-							outputRecordsGenerated++;
+	
+	public boolean disableMetric(String metricName, String queueName, int periodicity, int queueCapacity){
+		String metricId = metricName + "#" + periodicity + "#" + System.identityHashCode(this);
+		synchronized(enabledMetricManager){
+			synchronized(queueManager){
+				synchronized(metricSchedule){
+					if(!enabledMetricManager.containsDescriptor(metricName, queueName, periodicity, queueCapacity))
+						return false;
+					if(!queueManager.queueExists(metricName))
+						return false;
+					if(!queueManager.checkForQueueProducer(queueName, metricId))
+						return false;
+					if(queueManager.getQueueCapacity(queueName) != queueCapacity)
+						return false;
+					Iterator<GatherMetricEvent> i = metricSchedule.iterator();
+					boolean foundEvent=false;
+					GatherMetricEvent e = null;
+					while(i.hasNext()){
+						e = i.next();
+						if(e.getMetricName() == metricName && e.getQueueName() == queueName && e.getProducerName() == metricId && e.getPeriodicity() == periodicity){
+							foundEvent=true;
+							break;
+						}
 					}
+					if(!foundEvent)
+						return false;
+					metricSchedule.remove(e);
+					queueManager.unregisterProducer(queueName, metricId);
+					//Note that if there are still consumers registered that the queue won't be deleted.
+					//Consumers should try to call deleteQueue when they stop consuming... I think...
+					queueManager.deleteQueue(queueName);
+					enabledMetricManager.removeDescriptor(metricName, queueName, periodicity, queueCapacity);
 				}
 			}
-		} catch(Exception e){e.printStackTrace();}	
-		//long dur = System.currentTimeMillis() - st;
-		//System.err.println("Generated " + outputRecordsGenerated + " thread output records in " + dur + " ms, " + ((double)outputRecordsGenerated / (double)dur));
-		return true;			
-	}
-	private boolean initialize_process_resources(int periodicity){
-		process_resources = new SubscriptionRecordQueue("process.resources", 131072);
-		process_resources.registerProducer("/proc");
-		GatherMetricEvent event = new GatherMetricEvent(0l, 0l, "process.resources", periodicity);
-		metricSchedule.add(event);
-		nameToRecordQueueMap.put("process.resources",  process_resources);
+		}
 		return true;
 	}
-	private boolean generateProcessResourceRecords(long previousTime, long now) {
-		long st = System.currentTimeMillis();
-		int outputRecordsGenerated=0;
+	//Request this instance of ProcRecordProducer to produce the named type of Record with the specified periodicity and insert the Records into the named RecordQueue
+	//This returns as long as the metric will be produced as requested.
+	//If for any reason the metric can not be produced as requested, then this throws an exception.
+    //When this throws an exception, the caller should presume that the requested metric will NOT be produced.
+    //The exception text will explain why the metric couldn't be produced as requested.
+	public void enableMetric(String metricName, String queueName, int periodicity, int queueCapacity) throws Exception{
+		boolean createdQueue=false;
 		
-		try {
-			FilenameFilter fnFilter = new FilenameFilter() {
-				public boolean accept(File dir, String name) {
-					if(name.charAt(0) >= '1' && name.charAt(0) <= '9')
-						return true;
-					return false;
-				}
-			};
-			File ppFile = new File("/proc");
-			File[] pPaths = ppFile.listFiles(fnFilter);
+		//Derive the ID to assign to the metric
+		//This ID string will show up as the producer name in the output queue
+		//The ID is unique to the instance ProcRecordProducer object, the metricName and the metric periodicity
+		//The ID is NOT unique to the queueCapacity or the queueName.  The reason for this, if we are already creating the metric at the requested periodicity, we should just force the caller to use the existing output queue where the records are going.
+		String metricId = metricName + "#" + periodicity + "#" + System.identityHashCode(this);
+		
+		//Throw an exception if we were given an invalid periodicity
+		if(periodicity < 1)
+			throw new Exception("Invalid periodicity:" + periodicity + " - Periodicity for metric must be greater than 0");
 			
-			//For each process in /proc
-			for (int pn = 0; pn<pPaths.length; pn++){
-				//Retrieve the process counters contained in /proc/[pid]/stat
-				if(ProcessResourceRecord.produceRecord(process_resources, pPaths[pn].toString() + "/stat", clockTick))
-					outputRecordsGenerated++;
-			}
-		} catch (Exception e) {}
-		//long dur = System.currentTimeMillis() - st;
-		//System.err.println("Generated " + outputRecordsGenerated + " process output records in " + dur + " ms, " + ((double)outputRecordsGenerated / (double)dur));
-		return true;
-	}
-	private boolean initialize_network_interfaces(int periodicity){
-		network_interfaces = new SubscriptionRecordQueue("network.interfaces", 600);
-		network_interfaces.registerProducer("/proc");
-		GatherMetricEvent event = new GatherMetricEvent(0l, 0l, "network.interfaces", periodicity);
-		metricSchedule.add(event);
-		nameToRecordQueueMap.put("network.interfaces",  network_interfaces);
-		return true;
-	}
-	private boolean generateNetworkInterfaceRecords(long previousTime, long now) {
-		try {
-			for (NetworkInterface i : Collections.list(NetworkInterface.getNetworkInterfaces())) {
-				if(i.getName().equals("lo")){
-					continue;
+		//Throw an exception if the name of the metric being requested is not valid
+		if(!isValidMetricName(metricName))
+			throw new Exception("Invalid metric name " + metricName);
+		
+		//Synchronize on the enabledMetricManager since we can not allow other threads to enable/disable the same metric concurrently
+		synchronized(enabledMetricManager){
+			//Return true if the metric is already being gathered
+			if(enabledMetricManager.containsDescriptor(metricName, queueName, periodicity, queueCapacity))
+				return;
+			//If we're here, this is a new metric being requested. (Though the same metric may currently be enabled, for instance, with an alternate periodicity)
+			//Synchronize on the name to RecordQueue manager so we can see if the requested output queue already exists, without other threads creating/deleting queues in the mean time
+			synchronized(queueManager){
+				//Check if the output queue exists
+				if(queueManager.queueExists(queueName)){
+					//The output queue already exists, check if we can re-use it.
+					//Check if it has the desired capacity
+					if(queueManager.getQueueCapacity(queueName) != queueCapacity)
+						throw new Exception("Requested to create queue " + queueName + " with capacity " + queueCapacity + " but queue already exists with capacity " + queueManager.getQueueCapacity(queueName));
+					//Check if there are existing producers for this queue
+					//In this case, I'm throwing an exception if something else is already producing into the queue
+					//But I'm not sure thats the right behavior
+					//I can't immediately discern that there are useful cases where we want this to produce into a queue something else is producing into at the same time
+					//I can think of scenarios where people make mistakes in the config and do this accidentally so I think I'd like to default to not allowing it
+					//If there is a legitimate need for it later then we will need to adjust this code.
+					if(queueManager.getQueueProducers(queueName).length != 0)
+						throw new Exception("Requested queue " + queueName + " for metric " + metricName + " already exists with " + queueManager.getQueueProducers(queueName).length + " registered producers");
+					//OK, queue already exists with requested capacity and it has no registered producers, we can reuse it.
+					//Of course, we did not check if there were existing consumers attached to the queue...
+					//A consumer might start getting a different type of record from this queue than it got before, one it doens't know how to understand.
+					//Hopefully consumers are written in such a way that they can notice and react to this gracefully somewhere in the call stack...
+				//In this case, the queue doesn't exist, so we should create it.
+				} else {
+					if(!queueManager.createQueue(queueName, queueCapacity, 1))
+						throw new Exception("RecordQueueManager failed to create queue " + queueName + " with capacity " + queueCapacity + " and 1 max producer");
+					createdQueue = true;
 				}
-				NetworkInterfaceRecord.produceRecord(network_interfaces, i.getName());
+				//Register ProcRecordProducer as the producer for the output RecordQueue
+				if(!queueManager.registerProducer(queueName, metricId)){
+					//We failed to register with the queue, try to delete it if we created it...
+					if(createdQueue)
+						if(!queueManager.deleteQueue(queueName)){
+							//This is bad, we created a queue a moment ago and are now failing to delete it...
+							if(queueManager.queueExists(queueName)){
+								//So it exists, we created it, but we can't delete it... log a scary error...
+								System.err.println("ERROR: Failed to cleanup queue " + queueName + " while attempting to enable metric " + metricName + ", the RecordQueueManager may be inconsistent.");
+								throw new Exception("Failed to enable metric due to unknown internal error");
+							}
+						}
+					throw new Exception("Failed to register as a producer for RecordQueue " + queueName + " with " + queueManager.getQueueProducers(queueName).length + " registered and " + queueManager.getMaxQueueProducers(queueName) + " max producers");
+				}
+				//Output RecordQueue is created and we are registered as the producer, now we add the metric to the schedule so it can be gathered.
+				GatherMetricEvent event = new GatherMetricEvent(0l, 0l, metricName, queueName, metricId, periodicity);
+				//Synchronize on metricSchedule since we don't want to allow other things 
+				synchronized(metricSchedule){
+					metricSchedule.add(event);
+				}
+				//Mark the metric as enabled
+				enabledMetricManager.addDescriptor(metricName, queueName, periodicity, queueCapacity);
+				//All done.  Metric is scheduled to be collected, output RecordQueue is created with requested settings and and this is registered as the producer.	
 			}
-		} catch (Exception e) {
-			System.err.println("Failed to list network interfaces");
-			e.printStackTrace();
-			return false;
 		}
-		return true;
 	}
-	private boolean initialize_memory_system(int periodicity){
-		memory_system = new SubscriptionRecordQueue("memory.system", 300);
-		memory_system.registerProducer("/proc");
-		GatherMetricEvent event = new GatherMetricEvent(0l, 0l, "memory.system", periodicity);
-		metricSchedule.add(event);
-		nameToRecordQueueMap.put("memory.system",  memory_system);
-		return true;
-	}	
-	private boolean generateSystemMemoryRecord(long previousTime, long now) {
-		return SystemMemoryRecord.produceRecord(memory_system);
-	}
-	private boolean initialize_disk(int periodicity){
-		disk_system = new SubscriptionRecordQueue("disk.system", 4096);
-		disk_system.registerProducer("/proc");
-		GatherMetricEvent event = new GatherMetricEvent(0l, 0l, "disk.system", periodicity);
-		metricSchedule.add(event);
-		nameToRecordQueueMap.put("disk.system", disk_system);
-		return true;
-	}
-	private boolean generateDiskRecord(long previousTime, long now) {
-		return DiskstatRecord.produceRecords(disk_system);
-	}
-	private boolean initialize_cpu_system(int periodicity){
-		cpu_system = new SubscriptionRecordQueue("cpu.system", 300);
-		cpu_system.registerProducer("/proc");
-		GatherMetricEvent event = new GatherMetricEvent(0l, 0l, "cpu.system", periodicity);
-		metricSchedule.add(event);
-		nameToRecordQueueMap.put("cpu.system", cpu_system);
-		return true;
-	}
-	private boolean generateSystemCpuRecord(long previousTime, long now) {
-		return SystemCpuRecord.produceRecord(cpu_system);
-	}
-	private boolean initialize_tcp_connection_stats(int periodicity){
-		tcp_connection_stats = new SubscriptionRecordQueue("tcp.connection.stats", 65536);
-		tcp_connection_stats.registerProducer("/proc");
-		GatherMetricEvent event = new GatherMetricEvent(0l, 0l, "tcp.connection.stats", periodicity);
-		metricSchedule.add(event);
-		nameToRecordQueueMap.put("tcp.connection.stats", tcp_connection_stats);
-		return true;
-	}
-	private boolean generateTcpConnectionStatRecords(long previousTime, long now) {
-		return TcpConnectionStatRecord.produceRecords(tcp_connection_stats);
 
+	private boolean generateThreadResourceRecords(RecordQueue outputQueue, String producerName){
+        long st = System.currentTimeMillis();
+        int outputRecordsGenerated=0;
+        try {
+                FilenameFilter fnFilter = new FilenameFilter() {
+                        public boolean accept(File dir, String name) {
+                                if(name.charAt(0) >= '1' && name.charAt(0) <= '9')
+                                        return true;
+                                return false;
+                        }
+                };
+                File ppFile = new File("/proc");
+                File[] pPaths = ppFile.listFiles(fnFilter);
+                //For each process in /proc
+                for (int pn = 0; pn<pPaths.length; pn++){
+                        int ppid = Integer.parseInt(pPaths[pn].getName());
+                        String taskPathStr = pPaths[pn].toString() + "/task";
+
+                        File tpFile = new File(taskPathStr);
+                        File[] tPaths = tpFile.listFiles(fnFilter);
+                        if(tPaths != null) {
+                                for (int x=0; x<tPaths.length; x++){
+                                        String statPath = tPaths[x].toString() + "/stat";
+                                        if(ThreadResourceRecord.produceRecord(outputQueue, producerName, statPath, ppid, clockTick))
+                                                outputRecordsGenerated++;
+                                }
+                        }
+                }
+        } catch(Exception e){e.printStackTrace();}
+        //long dur = System.currentTimeMillis() - st;
+        //System.err.println("Generated " + outputRecordsGenerated + " thread output records in " + dur + " ms, " + ((double)outputRecordsGenerated / (double)dur));
+        return true;
+}
+	
+	private boolean generateProcessResourceRecords(RecordQueue outputQueue, String producerName) {
+		long st = System.currentTimeMillis();
+        int outputRecordsGenerated=0;
+
+        try {
+                FilenameFilter fnFilter = new FilenameFilter() {
+                        public boolean accept(File dir, String name) {
+                                if(name.charAt(0) >= '1' && name.charAt(0) <= '9')
+                                        return true;
+                                return false;
+                        }
+                };
+                File ppFile = new File("/proc");
+                File[] pPaths = ppFile.listFiles(fnFilter);
+
+                //For each process in /proc
+                for (int pn = 0; pn<pPaths.length; pn++){
+                        //Retrieve the process counters contained in /proc/[pid]/stat
+                        if(ProcessResourceRecord.produceRecord(outputQueue, producerName, pPaths[pn].toString() + "/stat", clockTick))
+                                outputRecordsGenerated++;
+                }
+        } catch (Exception e) {}
+        //long dur = System.currentTimeMillis() - st;
+        //System.err.println("Generated " + outputRecordsGenerated + " process output records in " + dur + " ms, " + ((double)outputRecordsGenerated / (double)dur));
+        return true;
+}
+
+	private boolean generateNetworkInterfaceRecords(RecordQueue outputQueue, String producerName) {
+		try {
+                for (NetworkInterface i : Collections.list(NetworkInterface.getNetworkInterfaces())) {
+                        if(i.getName().equals("lo")){
+                                continue;
+                        }
+                        NetworkInterfaceRecord.produceRecord(outputQueue, producerName, i.getName());
+                }
+        } catch (Exception e) {
+                System.err.println("Failed to list network interfaces");
+                e.printStackTrace();
+                return false;
+        }
+        return true;
 	}
+
+	private boolean generateSystemMemoryRecord(RecordQueue outputQueue, String producerName) {
+		return SystemMemoryRecord.produceRecord(outputQueue, producerName);
+	}
+	
+	private boolean generateDiskstatRecords(RecordQueue outputQueue, String producerName) {
+		return DiskstatRecord.produceRecords(outputQueue, producerName);
+	}
+
+	private boolean generateSystemCpuRecord(RecordQueue outputQueue, String producerName) {
+		return SystemCpuRecord.produceRecord(outputQueue, producerName);
+	}
+
+	private boolean generateTcpConnectionStatRecords(RecordQueue outputQueue, String producerName) {
+		return TcpConnectionStatRecord.produceRecords(outputQueue, producerName);
+	}
+	
 	private void setClockTick(){
 		//CLK_TCK is needed to calculate CPU usage of threads/processes based on utime and stime fields which are measured in this unit
 		ProcessBuilder processBuilder = new ProcessBuilder(new String[]{"getconf", "CLK_TCK"});
@@ -413,7 +403,6 @@ public class ProcRecordProducer extends Thread {
 						System.err.println("Failed to retrieve sysconfig(\"CLK_TCK\")");
 						System.exit(1);
 					}
-					clockTickms = 1000d / (double)clockTick;
 				}
 			} catch (Exception e) {
 				System.err.println("Failed to read getconf output");
