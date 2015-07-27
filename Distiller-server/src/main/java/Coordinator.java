@@ -1,6 +1,5 @@
 import java.io.File;
 import java.io.IOException;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -13,6 +12,7 @@ import java.util.concurrent.TimeUnit;
 
 import com.mapr.distiller.server.metricactions.MetricAction;
 import com.mapr.distiller.server.metricactions.SystemCpuMetricAction;
+import com.mapr.distiller.server.metricactions.SystemMemoryMetricAction;
 import com.mapr.distiller.server.utils.MetricConfig;
 import com.mapr.distiller.server.utils.MetricConfig.MetricConfigBuilder;
 import com.typesafe.config.Config;
@@ -37,7 +37,7 @@ public class Coordinator {
 			String id = metricAction.getId();
 			metricActionsStateMap.put(id, true);
 			Future<?> future = executor.submit(metricAction);
-			metricActionsIdFuturesMap.put(id, (Future<MetricAction>) future);
+			metricActionsIdFuturesMap.put(id, ((Future<MetricAction>) future));
 		}
 	}
 
@@ -91,25 +91,44 @@ public class Coordinator {
 	}
 
 	public void startMetric(String id) {
-		MetricAction metricAction = metricActionsIdMap.get(id);
-		metricAction.resume();
-		metricActionsIdMap.put(id, metricAction);
-		metricActionsStateMap.put(id, true);
+		if (metricActionsIdMap.containsKey(id)) {
+			MetricAction metricAction = metricActionsIdMap.get(id);
+			metricAction.resume();
+			metricActionsIdMap.put(id, metricAction);
+			metricActionsStateMap.put(id, true);
+		}
+
+		else {
+			System.out.println("Not a valid id " + id);
+		}
 	}
 
 	public void stopMetric(String id) throws InterruptedException {
-		MetricAction metricAction = metricActionsIdMap.get(id);
-		metricAction.suspend();
-		metricActionsIdMap.put(id, metricAction);
-		metricActionsStateMap.put(id, false);
+		if (metricActionsIdMap.containsKey(id)) {
+			MetricAction metricAction = metricActionsIdMap.get(id);
+			metricAction.suspend();
+			metricActionsIdMap.put(id, metricAction);
+			metricActionsStateMap.put(id, false);
+		}
+
+		else {
+			System.out.println("Not a valid id " + id);
+		}
 	}
-	
+
 	public void killMetric(String id) {
-		MetricAction metricAction = metricActionsIdMap.get(id);
-		metricAction.kill();
-		Future<MetricAction> future = metricActionsIdFuturesMap.get(id);
-		metricActionsStateMap.put(id, false);
-		future.cancel(true);
+		if (metricActionsIdMap.containsKey(id)
+				&& metricActionsIdFuturesMap.containsKey(id)) {
+			MetricAction metricAction = metricActionsIdMap.get(id);
+			metricAction.kill();
+			Future<MetricAction> future = metricActionsIdFuturesMap.get(id);
+			metricActionsStateMap.put(id, false);
+			future.cancel(true);
+		}
+
+		else {
+			System.out.println("Not a valid id future not available " + id);
+		}
 	}
 
 	public void createMetricActions() {
@@ -127,7 +146,7 @@ public class Coordinator {
 			case "SystemMemoryRecord":
 				// Just a filler - Have to change this after implementing
 				// SystemMemoryAction
-				metricAction = SystemCpuMetricAction.getInstance(config);
+				metricAction = SystemMemoryMetricAction.getInstance(config);
 				this.metricActionsIdMap.put(metricAction.getId(), metricAction);
 				break;
 			default:
@@ -149,7 +168,7 @@ public class Coordinator {
 	public static void main(String[] args) throws IOException,
 			InterruptedException {
 		Coordinator coordinator = new Coordinator();
-		String configLocation = "/home/venkat/git/Distiller/Distiller-server/src/main/resources/distiller.conf";
+		String configLocation = "src/main/resources/distiller.conf";
 		System.out.println(configLocation);
 		Config config = ConfigFactory.parseFile(new File(configLocation));
 		if (config == null) {

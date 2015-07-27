@@ -2,26 +2,24 @@ package com.mapr.distiller.server.metricactions;
 
 import java.util.Map;
 
-import com.mapr.distiller.server.processors.SystemCpuRecordProcessor;
+import com.mapr.distiller.server.processors.SystemMemoryRecordProcessor;
 import com.mapr.distiller.server.queues.RecordQueue;
 import com.mapr.distiller.server.utils.MetricConfig;
 
-public class SystemCpuMetricAction extends MetricAction implements
-		MetricsSelectable {
+public class SystemMemoryMetricAction extends MetricAction implements MetricsSelectable {
+
 	Object object = new Object();
 
 	private RecordQueue inputQueue;
 	private RecordQueue outputQueue;
 	private String recordType;
 
-	private SystemCpuRecordProcessor recordProcessor;
+	private SystemMemoryRecordProcessor recordProcessor;
 
 	private String aggregationType;
 	private Map<String, String> aggregationMap;
 
-	private boolean shouldPersist;
-
-	public SystemCpuMetricAction(String id, String recordType,
+	public SystemMemoryMetricAction(String id, String recordType,
 			String aggregationType, Map<String, String> aggregationMap) {
 		super(id);
 		this.recordType = recordType;
@@ -31,8 +29,8 @@ public class SystemCpuMetricAction extends MetricAction implements
 	}
 
 	// We also need one more argument which has a RecordQueue map to their names
-	public static SystemCpuMetricAction getInstance(MetricConfig metricConfig) {
-		return new SystemCpuMetricAction(metricConfig.getId(),
+	public static SystemMemoryMetricAction getInstance(MetricConfig metricConfig) {
+		return new SystemMemoryMetricAction(metricConfig.getId(),
 				metricConfig.getRecordType(),
 				metricConfig.getAggregationType(),
 				metricConfig.getAggregationMap());
@@ -65,6 +63,7 @@ public class SystemCpuMetricAction extends MetricAction implements
 		}
 
 		System.out.println("Exiting Metric action due to kill action");
+
 	}
 
 	@Override
@@ -73,9 +72,9 @@ public class SystemCpuMetricAction extends MetricAction implements
 		if (isGathericMetric) {
 			isGathericMetric = false;
 		}
-
+		
 		else {
-			System.out.println("Already suspended metric " + id);
+			System.out.println("Already suspended metric "+id);
 		}
 	}
 
@@ -89,7 +88,7 @@ public class SystemCpuMetricAction extends MetricAction implements
 			}
 
 			else {
-				System.out.println("Already running Metric " + id);
+				System.out.println("Already running metric " + id);
 			}
 		}
 	}
