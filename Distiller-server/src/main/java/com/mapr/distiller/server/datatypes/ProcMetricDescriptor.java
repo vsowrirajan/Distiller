@@ -12,10 +12,10 @@ public class ProcMetricDescriptor {
 	}
 	
 	public boolean equals(ProcMetricDescriptor d){
-		return (metricName == d.metricName && queueName == d.queueName && periodicity == d.periodicity && queueCapacity == d.queueCapacity);
+		return (metricName.equals(d.metricName) && queueName.equals(d.queueName) && periodicity == d.periodicity && queueCapacity == d.queueCapacity);
 	}
 	
 	public boolean equals (String metricName, String queueName, int periodicity, int queueCapacity){
-		return (this.metricName == metricName && this.queueName == queueName && this.periodicity == periodicity && this.queueCapacity == queueCapacity);
+		return (this.metricName.equals(metricName) && this.queueName.equals(queueName) && this.periodicity == periodicity && this.queueCapacity == queueCapacity);
 	}
 }
