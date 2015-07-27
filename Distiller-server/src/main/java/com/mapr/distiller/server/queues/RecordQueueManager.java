@@ -73,7 +73,6 @@ public class RecordQueueManager {
 	public boolean checkForQueueProducer(String queueName, String producerName){
 		String[] producers = getQueueProducers(queueName);
 		for(int x=0; x<producers.length; x++){
-			System.out.println(queueName + " : " + producerName + " : " + producers[x]);
 			if(producers[x].equals(producerName))
 				return true;
 		}
