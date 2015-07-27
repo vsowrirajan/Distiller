@@ -45,7 +45,7 @@ public class RecordQueueManager {
 		while (it.hasNext()) {
 			Map.Entry<String, RecordQueue> pair = (Map.Entry<String, RecordQueue>) it
 					.next();
-			ret[pos] = (RecordQueue) pair.getValue();
+			ret[pos++] = (RecordQueue) pair.getValue();
 		}
 		return ret;
 	}
