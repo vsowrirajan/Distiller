@@ -45,7 +45,7 @@ public class RecordQueueManager {
 		while (it.hasNext()) {
 			Map.Entry<String, RecordQueue> pair = (Map.Entry<String, RecordQueue>) it
 					.next();
-			ret[pos] = (RecordQueue) pair.getValue();
+			ret[pos++] = (RecordQueue) pair.getValue();
 		}
 		return ret;
 	}
@@ -73,7 +73,7 @@ public class RecordQueueManager {
 	public boolean checkForQueueProducer(String queueName, String producerName){
 		String[] producers = getQueueProducers(queueName);
 		for(int x=0; x<producers.length; x++){
-			if(producers[x] == producerName)
+			if(producers[x].equals(producerName))
 				return true;
 		}
 		return false;
@@ -82,7 +82,7 @@ public class RecordQueueManager {
 	public boolean checkForQueueConsumer(String queueName, String consumerName){
 		String[] consumers = getQueueConsumers(queueName);
 		for(int x=0; x<consumers.length; x++){
-			if(consumers[x] == consumerName)
+			if(consumers[x].equals(consumerName))
 				return true;
 		}
 		return false;

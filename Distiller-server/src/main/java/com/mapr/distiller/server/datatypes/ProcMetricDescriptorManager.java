@@ -15,7 +15,7 @@ public class ProcMetricDescriptorManager {
 	public boolean containsMetricName(String metricName){
 		ListIterator<ProcMetricDescriptor> i = metricList.listIterator();
 		while(i.hasNext()){
-			if(i.next().metricName == metricName)
+			if(i.next().metricName.equals(metricName))
 				return true;
 		}
 		return false;

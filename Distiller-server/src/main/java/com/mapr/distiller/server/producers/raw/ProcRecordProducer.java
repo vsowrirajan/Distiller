@@ -89,15 +89,18 @@ public class ProcRecordProducer extends Thread {
 				synchronized(metricSchedule){
 					//Check the next metric to gather in the schedule
 					event = metricSchedule.first();
-					//If the metric should be gathered within the next 1 second, then commit to gathering it this iteration.
-					if(event.getTargetTime() - System.currentTimeMillis() <= 1000){
-						//Track if we are able to gather the metric
-						boolean gatheredMetric = false;
-						
-						//Sleep until it's time to gather the metric
-						try {
-							Thread.sleep(event.getTargetTime() - System.currentTimeMillis());
-						} catch (Exception e) {}
+				}
+				//If the metric should be gathered within the next 1 second, then commit to gathering it this iteration.
+				if(event.getTargetTime() - System.currentTimeMillis() <= 1000){
+					//Track if we are able to gather the metric
+					boolean gatheredMetric = false;
+					
+					//Sleep until it's time to gather the metric
+					try {
+						Thread.sleep(event.getTargetTime() - System.currentTimeMillis());
+					} catch (Exception e) {}
+					synchronized(metricSchedule){
+						event = metricSchedule.first();
 						if(event.getTargetTime() <= System.currentTimeMillis()){
 							actionStartTime = System.currentTimeMillis();
 							try {
@@ -176,7 +179,7 @@ public class ProcRecordProducer extends Thread {
 				synchronized(metricSchedule){
 					if(!enabledMetricManager.containsDescriptor(metricName, queueName, periodicity, queueCapacity))
 						return false;
-					if(!queueManager.queueExists(metricName))
+					if(!queueManager.queueExists(queueName))
 						return false;
 					if(!queueManager.checkForQueueProducer(queueName, metricId))
 						return false;
@@ -187,7 +190,7 @@ public class ProcRecordProducer extends Thread {
 					GatherMetricEvent e = null;
 					while(i.hasNext()){
 						e = i.next();
-						if(e.getMetricName() == metricName && e.getQueueName() == queueName && e.getProducerName() == metricId && e.getPeriodicity() == periodicity){
+						if(e.getMetricName().equals(metricName) && e.getQueueName().equals(queueName) && e.getProducerName().equals(metricId) && e.getPeriodicity() == periodicity){
 							foundEvent=true;
 							break;
 						}
