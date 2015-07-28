@@ -68,7 +68,7 @@ public class SystemCpuRecord extends Record {
 		}
 	}
 	public SystemCpuRecord(SystemCpuRecord rec1, SystemCpuRecord rec2) throws Exception {
-		if(rec1.getIdleCpuUtilPct()!=-1d || rec2.getIdleCpuUtilPct()!=-1d || rec1.getTimestamp()==-1l || rec2.getTimestamp()==-1l)
+		if(rec1.getIdleCpuUtilPct()!=-1d || rec2.getIdleCpuUtilPct()!=-1d || rec1.getPreviousTimestamp()!=-1l || rec2.getPreviousTimestamp()!=-1l)
 			throw new Exception("Differential SystemCpuRecord can only be generated from raw SystemCpuRecords");
 		if(rec1.getTimestamp() == rec2.getTimestamp())
 			throw new Exception("Can not generate differential SystemCpuRecord from input records with matching timestamp values");

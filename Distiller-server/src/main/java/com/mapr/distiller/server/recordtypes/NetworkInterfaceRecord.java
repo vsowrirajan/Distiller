@@ -100,7 +100,7 @@ public class NetworkInterfaceRecord extends Record {
 			String line = file.readLine();
 			return Integer.parseInt(line.trim().split("\\s+")[0]);
 		} catch (Exception e) {
-			throw new Exception("Caught an exception while reading BigInteger file " + path);
+			throw new Exception("Caught an exception while reading int file " + path);
 		} finally {
 			try{
 				file.close();
