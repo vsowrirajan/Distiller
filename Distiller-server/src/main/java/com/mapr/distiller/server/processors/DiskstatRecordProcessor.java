@@ -5,10 +5,18 @@ import com.mapr.distiller.server.recordtypes.DiskstatRecord;
 public class DiskstatRecordProcessor implements 
 		Thresholdable<DiskstatRecord>, MovingAverageable<DiskstatRecord> {
 	
+	public boolean isNotEqual(DiskstatRecord record, String metric,
+			String thresholdValue) throws Exception {
+		return !isEqual(record, metric, thresholdValue);
+	}
+	
 	public boolean isEqual(DiskstatRecord record, String metric,
 			String thresholdValue) throws Exception {
 
 		switch (metric) {
+		case "device_name":
+			return record.get_device_name().equals(thresholdValue);
+
 		case "averageOperationsInProgress":
 			if(record.getAverageOperationsInProgress() == -1d)
 				throw new Exception("Can not compare raw DiskstatRecord to value");

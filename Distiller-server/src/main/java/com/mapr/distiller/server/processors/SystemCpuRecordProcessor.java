@@ -5,6 +5,11 @@ import com.mapr.distiller.server.recordtypes.SystemCpuRecord;
 public class SystemCpuRecordProcessor implements
 		Thresholdable<SystemCpuRecord>, MovingAverageable<SystemCpuRecord> {
 
+	public boolean isNotEqual(SystemCpuRecord record, String metric,
+			String thresholdValue) throws Exception {
+		return !isEqual(record, metric, thresholdValue);
+	}
+
 	@Override
 	public boolean isEqual(SystemCpuRecord record, String metric,
 			String thresholdValue) throws Exception {

@@ -4,6 +4,12 @@ import com.mapr.distiller.server.recordtypes.SystemMemoryRecord;
 
 public class SystemMemoryRecordProcessor implements
 		Thresholdable<SystemMemoryRecord>, MovingAverageable<SystemMemoryRecord> {
+	
+	public boolean isNotEqual(SystemMemoryRecord record, String metric,
+			String thresholdValue) throws Exception {
+		return !isEqual(record, metric, thresholdValue);
+	}
+
 	@Override
 	public boolean isEqual(SystemMemoryRecord record, String metric,
 			String thresholdValue) throws Exception {

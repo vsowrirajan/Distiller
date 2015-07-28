@@ -11,4 +11,7 @@ public interface Thresholdable<T> {
 	
 	public boolean isEqual(T record, String metric,
 			String thresholdValue) throws Exception;
+	
+	public boolean isNotEqual(T record, String metric,
+			String thresholdValue) throws Exception;
 }
