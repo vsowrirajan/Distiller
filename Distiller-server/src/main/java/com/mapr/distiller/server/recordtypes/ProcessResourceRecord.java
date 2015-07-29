@@ -83,6 +83,7 @@ public class ProcessResourceRecord extends Record {
 		//This constructor takes "clockTick" which should be set to jiffies per second from kernel build (obtained in ProcRecordProducer)
 		super(System.currentTimeMillis());
 		this.clockTick = clockTick;
+		this.cpuUtilPct = -1d;
 		String[] parts = null;
 		int bs = 600; //600 bytes should be enough to hold contents of /proc/[pid]/stat or /proc/[pid]/task/[tid]/stat 
 		FileChannel fc = null;
