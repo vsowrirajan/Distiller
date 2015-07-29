@@ -12,17 +12,6 @@ public class ProcessResourceRecordProcessor implements
 		return !isEqual(record, metric, thresholdValue);
 	}
 	
-	private double cpuUtilPct;;
-	
-	/**
-	 * RAW VALUES
-	 */
-	private String comm;
-	private char state;
-	private int pid, ppid, pgrp, num_threads, clockTick;
-	private long starttime;
-	private BigInteger cguest_time, cmajflt, cminflt, cstime, cutime, delayacct_blkio_ticks, guest_time, majflt, minflt, rss, rsslim, stime, utime, vsize;
-	
 	public boolean isEqual(ProcessResourceRecord record, String metric,
 			String thresholdValue) throws Exception {
 
@@ -62,7 +51,7 @@ public class ProcessResourceRecordProcessor implements
 		
 		default:
 			throw new Exception("Metric " + metric
-					+ " is not Thresholdable in DiskstatRecord");
+					+ " is not Thresholdable in ProcessResourceRecord");
 		}
 	}
 
@@ -114,7 +103,7 @@ public class ProcessResourceRecordProcessor implements
 			
 		default:
 			throw new Exception("Metric " + metric
-					+ " is not Thresholdable in DiskstatRecord");
+					+ " is not Thresholdable in ProcessResourceRecord");
 		}
 	}
 
@@ -167,7 +156,7 @@ public class ProcessResourceRecordProcessor implements
 			
 		default:
 			throw new Exception("Metric " + metric
-					+ " is not Thresholdable in DiskstatRecord");
+					+ " is not Thresholdable in ProcessResourceRecord");
 		}
 	}
 

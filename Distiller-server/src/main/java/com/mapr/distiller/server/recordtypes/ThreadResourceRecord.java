@@ -11,7 +11,7 @@ public class ThreadResourceRecord extends Record {
 	/**
 	 * DERIVED VALUES
 	 */
-	//private Double cpuUtilPct = -1d;
+	private Double cpuUtilPct;
 	
 	/**
 	 * RAW VALUES
@@ -25,8 +25,51 @@ public class ThreadResourceRecord extends Record {
 	/**
 	 * CONSTRUCTORS
 	 */
+	public ThreadResourceRecord(ThreadResourceRecord rec1, ThreadResourceRecord rec2) throws Exception{
+		ThreadResourceRecord oldRecord, newRecord;
+		
+		//Check the input records to ensure they can be diff'd.
+		if(rec1.get_starttime() != rec2.get_starttime() || rec1.get_pid() != rec2.get_pid())
+			throw new Exception("Differential ProcessResourceRecord can only be generated from input records from the same process");
+		if(rec1.getCpuUtilPct()!=-1d || rec2.getCpuUtilPct()!=-1d || rec1.getPreviousTimestamp()!=-1l || rec2.getPreviousTimestamp()!=-1l)
+			throw new Exception("Differential ProcessResourceRecord can only be generated from raw ProcessResourceRecords");
+		if(rec1.getTimestamp() == rec2.getTimestamp())
+			throw new Exception("Can not generate differential ProcessResourceRecord from input records with matching timestamp values");
+		
+		//Organize the input records.
+		if(rec1.getTimestamp() < rec2.getTimestamp()){
+			oldRecord = rec1;
+			newRecord = rec2;
+		} else {
+			oldRecord = rec2;
+			newRecord = rec1;
+		}
+		
+		//Copied values:
+		this.setTimestamp(newRecord.getTimestamp());
+		this.setPreviousTimestamp(oldRecord.getTimestamp());
+		this.comm = newRecord.get_comm();
+		this.state = newRecord.get_state();
+		this.pid = newRecord.get_pid();
+		this.ppid = newRecord.get_ppid();
+		this.clockTick = newRecord.getClockTick();
+		this.starttime = newRecord.get_starttime();
+		
+		//Differential values:
+		this.delayacct_blkio_ticks = newRecord.get_delayacct_blkio_ticks().subtract(oldRecord.get_delayacct_blkio_ticks());
+		this.guest_time = newRecord.get_guest_time().subtract(oldRecord.get_guest_time());
+		this.majflt = newRecord.get_majflt().subtract(oldRecord.get_majflt());
+		this.minflt = newRecord.get_minflt().subtract(oldRecord.get_minflt());
+		this.stime = newRecord.get_stime().subtract(oldRecord.get_stime());
+		this.utime = newRecord.get_utime().subtract(oldRecord.get_utime());
+
+		//Derived values:
+		this.cpuUtilPct = this.utime.add(this.stime).doubleValue() / 					//The number of jiffies used by the process over the duration
+				(((double)(this.clockTick * this.getDurationms())) / 1000d);			//The number of jiffies that went by over the duration
+	}
 	public ThreadResourceRecord(String path, int ppid, int clockTick) throws Exception{
 		super(System.currentTimeMillis());
+		this.cpuUtilPct=-1d;
 		this.ppid = ppid;
 		this.clockTick = clockTick;
 		int bs = 600; //600 bytes should be enough to hold contents of /proc/[pid]/stat or /proc/[pid]/task/[tid]/stat 
@@ -84,78 +127,43 @@ public class ThreadResourceRecord extends Record {
 	public String toString(){
 		return super.toString() + " thread.resources: " + pid + " " + comm + " " + state + " " + ppid;
 	}
+	public String get_comm(){
+		return comm;
+	}
+	public char get_state(){
+		return state;
+	}
+	public int get_pid(){
+		return pid;
+	}
+	public int get_ppid(){
+		return ppid;
+	}
+	public int getClockTick(){
+		return clockTick;
+	}
+	public long get_starttime(){
+		return starttime;
+	}
+	public BigInteger get_delayacct_blkio_ticks(){
+		return delayacct_blkio_ticks;
+	}
+	public BigInteger get_guest_time(){
+		return guest_time;
+	}
+	public BigInteger get_majflt(){
+		return majflt;
+	}
+	public BigInteger get_minflt(){
+		return minflt;
+	}
+	public BigInteger get_stime(){
+		return stime;
+	}
+	public BigInteger get_utime(){
+		return utime;
+	}
+	public double getCpuUtilPct(){
+		return cpuUtilPct;
+	}
 }
-/**
-	public static ThreadResourceRecord diff(ThreadResourceRecord oldRecord, ThreadResourceRecord newRecord){
-		//This function should be called to diff ThreadResourceRecords when the clockTick field of those records is populated.
-		//If this is called against records without clockTick populated then no cpu utilization will be calculated (because we can't).
-		
-		//Only diff the records if they are from the same thread, as identified by the TID and starttime.
-		//This works under the assumption that the system is not able to cycle through all process IDs and reuse them within a single
-		//tick of the starttime clock
-		if(	oldRecord.pid != newRecord.pid 				||
-			oldRecord.starttime != newRecord.starttime 	)
-			return null;
-			
-		ThreadResourceRecord diffRecord = new ThreadResourceRecord(newRecord.timestamp, oldRecord.timestamp);
-		diffRecord.comm = newRecord.comm;
-		diffRecord.state = newRecord.state;
-		diffRecord.pid = newRecord.pid;
-		diffRecord.ppid = newRecord.ppid;
-		diffRecord.starttime = newRecord.starttime;
-		diffRecord.minflt = newRecord.minflt.subtract(oldRecord.minflt);
-		diffRecord.majflt = newRecord.majflt.subtract(oldRecord.majflt);
-		diffRecord.utime = newRecord.utime.subtract(oldRecord.utime);
-		diffRecord.stime = newRecord.stime.subtract(oldRecord.stime);
-		diffRecord.delayacct_blkio_ticks = newRecord.delayacct_blkio_ticks.subtract(oldRecord.delayacct_blkio_ticks);
-		diffRecord.guest_time = newRecord.guest_time.subtract(oldRecord.guest_time);
-		diffRecord.clockTick = newRecord.clockTick;
-		
-		//Derived values:
-		if(diffRecord.clockTick > 0){
-			diffRecord.cpuUtilPct = diffRecord.utime.add(diffRecord.stime).doubleValue() / 					//The amount of jiffies used by the process over the duration
-									(((double)(diffRecord.clockTick * diffRecord.durationms)) / 1000d);	//Divided by the amonut of jiffies that elapsed during the duration
-		} else {
-			diffRecord.cpuUtilPct = -1d;
-		}
-		return diffRecord;
-	}
-	public static ThreadResourceRecord diff(ThreadResourceRecord oldRecord, ThreadResourceRecord newRecord, int clockTick){
-		//This function should be called to diff ThreadResourceRecords when the clockTick field of those records is populated.
-		//If this is called against records without clockTick populated then no cpu utilization will be calculated (because we can't).
-		
-		//Only diff the records if they are from the same thread, as identified by the TID and starttime.
-		//This works under the assumption that the system is not able to cycle through all process IDs and reuse them within a single
-		//tick of the starttime clock
-		if(	oldRecord.pid != newRecord.pid 				||
-			oldRecord.starttime != newRecord.starttime 	)
-			return null;
-			
-		ThreadResourceRecord diffRecord = new ThreadResourceRecord();
-		diffRecord.previousTimestamp = oldRecord.timestamp;
-		diffRecord.timestamp = newRecord.timestamp;
-		diffRecord.durationms = newRecord.timestamp - oldRecord.previousTimestamp;
-		diffRecord.comm = newRecord.comm;
-		diffRecord.state = newRecord.state;
-		diffRecord.pid = newRecord.pid;
-		diffRecord.ppid = newRecord.ppid;
-		diffRecord.starttime = newRecord.starttime;
-		diffRecord.minflt = newRecord.minflt.subtract(oldRecord.minflt);
-		diffRecord.majflt = newRecord.majflt.subtract(oldRecord.majflt);
-		diffRecord.utime = newRecord.utime.subtract(oldRecord.utime);
-		diffRecord.stime = newRecord.stime.subtract(oldRecord.stime);
-		diffRecord.delayacct_blkio_ticks = newRecord.delayacct_blkio_ticks.subtract(oldRecord.delayacct_blkio_ticks);
-		diffRecord.guest_time = newRecord.guest_time.subtract(oldRecord.guest_time);
-		diffRecord.clockTick = newRecord.clockTick;
-		
-		//Derived values:
-		if(clockTick > 0){
-			diffRecord.cpuUtilPct = diffRecord.utime.add(diffRecord.stime).doubleValue() / 					//The amount of jiffies used by the process over the duration
-									(((double)(clockTick * diffRecord.durationms)) / 1000d);	//Divided by the amonut of jiffies that elapsed during the duration
-			diffRecord.clockTick = clockTick;
-		} else {
-			diffRecord.cpuUtilPct = -1d;
-		}
-		return diffRecord;
-	}
-	**/
