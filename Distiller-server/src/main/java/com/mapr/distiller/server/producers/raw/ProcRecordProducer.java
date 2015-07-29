@@ -45,7 +45,7 @@ public class ProcRecordProducer extends Thread {
 	private ProcMetricDescriptorManager enabledMetricManager;
 	
 	public ProcRecordProducer(RecordQueueManager queueManager) {
-		//setClockTick();
+		setClockTick();
 		this.queueManager = queueManager;
 		this.enabledMetricManager = new ProcMetricDescriptorManager();
 	}

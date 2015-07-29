@@ -4,26 +4,80 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Paths;
+
 import com.mapr.distiller.server.queues.RecordQueue;
 
 public class ProcessResourceRecord extends Record {
 	/**
 	 * DERIVED VALUES
 	 */
-	//private double cpuUtilPct = -1d;
+	private double cpuUtilPct;;
 	
 	/**
 	 * RAW VALUES
 	 */
 	private String comm;
 	private char state;
-	private int pid, ppid, pgrp, num_threads, clockTick=0;
+	private int pid, ppid, pgrp, num_threads, clockTick;
 	private long starttime;
 	private BigInteger cguest_time, cmajflt, cminflt, cstime, cutime, delayacct_blkio_ticks, guest_time, majflt, minflt, rss, rsslim, stime, utime, vsize;
 
 	/**
 	 * CONSTRUCTORS
 	 */
+	public ProcessResourceRecord(ProcessResourceRecord rec1, ProcessResourceRecord rec2) throws Exception{
+		ProcessResourceRecord oldRecord, newRecord;
+		
+		//Check the input records to ensure they can be diff'd.
+		if(rec1.get_starttime() != rec2.get_starttime() || rec1.get_pid() != rec2.get_pid())
+			throw new Exception("Differential ProcessResourceRecord can only be generated from input records from the same process");
+		if(rec1.getCpuUtilPct()!=-1d || rec2.getCpuUtilPct()!=-1d || rec1.getPreviousTimestamp()!=-1l || rec2.getPreviousTimestamp()!=-1l)
+			throw new Exception("Differential ProcessResourceRecord can only be generated from raw ProcessResourceRecords");
+		if(rec1.getTimestamp() == rec2.getTimestamp())
+			throw new Exception("Can not generate differential ProcessResourceRecord from input records with matching timestamp values");
+		
+		//Organize the input records.
+		if(rec1.getTimestamp() < rec2.getTimestamp()){
+			oldRecord = rec1;
+			newRecord = rec2;
+		} else {
+			oldRecord = rec2;
+			newRecord = rec1;
+		}
+		
+		//Copied values:
+		this.setTimestamp(newRecord.getTimestamp());
+		this.setPreviousTimestamp(oldRecord.getTimestamp());
+		this.comm = newRecord.get_comm();
+		this.state = newRecord.get_state();
+		this.pid = newRecord.get_pid();
+		this.ppid = newRecord.get_ppid();
+		this.pgrp = newRecord.get_pgrp();
+		this.num_threads = newRecord.get_num_threads();
+		this.clockTick = newRecord.getClockTick();
+		this.starttime = newRecord.get_starttime();
+		this.rss = newRecord.get_rss();
+		this.rsslim = newRecord.get_rsslim();
+		this.vsize = newRecord.get_vsize();
+		
+		//Differential values:
+		this.cguest_time = newRecord.get_cguest_time().subtract(oldRecord.get_cguest_time());
+		this.cmajflt = newRecord.get_cmajflt().subtract(oldRecord.get_cmajflt());
+		this.cminflt = newRecord.get_cminflt().subtract(oldRecord.get_cminflt());
+		this.cstime = newRecord.get_cstime().subtract(oldRecord.get_cstime());
+		this.cutime = newRecord.get_cutime().subtract(oldRecord.get_cutime());
+		this.delayacct_blkio_ticks = newRecord.get_delayacct_blkio_ticks().subtract(oldRecord.get_delayacct_blkio_ticks());
+		this.guest_time = newRecord.get_guest_time().subtract(oldRecord.get_guest_time());
+		this.majflt = newRecord.get_majflt().subtract(oldRecord.get_majflt());
+		this.minflt = newRecord.get_minflt().subtract(oldRecord.get_minflt());
+		this.stime = newRecord.get_stime().subtract(oldRecord.get_stime());
+		this.utime = newRecord.get_utime().subtract(oldRecord.get_utime());
+
+		//Derived values:
+		this.cpuUtilPct = this.utime.add(this.stime).doubleValue() / 					//The number of jiffies used by the process over the duration
+				(((double)(this.clockTick * this.getDurationms())) / 1000d);			//The number of jiffies that went by over the duration
+	}
+	
 	public ProcessResourceRecord(String path, int clockTick) throws Exception {
 		//This constructor takes "path" which should be the path to a /proc/[pid]/stat file
 		//This constructor takes "clockTick" which should be set to jiffies per second from kernel build (obtained in ProcRecordProducer)
@@ -102,104 +156,73 @@ public class ProcessResourceRecord extends Record {
 	public String toString(){
 		return super.toString() + " process.resources: " + pid + " " + comm + " " + state + " " + ppid + " " + num_threads;
 	}
-
+	public String get_comm(){
+		return comm;
+	}
+	public char get_state(){
+		return state;
+	}
+	public int get_pid(){
+		return pid;
+	}
+	public int get_ppid(){
+		return ppid;
+	}
+	public int get_pgrp(){
+		return pgrp;
+	}
+	public int get_num_threads(){
+		return num_threads;
+	}
+	public int getClockTick(){
+		return clockTick;
+	}
+	public long get_starttime(){
+		return starttime;
+	}
+	public BigInteger get_cguest_time(){
+		return cguest_time;
+	}
+	public BigInteger get_cmajflt(){
+		return cmajflt;
+	}
+	public BigInteger get_cminflt(){
+		return cminflt;
+	}
+	public BigInteger get_cstime(){
+		return cstime;
+	}
+	public BigInteger get_cutime(){
+		return cutime;
+	}
+	public BigInteger get_delayacct_blkio_ticks(){
+		return delayacct_blkio_ticks;
+	}
+	public BigInteger get_guest_time(){
+		return guest_time;
+	}
+	public BigInteger get_majflt(){
+		return majflt;
+	}
+	public BigInteger get_minflt(){
+		return minflt;
+	}
+	public BigInteger get_rss(){
+		return rss;
+	}
+	public BigInteger get_rsslim(){
+		return rsslim;
+	}
+	public BigInteger get_stime(){
+		return stime;
+	}
+	public BigInteger get_utime(){
+		return utime;
+	}
+	public BigInteger get_vsize(){
+		return vsize;
+	}
+	public double getCpuUtilPct(){
+		return cpuUtilPct;
+	}
 }
-/**
-
-	public static ProcessResourceRecord diff(ProcessResourceRecord oldRecord, ProcessResourceRecord newRecord){
-		//This function should be called to diff ProcessResourceRecords when the clockTick field of those records is populated.
-		//If this is called against records without clockTick populated then no cpu utilization will be calculated (because we can't).
-		
-		//Only diff the records if they are from the same process, as identified by the PID and starttime, and if the oldRecord is
-		//indeed older than the newRecord by timestamp.
-		//This works under the assumption that the system is not able to cycle through all process IDs and reuse them within a single
-		//tick of the starttime clock
-		if(	oldRecord.pid != newRecord.pid 				||
-			oldRecord.starttime != newRecord.starttime 	||
-			oldRecord.timestamp >= newRecord.timestamp	)
-			return null;
-			
-		ProcessResourceRecord diffRecord = new ProcessResourceRecord();
-		diffRecord.previousTimestamp = oldRecord.timestamp;
-		diffRecord.timestamp = newRecord.timestamp;
-		diffRecord.comm = newRecord.comm;
-		diffRecord.state = newRecord.state;
-		diffRecord.pid = newRecord.pid;
-		diffRecord.ppid = newRecord.ppid;
-		diffRecord.pgrp = newRecord.pgrp;
-		diffRecord.num_threads = newRecord.num_threads;
-		diffRecord.starttime = newRecord.starttime;
-		diffRecord.vsize = newRecord.vsize;
-		diffRecord.rss = newRecord.rss;
-		diffRecord.rsslim = newRecord.rsslim;
-		diffRecord.minflt = newRecord.minflt.subtract(oldRecord.minflt);
-		diffRecord.cminflt = newRecord.cminflt.subtract(oldRecord.cminflt);
-		diffRecord.cmajflt = newRecord.cmajflt.subtract(oldRecord.cmajflt);
-		diffRecord.cutime = newRecord.cutime.subtract(oldRecord.cutime);
-		diffRecord.cstime = newRecord.cstime.subtract(oldRecord.cstime);
-		diffRecord.cguest_time = newRecord.cguest_time.subtract(oldRecord.cguest_time);
-		diffRecord.majflt = newRecord.majflt.subtract(oldRecord.majflt);
-		diffRecord.utime = newRecord.utime.subtract(oldRecord.utime);
-		diffRecord.stime = newRecord.stime.subtract(oldRecord.stime);
-		diffRecord.delayacct_blkio_ticks = newRecord.delayacct_blkio_ticks.subtract(oldRecord.delayacct_blkio_ticks);
-		diffRecord.guest_time = newRecord.guest_time.subtract(oldRecord.guest_time);
-		diffRecord.clockTick = newRecord.clockTick;
-		
-		//Derived values:
-		if(diffRecord.clockTick > 0){
-			diffRecord.cpuUtilPct = diffRecord.utime.add(diffRecord.stime).doubleValue() / 					//The amount of jiffies used by the process over the duration
-									(((double)(diffRecord.clockTick * diffRecord.getDurationms())) / 1000d);	//Divided by the amonut of jiffies that elapsed during the duration
-		} else {
-			diffRecord.cpuUtilPct = -1d;
-		}
-		return diffRecord;
-	}
-	public static ProcessResourceRecord diff(ProcessResourceRecord oldRecord, ProcessResourceRecord newRecord, int clockTick){
-		//This function should be called to diff ProcessResourceRecords when the clockTick field of those records is not populated,
-		//or when it is desirable to override clockTick saved in the records (not sure when that would ever be)
-		
-		//Only diff the records if they are from the same process, as identified by the PID and starttime.
-		//This works under the assumption that the system is not able to cycle through all process IDs and reuse them within a single
-		//tick of the starttime clock
-		if(	oldRecord.pid != newRecord.pid 				||
-			oldRecord.starttime != newRecord.starttime 	)
-			return null;
-
-			
-		ProcessResourceRecord diffRecord = new ProcessResourceRecord();
-		diffRecord.previousTimestamp = oldRecord.timestamp;
-		diffRecord.timestamp = newRecord.timestamp;
-		diffRecord.comm = newRecord.comm;
-		diffRecord.state = newRecord.state;
-		diffRecord.pid = newRecord.pid;
-		diffRecord.ppid = newRecord.ppid;
-		diffRecord.pgrp = newRecord.pgrp;
-		diffRecord.num_threads = newRecord.num_threads;
-		diffRecord.starttime = newRecord.starttime;
-		diffRecord.vsize = newRecord.vsize;
-		diffRecord.rss = newRecord.rss;
-		diffRecord.rsslim = newRecord.rsslim;
-		diffRecord.minflt = newRecord.minflt.subtract(oldRecord.minflt);
-		diffRecord.cminflt = newRecord.cminflt.subtract(oldRecord.cminflt);
-		diffRecord.cmajflt = newRecord.cmajflt.subtract(oldRecord.cmajflt);
-		diffRecord.cutime = newRecord.cutime.subtract(oldRecord.cutime);
-		diffRecord.cstime = newRecord.cstime.subtract(oldRecord.cstime);
-		diffRecord.cguest_time = newRecord.cguest_time.subtract(oldRecord.cguest_time);
-		diffRecord.majflt = newRecord.majflt.subtract(oldRecord.majflt);
-		diffRecord.utime = newRecord.utime.subtract(oldRecord.utime);
-		diffRecord.stime = newRecord.stime.subtract(oldRecord.stime);
-		diffRecord.delayacct_blkio_ticks = newRecord.delayacct_blkio_ticks.subtract(oldRecord.delayacct_blkio_ticks);
-		diffRecord.guest_time = newRecord.guest_time.subtract(oldRecord.guest_time);
-		
-		//Derived values:
-		if(clockTick > 0){
-			diffRecord.cpuUtilPct = diffRecord.utime.add(diffRecord.stime).doubleValue() / 				//The amount of jiffies used by the process over the duration
-									(((double)(clockTick * diffRecord.getDurationms())) / 1000d);	//Divided by the amonut of jiffies that elapsed during the duration
-			diffRecord.clockTick = clockTick;
-		} else {
-			diffRecord.cpuUtilPct = -1d;
-		}
-
-		return diffRecord;
-	}
-*/
