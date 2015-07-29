@@ -1,7 +1,7 @@
-package com.mapr.distiller.server.recordtypes;
+package com.mapr.distiller.server.processors;
 
-import com.mapr.distiller.server.processors.MovingAverageable;
-import com.mapr.distiller.server.processors.Thresholdable;
+import com.mapr.distiller.server.recordtypes.NetworkInterfaceRecord;
+
 import java.math.BigInteger;
 
 public class NetworkInterfaceRecordProcessor implements 
