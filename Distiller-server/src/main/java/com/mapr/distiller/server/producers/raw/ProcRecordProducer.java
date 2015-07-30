@@ -151,7 +151,8 @@ public class ProcRecordProducer extends Thread {
 							metricSchedule.add(event);
 							timeSpentCollectingMetrics += System.currentTimeMillis() - actionStartTime;
 							long elapsedTime = System.currentTimeMillis() - tStartTime;
-							System.err.println("Running for " + timeSpentCollectingMetrics + " ms out of " + elapsedTime + " ms, " + (100 * timeSpentCollectingMetrics / elapsedTime));
+							//if(elapsedTime!=0)
+							//	System.err.println("Running for " + timeSpentCollectingMetrics + " ms out of " + elapsedTime + " ms, " + (100 * timeSpentCollectingMetrics / elapsedTime));
 							if(elapsedTime > 60000l) {
 								timeSpentCollectingMetrics=0l;
 								tStartTime = System.currentTimeMillis();
@@ -411,7 +412,6 @@ public class ProcRecordProducer extends Thread {
 				System.err.println("Failed to read getconf output");
 				e.printStackTrace();
 			}
-			System.err.println("Retrieved CLK_TLK=" + clockTick);
 		} else {
 			System.err.println("Failed to run \"getconf CLK_TCK\"");
 			System.exit(1);
