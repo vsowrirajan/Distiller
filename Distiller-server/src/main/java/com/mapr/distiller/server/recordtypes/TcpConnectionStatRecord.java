@@ -6,6 +6,7 @@ import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.HashMap;
+
 import com.mapr.distiller.server.queues.RecordQueue;
 
 public class TcpConnectionStatRecord extends Record {
@@ -22,6 +23,39 @@ public class TcpConnectionStatRecord extends Record {
 	/**
 	 * CONSTRUCTORS
 	 */
+	public TcpConnectionStatRecord(TcpConnectionStatRecord rec1, TcpConnectionStatRecord rec2) throws Exception{
+		TcpConnectionStatRecord oldRecord, newRecord;
+		
+		//Check the input records to ensure they can be diff'd.
+		if(rec1.getTimestamp() == rec2.getTimestamp())
+			throw new Exception("Can not generate differential TcpConnectionStatRecord from input records with matching timestamp values");
+		if(	rec1.getLocalIp() != rec2.getLocalIp() ||
+			rec1.getRemoteIp() != rec2.getRemoteIp() ||
+			rec1.getLocalPort() != rec2.getLocalPort() ||
+			rec1.getRemotePort() != rec2.getRemotePort() ||
+			rec1.get_pid() != rec2.get_pid() )
+			throw new Exception("Can not generate differential TcpConnectionStatRecord for input records for different connections");
+		
+		//Organize the input records.
+		if(rec1.getTimestamp() < rec2.getTimestamp()){
+			oldRecord = rec1;
+			newRecord = rec2;
+		} else {
+			oldRecord = rec2;
+			newRecord = rec1;
+		}
+		
+		//Copied values:
+		this.setTimestamp(newRecord.getTimestamp());
+		this.setPreviousTimestamp(oldRecord.getTimestamp());
+		this.localIp = newRecord.getLocalIp();
+		this.remoteIp = newRecord.getRemoteIp();
+		this.rxQ = newRecord.get_rxQ();
+		this.txQ = newRecord.get_txQ();
+		this.localPort = newRecord.getLocalPort();
+		this.remotePort = newRecord.getRemotePort();
+		this.pid = newRecord.get_pid();
+	}
 	public TcpConnectionStatRecord(String[] parts, int pid){
 		super(System.currentTimeMillis());
 		this.localIp = Long.parseLong(parts[1].split(":")[0], 16);
@@ -36,7 +70,7 @@ public class TcpConnectionStatRecord extends Record {
 	/**
 	 * PRODUCE RECORD METHODS
 	 */
-	public static boolean produceRecords(RecordQueue tcp_connection_stats, String producerName){
+	public static boolean produceRecords(RecordQueue outputQueue, String producerName){
 		try {
 			RandomAccessFile proc_net_tcp = null;
 			long startTime = System.currentTimeMillis();
@@ -95,10 +129,14 @@ public class TcpConnectionStatRecord extends Record {
 							if(linkTarget.startsWith("socket:[")){
 								socketId = linkTarget.split("\\[")[1].split("\\]")[0];
 								String[] parts = null;
-								if( (parts = recordMap.get(socketId)) != null )
-									if(tcp_connection_stats.put(producerName, new TcpConnectionStatRecord(parts, pid)))
-										recordsGenerated++;
-								//System.err.println("pid: " + pid + " socketId: " + socketId + " path: " + fdPaths[x].toString());
+								if( (parts = recordMap.get(socketId)) != null ){
+									TcpConnectionStatRecord record = new TcpConnectionStatRecord(parts, pid);
+									if(!outputQueue.put(producerName, record)){
+										System.err.println("Failed to put TcpConnectionStatRecord into output queue " + outputQueue.getQueueName() + " size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.maxQueueSize() + " producerName:" + producerName);
+										return false;
+									}
+									recordsGenerated++;
+								}
 							}
 						} catch (Exception e){}
 					}
@@ -128,5 +166,26 @@ public class TcpConnectionStatRecord extends Record {
 						String.valueOf(ip / 65536 % 256) + "." + 
 						String.valueOf(ip / 16777216);
 		return ipStr;
+	}
+	public long getLocalIp(){
+		return localIp;
+	}
+	public long getRemoteIp(){
+		return remoteIp;
+	}
+	public long get_rxQ(){
+		return rxQ;
+	}
+	public long get_txQ(){
+		return txQ;
+	}
+	public int getLocalPort(){
+		return localPort;
+	}
+	public int getRemotePort(){
+		return remotePort;
+	}
+	public int get_pid(){
+		return pid;
 	}
 }

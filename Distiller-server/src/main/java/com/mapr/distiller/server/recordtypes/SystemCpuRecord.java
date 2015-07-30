@@ -68,7 +68,7 @@ public class SystemCpuRecord extends Record {
 		}
 	}
 	public SystemCpuRecord(SystemCpuRecord rec1, SystemCpuRecord rec2) throws Exception {
-		if(rec1.getIdleCpuUtilPct()!=-1d || rec2.getIdleCpuUtilPct()!=-1d || rec1.getTimestamp()==-1l || rec2.getTimestamp()==-1l)
+		if(rec1.getIdleCpuUtilPct()!=-1d || rec2.getIdleCpuUtilPct()!=-1d || rec1.getPreviousTimestamp()!=-1l || rec2.getPreviousTimestamp()!=-1l)
 			throw new Exception("Differential SystemCpuRecord can only be generated from raw SystemCpuRecords");
 		if(rec1.getTimestamp() == rec2.getTimestamp())
 			throw new Exception("Can not generate differential SystemCpuRecord from input records with matching timestamp values");
@@ -114,9 +114,12 @@ public class SystemCpuRecord extends Record {
 	/**
 	 * PRODUCE RECORD METHODS
 	 */
-	public static boolean produceRecord(RecordQueue cpu_system, String producerName){
+	public static boolean produceRecord(RecordQueue outputQueue, String producerName){
 		try {
-			cpu_system.put(producerName, new SystemCpuRecord());
+			SystemCpuRecord record = new SystemCpuRecord();
+			if(!outputQueue.put(producerName, record)){
+				throw new Exception("Failed to put SystemCpuRecord into output queue " + outputQueue.getQueueName() + " size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.maxQueueSize() + " producerName:" + producerName);
+			}
 		} catch (Exception e) {
 			System.err.println("Failed to generate a SystemCpuRecord");
 			e.printStackTrace();

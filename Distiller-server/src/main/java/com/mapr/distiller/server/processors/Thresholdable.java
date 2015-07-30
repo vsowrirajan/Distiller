@@ -8,4 +8,10 @@ public interface Thresholdable<T> {
 	// Metric below than a threshold value, emit a record
 	public boolean isBelowThreshold(T record, String metric,
 			String thresholdValue) throws Exception;
+	
+	public boolean isEqual(T record, String metric,
+			String thresholdValue) throws Exception;
+	
+	public boolean isNotEqual(T record, String metric,
+			String thresholdValue) throws Exception;
 }
