@@ -209,7 +209,7 @@ public class MfsGutsRecord extends Record {
         //Guts fields: rpc
         this.rpcCompleted = new BigInteger(parts[0]);
 
-//Guts fields: rpc lpc
+        //Guts fields: rpc lpc
         this.pcCompleted = (new BigInteger(parts[0])).add(new BigInteger(parts[1]));
 
         //Guts fields: bin bde bre bsp bme bco
@@ -238,7 +238,7 @@ public class MfsGutsRecord extends Record {
 		try{
 			MfsGutsRecord rec = new MfsGutsRecord(line);
 			if(!outputQueue.put(producerName, rec)){
-				throw new Exception("Failed to insert MfsGutsRecord into output queue " + outputQueue.getQueueName() + " size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.maxQueueSize());
+				throw new Exception("Failed to insert MfsGutsRecord into output queue " + outputQueue.getQueueName() + " size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.maxQueueSize() + " producerName:" + producerName);
 			}
 		} catch (Exception e) {
 			System.err.println("Failed to generate a MfsGutsRecord");

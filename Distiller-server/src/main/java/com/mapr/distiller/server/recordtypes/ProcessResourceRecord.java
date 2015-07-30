@@ -92,12 +92,17 @@ public class ProcessResourceRecord extends Record {
 		
 		try {
 			//Open, read the file.
-			fc = FileChannel.open(Paths.get(path));
-			b = ByteBuffer.allocate(bs);
-			br = fc.read(b);
+			boolean failedToReadFile=false;
+			try {
+				fc = FileChannel.open(Paths.get(path));
+				b = ByteBuffer.allocate(bs);
+				br = fc.read(b);
+			} catch (Exception e) {
+				failedToReadFile=true;
+			}
 			
 			//Check whether we were able to read from the file, and whether we were able to read the entire contents
-			if(br > 0 && br < bs){
+			if(!failedToReadFile && br > 0 && br < bs){
 				//If the file could be read, parse the values
 				String tempStr = new String(b.array());
 				this.pid = Integer.parseInt(tempStr.split("\\s+", 2)[0]);
@@ -127,22 +132,27 @@ public class ProcessResourceRecord extends Record {
 				this.delayacct_blkio_ticks = new BigInteger(parts[39]);
 				this.guest_time = new BigInteger(parts[40]);
 				this.cguest_time = new BigInteger(parts[41]);
-			} else {
+			} else if(!failedToReadFile){
 				throw new Exception("Failed to produce a ProcessResourceRecord due to read response length, br:" + br + " bs:" + bs);
 			}
 		} catch (Exception e) {
 			throw new Exception("Failed to produce a ProcessResourceRecord for path " + path, e);
 		} finally {
-			fc.close();
+			try{
+				fc.close();
+			} catch (Exception e){}
 		}
 	}
 
 	/**
 	 * PRODUCE RECORD METHODS
 	 */
-	public static boolean produceRecord(RecordQueue process_resources, String producerName, String path, int clockTick){
+	public static boolean produceRecord(RecordQueue outputQueue, String producerName, String path, int clockTick){
 		try{
-			process_resources.put(producerName, new ProcessResourceRecord(path, clockTick));
+			ProcessResourceRecord record = new ProcessResourceRecord(path, clockTick);
+			if(!outputQueue.put(producerName, record)){
+				throw new Exception("Failed to put ProcessResourceRecord into output queue " + outputQueue.getQueueName() + " size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.maxQueueSize() + " producerName:" + producerName);
+			}
 		} catch (Exception e) {
 			System.err.println("Failed to generate a ProcessResourceRecord");
 			e.printStackTrace();

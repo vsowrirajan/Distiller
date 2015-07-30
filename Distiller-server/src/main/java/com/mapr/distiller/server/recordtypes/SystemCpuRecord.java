@@ -114,9 +114,12 @@ public class SystemCpuRecord extends Record {
 	/**
 	 * PRODUCE RECORD METHODS
 	 */
-	public static boolean produceRecord(RecordQueue cpu_system, String producerName){
+	public static boolean produceRecord(RecordQueue outputQueue, String producerName){
 		try {
-			cpu_system.put(producerName, new SystemCpuRecord());
+			SystemCpuRecord record = new SystemCpuRecord();
+			if(!outputQueue.put(producerName, record)){
+				throw new Exception("Failed to put SystemCpuRecord into output queue " + outputQueue.getQueueName() + " size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.maxQueueSize() + " producerName:" + producerName);
+			}
 		} catch (Exception e) {
 			System.err.println("Failed to generate a SystemCpuRecord");
 			e.printStackTrace();

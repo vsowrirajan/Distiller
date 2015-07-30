@@ -74,30 +74,39 @@ public class ThreadResourceRecord extends Record {
 		this.clockTick = clockTick;
 		int bs = 600; //600 bytes should be enough to hold contents of /proc/[pid]/stat or /proc/[pid]/task/[tid]/stat 
 		FileChannel fc = null;
+		ByteBuffer b = null;
+		int br=-1;
 		String line;
 		try {
-			fc = FileChannel.open(Paths.get(path));
-			ByteBuffer b = ByteBuffer.allocate(bs);
-			int br = fc.read(b);
-			if(br > 0 && br < bs){
-				line = new String(b.array());
-			} else {
-				throw new Exception("Failed to produce a ThreadResourceRecord due to read response length, br:" + br + " bs:" + bs);
+			boolean failedToReadFile=false;
+			try {
+				fc = FileChannel.open(Paths.get(path));
+				b = ByteBuffer.allocate(bs);
+				br = fc.read(b);
+			} catch (Exception e) {
+				failedToReadFile = true;
 			}
-			String[] parts = line.split("\\)", 2)[1].trim().split("\\s+");
-			if(parts.length<42){ //Expect 44 values in /proc/[pid]/task/[tid]/stat based on Linux kernel version used for this dev.
-				throw new Exception("Failed to produce a ThreadResourceRecord due to unexpected format of stat file, found " + parts.length + " fields");
+			if(!failedToReadFile){
+				if(br > 0 && br < bs){
+					line = new String(b.array());
+				} else {
+					throw new Exception("Failed to produce a ThreadResourceRecord due to read response length, br:" + br + " bs:" + bs);
+				}
+				String[] parts = line.split("\\)", 2)[1].trim().split("\\s+");
+				if(parts.length<42){ //Expect 44 values in /proc/[pid]/task/[tid]/stat based on Linux kernel version used for this dev.
+					throw new Exception("Failed to produce a ThreadResourceRecord due to unexpected format of stat file, found " + parts.length + " fields");
+				}
+				this.pid = Integer.parseInt(line.split("\\s+", 2)[0]);
+				this.comm = "(" + line.split("\\(", 2)[1].split("\\)", 2)[0] + ")";
+				this.state = parts[0].charAt(0);
+				this.minflt = new BigInteger(parts[7]);
+				this.majflt = new BigInteger(parts[9]);
+				this.utime = new BigInteger(parts[11]);
+				this.stime = new BigInteger(parts[12]);
+				this.starttime = Integer.parseInt(parts[19]);
+				this.delayacct_blkio_ticks = new BigInteger(parts[39]);
+				this.guest_time = new BigInteger(parts[40]);
 			}
-			this.pid = Integer.parseInt(line.split("\\s+", 2)[0]);
-			this.comm = "(" + line.split("\\(", 2)[1].split("\\)", 2)[0] + ")";
-			this.state = parts[0].charAt(0);
-			this.minflt = new BigInteger(parts[7]);
-			this.majflt = new BigInteger(parts[9]);
-			this.utime = new BigInteger(parts[11]);
-			this.stime = new BigInteger(parts[12]);
-			this.starttime = Integer.parseInt(parts[19]);
-			this.delayacct_blkio_ticks = new BigInteger(parts[39]);
-			this.guest_time = new BigInteger(parts[40]);
 		} catch (Exception e) {
 			throw new Exception("Failed to generate ThreadResourceRecord", e);
 		} finally {
@@ -110,9 +119,14 @@ public class ThreadResourceRecord extends Record {
 	/**
 	 * PRODUCE RECORD METHODS
 	 */
-	public static boolean produceRecord(RecordQueue thread_resources, String producerName, String path, int ppid, int clockTick){
+	public static boolean produceRecord(RecordQueue outputQueue, String producerName, String path, int ppid, int clockTick){
 		try{
-			thread_resources.put(producerName, new ThreadResourceRecord(path, ppid, clockTick));
+			ThreadResourceRecord record = new ThreadResourceRecord(path, ppid, clockTick);
+			if(!outputQueue.put(producerName, record)){
+				throw new Exception("Failed to put ThreadResourceRecord into output queue " + outputQueue.getQueueName() + 
+						" size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.maxQueueSize() + 
+						" producerName:" + producerName);
+			}
 		} catch (Exception e) {
 			System.err.println("Failed to generate a ThreadResourceRecord");
 			e.printStackTrace();

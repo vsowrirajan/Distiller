@@ -70,7 +70,7 @@ public class TcpConnectionStatRecord extends Record {
 	/**
 	 * PRODUCE RECORD METHODS
 	 */
-	public static boolean produceRecords(RecordQueue tcp_connection_stats, String producerName){
+	public static boolean produceRecords(RecordQueue outputQueue, String producerName){
 		try {
 			RandomAccessFile proc_net_tcp = null;
 			long startTime = System.currentTimeMillis();
@@ -129,10 +129,14 @@ public class TcpConnectionStatRecord extends Record {
 							if(linkTarget.startsWith("socket:[")){
 								socketId = linkTarget.split("\\[")[1].split("\\]")[0];
 								String[] parts = null;
-								if( (parts = recordMap.get(socketId)) != null )
-									if(tcp_connection_stats.put(producerName, new TcpConnectionStatRecord(parts, pid)))
-										recordsGenerated++;
-								//System.err.println("pid: " + pid + " socketId: " + socketId + " path: " + fdPaths[x].toString());
+								if( (parts = recordMap.get(socketId)) != null ){
+									TcpConnectionStatRecord record = new TcpConnectionStatRecord(parts, pid);
+									if(!outputQueue.put(producerName, record)){
+										System.err.println("Failed to put TcpConnectionStatRecord into output queue " + outputQueue.getQueueName() + " size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.maxQueueSize() + " producerName:" + producerName);
+										return false;
+									}
+									recordsGenerated++;
+								}
 							}
 						} catch (Exception e){}
 					}

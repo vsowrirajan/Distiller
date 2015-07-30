@@ -257,11 +257,8 @@ public class SubscriptionRecordQueue implements RecordQueue {
 		synchronized (lock) {
 			if (subscriptionRecordQueue.size() == maxQueueLength) {
 				int positionToRemove = (maxQueueLength / 2);
-				System.err
-						.println(System.currentTimeMillis()
-								+ " DEBUG: "
-								+ id
-								+ " Request received to add element to full queue, dropping record from the middle of the queue.");
+				//If needed, put a log message here that triggers only once every so often for queues that have reached their max size and require records to be dropped.
+				//Also, keep a counter of dropped records per producer.
 				Iterator<Map.Entry<String, Integer>> iterator = consumers
 						.entrySet().iterator();
 				while (iterator.hasNext()) {
