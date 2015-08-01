@@ -156,7 +156,11 @@ public class SubscriptionRecordQueue implements RecordQueue {
 			if (numRecords > subscriptionRecordQueue.size()) {
 				numRecords = subscriptionRecordQueue.size();
 			}
-			int consumerPosition = consumers.get(consumerName).intValue();
+			int consumerPosition;
+			if(consumerName==null)
+				consumerPosition = 0;
+			else
+				consumerPosition = consumers.get(consumerName).intValue();
 			if(subscriptionRecordQueue.size() - consumerPosition > numRecords)
 				numRecords = subscriptionRecordQueue.size() - consumerPosition;
 			ListIterator<Record> i = subscriptionRecordQueue

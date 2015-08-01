@@ -24,8 +24,66 @@ import com.mapr.distiller.server.scheduler.MetricEventComparator;
 import com.mapr.distiller.server.queues.RecordQueue;
 import com.mapr.distiller.server.queues.RecordQueueManager;
 import com.mapr.distiller.server.datatypes.ProcMetricDescriptorManager;
+import com.mapr.distiller.server.recordtypes.RawRecordProducerStatusRecord;
 
 public class ProcRecordProducer extends Thread {
+	//Counters for how many times a raw metric was not successfully samples
+	int diskstatRecordCreationFailures,
+		networkInterfaceRecordCreationFailures,
+		processResourceRecordCreationFailures,
+		systemCpuRecordCreationFailures,
+		systemMemoryRecordCreationFailures,
+		tcpConnectionStatRecordCreationFailures,
+		threadResourceRecordCreationFailures;
+	
+	//Counters for how many times a raw metric Record could not be put to the output RecordQueue
+	int diskstatRecordPutFailures,
+		networkInterfaceRecordPutFailures,
+		processResourceRecordPutFailures,
+		systemCpuRecordPutFailures,
+		systemMemoryRecordPutFailures,
+		tcpConnectionStatRecordPutFailures,
+		threadResourceRecordPutFailures;
+	
+	int diskstatRecordProduceRecordFailures,
+		networkInterfaceRecordProduceRecordFailures,
+		processResourceRecordProduceRecordFailures,
+		systemCpuRecordProduceRecordFailures,
+		systemMemoryRecordProduceRecordFailures,
+		tcpConnectionStatRecordProduceRecordFailures,
+		threadResourceRecordProduceRecordFailures;
+	
+	//Counters for how many times a raw metric was successfully sampled
+	int diskstatRecordsCreated,
+		networkInterfaceRecordsCreated,
+		processResourceRecordsCreated,
+		systemCpuRecordsCreated,
+		systemMemoryRecordsCreated,
+		tcpConnectionStatRecordsCreated,
+		threadResourceRecordsCreated;
+	
+	//Counters for time spent collecting each type of raw metric
+	int diskstatRunningTime,
+		networkInterfaceRunningTime,
+		processResourceRunningTime,
+		systemCpuRunningTime,
+		systemMemoryRunningTime,
+		tcpConnectionStatRunningTime,
+		threadResourceRunningTime;
+	
+	//Used to generate metrics about what the ProcRecordProducer is doing
+	private RawRecordProducerStatusRecord mystatus;
+	
+	//The interval for reporting status on what the ProcRecordProducer is doing (e.g. put the mystatus record into the output queue and start on a new mystatus record);
+	//Perhaps this needs to be configurable
+	private static int statusIntervalSeconds=5;
+	
+	//The output queue to which RecordProducerStatusRecords should be put
+	private RecordQueue statusOutputQueue;
+	
+	//Producer name to use when placing status records in the queue
+	private String statusProducerName;
+	
 	//This should be set true when ProcRecordProducer thread should exit.
 	private boolean shouldExit=false;
 	
@@ -50,13 +108,192 @@ public class ProcRecordProducer extends Thread {
 		this.enabledMetricManager = new ProcMetricDescriptorManager();
 	}
 	public void run() {
-		long timeSpentCollectingMetrics=0l;
-		long tStartTime = System.currentTimeMillis();
 		long actionStartTime;
 		GatherMetricEvent event = null;
+		boolean producerMetricsEnabled=true;
+		
+		//Setup self metrics
+		statusProducerName = "ProcRecordProducer-" + System.identityHashCode(this);
+		queueManager.createQueue("Record Producer Status Records", 1000, 0);
+		queueManager.registerProducer("Record Producer Status Records", statusProducerName);
+		statusOutputQueue = queueManager.getQueue("Record Producer Status Records");
+		
+		if(statusOutputQueue == null){
+			System.err.println("Failed to retrieve \"RecordProducerStatusRecord\" queue from queue manager");
+			producerMetricsEnabled=false;
+		}
+		
+		mystatus = new RawRecordProducerStatusRecord(statusProducerName);
+		diskstatRecordCreationFailures=0;
+		networkInterfaceRecordCreationFailures=0;
+		processResourceRecordCreationFailures=0;
+		systemCpuRecordCreationFailures=0;
+		systemMemoryRecordCreationFailures=0;
+		tcpConnectionStatRecordCreationFailures=0;
+		threadResourceRecordCreationFailures=0;
+		diskstatRecordProduceRecordFailures=0;
+		networkInterfaceRecordProduceRecordFailures=0;
+		processResourceRecordProduceRecordFailures=0;
+		systemCpuRecordProduceRecordFailures=0;
+		systemMemoryRecordProduceRecordFailures=0;
+		tcpConnectionStatRecordProduceRecordFailures=0;
+		threadResourceRecordProduceRecordFailures=0;
+		diskstatRecordPutFailures=0;
+		networkInterfaceRecordPutFailures=0;
+		processResourceRecordPutFailures=0;
+		systemCpuRecordPutFailures=0;
+		systemMemoryRecordPutFailures=0;
+		tcpConnectionStatRecordPutFailures=0;
+		threadResourceRecordPutFailures=0;
+		diskstatRecordsCreated=0;
+		networkInterfaceRecordsCreated=0;
+		processResourceRecordsCreated=0;
+		systemCpuRecordsCreated=0;
+		systemMemoryRecordsCreated=0;
+		tcpConnectionStatRecordsCreated=0;
+		threadResourceRecordsCreated=0;
+		diskstatRunningTime=0;
+		networkInterfaceRunningTime=0;
+		processResourceRunningTime=0;
+		systemCpuRunningTime=0;
+		systemMemoryRunningTime=0;
+		tcpConnectionStatRunningTime=0;
+		threadResourceRunningTime=0;
+		
 		//Keep trying to generate requested metrics until explicitly requested to exit
 		while(!shouldExit){
-			//We need to check whats in metricSchedule, so synchronize on it since other threads might be modifying it at the same time
+			//Report self metrics
+			if( ((System.currentTimeMillis() - mystatus.getTimestamp()) / 1000l) >= statusIntervalSeconds ){
+				RawRecordProducerStatusRecord newRecord = null;
+				try {
+					newRecord = new RawRecordProducerStatusRecord(mystatus);
+				} catch (Exception e){
+					System.err.println("Failed to generate a RecordProducerStatusRecord");
+					e.printStackTrace();
+					newRecord = new RawRecordProducerStatusRecord(statusProducerName);
+				}
+				mystatus.setQueuePutFailures(	diskstatRecordPutFailures + 
+												networkInterfaceRecordPutFailures + 
+												processResourceRecordPutFailures + 
+												systemCpuRecordPutFailures + 
+												systemMemoryRecordPutFailures + 
+												tcpConnectionStatRecordPutFailures + 
+												threadResourceRecordPutFailures );
+				mystatus.setRecordsCreated(	diskstatRecordsCreated + 
+											networkInterfaceRecordsCreated + 
+											processResourceRecordsCreated + 
+											systemCpuRecordsCreated + 
+											systemMemoryRecordsCreated + 
+											tcpConnectionStatRecordsCreated + 
+											threadResourceRecordsCreated );
+				mystatus.setRecordCreationFailures(	diskstatRecordCreationFailures + 
+													networkInterfaceRecordCreationFailures + 
+													processResourceRecordCreationFailures + 
+													systemCpuRecordCreationFailures + 
+													systemMemoryRecordCreationFailures + 
+													tcpConnectionStatRecordCreationFailures + 
+													threadResourceRecordCreationFailures );
+				mystatus.setOtherFailures(	diskstatRecordProduceRecordFailures + 
+											networkInterfaceRecordProduceRecordFailures + 
+											processResourceRecordProduceRecordFailures + 
+											systemCpuRecordProduceRecordFailures + 
+											systemMemoryRecordProduceRecordFailures + 
+											tcpConnectionStatRecordProduceRecordFailures +
+											threadResourceRecordProduceRecordFailures );
+				mystatus.setRunningTimems(	diskstatRunningTime + 
+											networkInterfaceRunningTime + 
+											processResourceRunningTime + 
+											systemCpuRunningTime + 
+											systemMemoryRunningTime + 
+											tcpConnectionStatRunningTime + 
+											threadResourceRunningTime );
+											
+				mystatus.addExtraInfo("diskstatRecordProduceRecordFailures", Integer.toString(diskstatRecordProduceRecordFailures));
+				mystatus.addExtraInfo("networkInterfaceRecordProduceRecordFailures", Integer.toString(networkInterfaceRecordProduceRecordFailures));
+				mystatus.addExtraInfo("processResourceRecordProduceRecordFailures", Integer.toString(processResourceRecordProduceRecordFailures));
+				mystatus.addExtraInfo("systemCpuRecordProduceRecordFailures", Integer.toString(systemCpuRecordProduceRecordFailures));
+				mystatus.addExtraInfo("systemMemoryRecordProduceRecordFailures", Integer.toString(systemMemoryRecordProduceRecordFailures));
+				mystatus.addExtraInfo("tcpConnectionStatRecordProduceRecordFailures", Integer.toString(tcpConnectionStatRecordProduceRecordFailures));
+				mystatus.addExtraInfo("threadResourceRecordProduceRecordFailures", Integer.toString(threadResourceRecordProduceRecordFailures));
+				mystatus.addExtraInfo("diskstatRecordCreationFailures", Integer.toString(diskstatRecordCreationFailures));
+				mystatus.addExtraInfo("networkInterfaceRecordCreationFailures", Integer.toString(networkInterfaceRecordCreationFailures));
+				mystatus.addExtraInfo("processResourceRecordCreationFailures", Integer.toString(processResourceRecordCreationFailures));
+				mystatus.addExtraInfo("systemCpuRecordCreationFailures", Integer.toString(systemCpuRecordCreationFailures));
+				mystatus.addExtraInfo("systemMemoryRecordCreationFailures", Integer.toString(systemMemoryRecordCreationFailures));
+				mystatus.addExtraInfo("tcpConnectionStatRecordCreationFailures", Integer.toString(tcpConnectionStatRecordCreationFailures));
+				mystatus.addExtraInfo("threadResourceRecordCreationFailures", Integer.toString(threadResourceRecordCreationFailures));
+				mystatus.addExtraInfo("diskstatRecordPutFailures", Integer.toString(diskstatRecordPutFailures));
+				mystatus.addExtraInfo("networkInterfaceRecordPutFailures", Integer.toString(networkInterfaceRecordPutFailures));
+				mystatus.addExtraInfo("processResourceRecordPutFailures", Integer.toString(processResourceRecordPutFailures));
+				mystatus.addExtraInfo("systemCpuRecordPutFailures", Integer.toString(systemCpuRecordPutFailures));
+				mystatus.addExtraInfo("systemMemoryRecordPutFailures", Integer.toString(systemMemoryRecordPutFailures));
+				mystatus.addExtraInfo("tcpConnectionStatRecordPutFailures", Integer.toString(tcpConnectionStatRecordPutFailures));
+				mystatus.addExtraInfo("threadResourceRecordPutFailures", Integer.toString(threadResourceRecordPutFailures));
+				mystatus.addExtraInfo("diskstatRecordsCreated", Integer.toString(diskstatRecordsCreated));
+				mystatus.addExtraInfo("networkInterfaceRecordsCreated", Integer.toString(networkInterfaceRecordsCreated));
+				mystatus.addExtraInfo("processResourceRecordsCreated", Integer.toString(processResourceRecordsCreated));
+				mystatus.addExtraInfo("systemCpuRecordsCreated", Integer.toString(systemCpuRecordsCreated));
+				mystatus.addExtraInfo("systemMemoryRecordsCreated", Integer.toString(systemMemoryRecordsCreated));
+				mystatus.addExtraInfo("tcpConnectionStatRecordsCreated", Integer.toString(tcpConnectionStatRecordsCreated));
+				mystatus.addExtraInfo("threadResourceRecordsCreated", Integer.toString(threadResourceRecordsCreated));
+				mystatus.addExtraInfo("diskstatRunningTime", Integer.toString(diskstatRunningTime));
+				mystatus.addExtraInfo("networkInterfaceRunningTime", Integer.toString(networkInterfaceRunningTime));
+				mystatus.addExtraInfo("processResourceRunningTime", Integer.toString(processResourceRunningTime));
+				mystatus.addExtraInfo("systemCpuRunningTime", Integer.toString(systemCpuRunningTime));
+				mystatus.addExtraInfo("systemMemoryRunningTime", Integer.toString(systemMemoryRunningTime));
+				mystatus.addExtraInfo("tcpConnectionStatRunningTime", Integer.toString(tcpConnectionStatRunningTime));
+				mystatus.addExtraInfo("threadResourceRunningTime", Integer.toString(threadResourceRunningTime));
+				mystatus.addExtraInfo("diskstatRunningTime%", Double.toString(100d * ((double)diskstatRunningTime) / ((double)mystatus.getDurationms())));
+				mystatus.addExtraInfo("networkInterfaceRunningTime%", Double.toString(100d * ((double)networkInterfaceRunningTime) / ((double)mystatus.getDurationms())));
+				mystatus.addExtraInfo("processResourceRunningTime%", Double.toString(100d * ((double)processResourceRunningTime) / ((double)mystatus.getDurationms())));
+				mystatus.addExtraInfo("systemCpuRunningTime%", Double.toString(100d * ((double)systemCpuRunningTime) / ((double)mystatus.getDurationms())));
+				mystatus.addExtraInfo("systemMemoryRunningTime%", Double.toString(100d * ((double)systemMemoryRunningTime) / ((double)mystatus.getDurationms())));
+				mystatus.addExtraInfo("tcpConnectionStatRunningTime%", Double.toString(100d * ((double)tcpConnectionStatRunningTime) / ((double)mystatus.getDurationms())));
+				mystatus.addExtraInfo("threadResourceRunningTime%", Double.toString(100d * ((double)threadResourceRunningTime) / ((double)mystatus.getDurationms())));
+				if(producerMetricsEnabled && !statusOutputQueue.put(statusProducerName,mystatus)){
+						System.err.println("Failed to put RecordProducerStatusRecord to output queue " + statusOutputQueue.getQueueName() + 
+												" size:" + statusOutputQueue.queueSize() + " maxSize:" + statusOutputQueue.maxQueueSize() + 
+												" producerName:" + statusProducerName);
+				}
+				mystatus = newRecord;
+				diskstatRecordCreationFailures=0;
+				networkInterfaceRecordCreationFailures=0;
+				processResourceRecordCreationFailures=0;
+				systemCpuRecordCreationFailures=0;
+				systemMemoryRecordCreationFailures=0;
+				tcpConnectionStatRecordCreationFailures=0;
+				threadResourceRecordCreationFailures=0;
+				diskstatRecordProduceRecordFailures=0;
+				networkInterfaceRecordProduceRecordFailures=0;
+				processResourceRecordProduceRecordFailures=0;
+				systemCpuRecordProduceRecordFailures=0;
+				systemMemoryRecordProduceRecordFailures=0;
+				tcpConnectionStatRecordProduceRecordFailures=0;
+				threadResourceRecordProduceRecordFailures=0;
+				diskstatRecordPutFailures=0;
+				networkInterfaceRecordPutFailures=0;
+				processResourceRecordPutFailures=0;
+				systemCpuRecordPutFailures=0;
+				systemMemoryRecordPutFailures=0;
+				tcpConnectionStatRecordPutFailures=0;
+				threadResourceRecordPutFailures=0;
+				diskstatRecordsCreated=0;
+				networkInterfaceRecordsCreated=0;
+				processResourceRecordsCreated=0;
+				systemCpuRecordsCreated=0;
+				systemMemoryRecordsCreated=0;
+				tcpConnectionStatRecordsCreated=0;
+				threadResourceRecordsCreated=0;
+				diskstatRunningTime=0;
+				networkInterfaceRunningTime=0;
+				processResourceRunningTime=0;
+				systemCpuRunningTime=0;
+				systemMemoryRunningTime=0;
+				tcpConnectionStatRunningTime=0;
+				threadResourceRunningTime=0;
+			}
+			
+			//We need to check what's in metricSchedule, so synchronize on it since other threads might be modifying it at the same time
 			boolean waitingForMetrics=true;
 			while(waitingForMetrics){
 				synchronized(metricSchedule){
@@ -93,7 +330,7 @@ public class ProcRecordProducer extends Thread {
 				//If the metric should be gathered within the next 1 second, then commit to gathering it this iteration.
 				if(event.getTargetTime() - System.currentTimeMillis() <= 1000){
 					//Track if we are able to gather the metric
-					boolean gatheredMetric = false;
+					boolean gatheredMetric=false;
 					
 					//Sleep until it's time to gather the metric
 					try {
@@ -105,40 +342,55 @@ public class ProcRecordProducer extends Thread {
 							actionStartTime = System.currentTimeMillis();
 							try {
 								//It's time to gather the metric...
-								if(event.getMetricName().equals("Diskstat"))
+								if(event.getMetricName().equals("Diskstat")){
 									//Try to produce the record into the output queue
 									gatheredMetric = generateDiskstatRecords(queueManager.getQueue(event.getQueueName()), event.getProducerName());
-								else if(event.getMetricName().equals("NetworkInterface"))
+								} else if(event.getMetricName().equals("NetworkInterface")) {
 									gatheredMetric = generateNetworkInterfaceRecords(queueManager.getQueue(event.getQueueName()), event.getProducerName());
-								else if(event.getMetricName().equals("ProcessResource"))
+								} else if(event.getMetricName().equals("ProcessResource")) {
 									gatheredMetric = generateProcessResourceRecords(queueManager.getQueue(event.getQueueName()), event.getProducerName());
-								else if(event.getMetricName().equals("SystemCpu"))
+								} else if(event.getMetricName().equals("SystemCpu")) {
 									gatheredMetric = generateSystemCpuRecord(queueManager.getQueue(event.getQueueName()), event.getProducerName());
-								else if (event.getMetricName().equals("SystemMemory"))
+								} else if (event.getMetricName().equals("SystemMemory")) {
 									gatheredMetric = generateSystemMemoryRecord(queueManager.getQueue(event.getQueueName()), event.getProducerName());
-								else if (event.getMetricName().equals("TcpConnectionStat"))
+								} else if (event.getMetricName().equals("TcpConnectionStat")) {
 									gatheredMetric = generateTcpConnectionStatRecords(queueManager.getQueue(event.getQueueName()), event.getProducerName());
-								else if (event.getMetricName().equals("ThreadResource"))
+								} else if (event.getMetricName().equals("ThreadResource")) {
 									gatheredMetric = generateThreadResourceRecords(queueManager.getQueue(event.getQueueName()), event.getProducerName());
-								else 
+								} else 
 									throw new Exception("GatherMetricEvent for unknown metric type:" + event.getMetricName());
 							} catch (Exception e) {
 								System.err.println("ProcRecordProducer: Caught an exception while gathering metric " + event.getMetricName());
 								e.printStackTrace();
 								gatheredMetric = false;
+							} finally {
+								if(event.getMetricName().equals("Diskstat"))
+									diskstatRunningTime += System.currentTimeMillis() - actionStartTime;
+								else if(event.getMetricName().equals("NetworkInterface")) 
+									networkInterfaceRunningTime += System.currentTimeMillis() - actionStartTime;
+								else if(event.getMetricName().equals("ProcessResource")) 
+									processResourceRunningTime += System.currentTimeMillis() - actionStartTime;
+								else if(event.getMetricName().equals("SystemCpu")) 
+									systemCpuRunningTime += System.currentTimeMillis() - actionStartTime;
+								else if (event.getMetricName().equals("SystemMemory")) 
+									systemMemoryRunningTime += System.currentTimeMillis() - actionStartTime;
+								else if (event.getMetricName().equals("TcpConnectionStat")) 
+									tcpConnectionStatRunningTime += System.currentTimeMillis() - actionStartTime;
+								else if (event.getMetricName().equals("ThreadResource")) 
+									threadResourceRunningTime += System.currentTimeMillis() - actionStartTime;
 							}
 							//Now that we've tried to gather the metric, we can remove the event from the schedule, regardless of whether we were successful
 							metricSchedule.remove(metricSchedule.first());
 							//If we failed to gather the metric...
-							if(!gatheredMetric)
-								//If the retry interval is less than the periodicity then try again after the retry interval has elapsed
+							if(!gatheredMetric){
+							//If the retry interval is less than the periodicity then try again after the retry interval has elapsed
 								if (GATHER_METRIC_RETRY_INTERVAL < event.getPeriodicity())
 									event.setTargetTime(event.getTargetTime() + GATHER_METRIC_RETRY_INTERVAL);
 								//Otherwise, try again after the periodicity has elapsed
 								else 
 									event.setTargetTime(event.getTargetTime() + event.getPeriodicity());
 							//If we successfully gathered the metric
-							else {
+							} else {
 								event.setPreviousTime(actionStartTime);
 								event.setTargetTime(event.getTargetTime() + event.getPeriodicity());
 							}
@@ -149,14 +401,8 @@ public class ProcRecordProducer extends Thread {
 								event.setTargetTime(System.currentTimeMillis() + event.getPeriodicity());
 							//Add the event back on to the schedule with the new target time.
 							metricSchedule.add(event);
-							timeSpentCollectingMetrics += System.currentTimeMillis() - actionStartTime;
-							long elapsedTime = System.currentTimeMillis() - tStartTime;
-							//if(elapsedTime!=0)
-							//	System.err.println("Running for " + timeSpentCollectingMetrics + " ms out of " + elapsedTime + " ms, " + (100 * timeSpentCollectingMetrics / elapsedTime));
-							if(elapsedTime > 60000l) {
-								timeSpentCollectingMetrics=0l;
-								tStartTime = System.currentTimeMillis();
-							}
+							//Record how long it took to generate this metric
+							mystatus.setRunningTimems(System.currentTimeMillis() - actionStartTime + mystatus.getRunningTimems());
 						}
 					}
 				}
@@ -291,8 +537,7 @@ public class ProcRecordProducer extends Thread {
 	}
 
 	private boolean generateThreadResourceRecords(RecordQueue outputQueue, String producerName){
-        long st = System.currentTimeMillis();
-        int outputRecordsGenerated=0;
+		boolean returnCode = true;
         try {
                 FilenameFilter fnFilter = new FilenameFilter() {
                         public boolean accept(File dir, String name) {
@@ -313,20 +558,30 @@ public class ProcRecordProducer extends Thread {
                         if(tPaths != null) {
                                 for (int x=0; x<tPaths.length; x++){
                                         String statPath = tPaths[x].toString() + "/stat";
-                                        if(ThreadResourceRecord.produceRecord(outputQueue, producerName, statPath, ppid, clockTick))
-                                                outputRecordsGenerated++;
+                                        int[] ret = ThreadResourceRecord.produceRecord(outputQueue, producerName, statPath, ppid, clockTick);
+                                        if(ret[0] == 0){
+                                        	threadResourceRecordsCreated += ret[1];
+                                        	threadResourceRecordCreationFailures += ret[2];
+                                        	threadResourceRecordPutFailures += ret[3];
+                                        } else {
+                                        	threadResourceRecordProduceRecordFailures++;
+                                        	returnCode=false;
+                                        }
                                 }
                         }
                 }
-        } catch(Exception e){e.printStackTrace();}
-        //long dur = System.currentTimeMillis() - st;
-        //System.err.println("Generated " + outputRecordsGenerated + " thread output records in " + dur + " ms, " + ((double)outputRecordsGenerated / (double)dur));
-        return true;
-}
+        } catch(Exception e){
+        	System.err.println("Unexpected exception:");
+        	e.printStackTrace();
+        	return false;
+        }
+        return returnCode;
+	}
 	
 	private boolean generateProcessResourceRecords(RecordQueue outputQueue, String producerName) {
 		long st = System.currentTimeMillis();
         int outputRecordsGenerated=0;
+        boolean returnCode = true;
 
         try {
                 FilenameFilter fnFilter = new FilenameFilter() {
@@ -342,45 +597,95 @@ public class ProcRecordProducer extends Thread {
                 //For each process in /proc
                 for (int pn = 0; pn<pPaths.length; pn++){
                         //Retrieve the process counters contained in /proc/[pid]/stat
-                        if(ProcessResourceRecord.produceRecord(outputQueue, producerName, pPaths[pn].toString() + "/stat", clockTick))
-                                outputRecordsGenerated++;
+                	int[] ret = ProcessResourceRecord.produceRecord(outputQueue, producerName, pPaths[pn].toString() + "/stat", clockTick);
+                	if(ret[0] == 0){
+                    	processResourceRecordsCreated += ret[1];
+                    	processResourceRecordCreationFailures += ret[2];
+                    	processResourceRecordPutFailures += ret[3];
+                    } else {
+                    	processResourceRecordProduceRecordFailures++;
+                    	returnCode = false;
+                    }
                 }
         } catch (Exception e) {}
-        //long dur = System.currentTimeMillis() - st;
-        //System.err.println("Generated " + outputRecordsGenerated + " process output records in " + dur + " ms, " + ((double)outputRecordsGenerated / (double)dur));
-        return true;
-}
+       return returnCode;
+	}
 
 	private boolean generateNetworkInterfaceRecords(RecordQueue outputQueue, String producerName) {
+		boolean returnCode=true;
 		try {
                 for (NetworkInterface i : Collections.list(NetworkInterface.getNetworkInterfaces())) {
                         if(i.getName().equals("lo")){
                                 continue;
                         }
-                        NetworkInterfaceRecord.produceRecord(outputQueue, producerName, i.getName());
+                        int ret[] = NetworkInterfaceRecord.produceRecord(outputQueue, producerName, i.getName());
+                        if(ret[0] == 0){
+                        	networkInterfaceRecordsCreated += ret[1];
+                        	networkInterfaceRecordCreationFailures += ret[2];
+                        	networkInterfaceRecordPutFailures += ret[3];
+                        } else {
+                        	networkInterfaceRecordProduceRecordFailures++;
+                        	returnCode = false;
+                        }
                 }
         } catch (Exception e) {
                 System.err.println("Failed to list network interfaces");
                 e.printStackTrace();
                 return false;
         }
-        return true;
+        return returnCode;
 	}
 
 	private boolean generateSystemMemoryRecord(RecordQueue outputQueue, String producerName) {
-		return SystemMemoryRecord.produceRecord(outputQueue, producerName);
+		int ret[] =  SystemMemoryRecord.produceRecord(outputQueue, producerName);
+		if(ret[0] == 0){
+        	systemMemoryRecordsCreated += ret[1];
+        	systemMemoryRecordCreationFailures += ret[2];
+        	systemMemoryRecordPutFailures += ret[3];
+        	return true;
+        } else {
+        	systemMemoryRecordProduceRecordFailures++;
+        	return false;
+        }
 	}
-	
+
 	private boolean generateDiskstatRecords(RecordQueue outputQueue, String producerName) {
-		return DiskstatRecord.produceRecords(outputQueue, producerName);
+		int[] ret =  DiskstatRecord.produceRecords(outputQueue, producerName);
+		if(ret[0] == 0){
+        	diskstatRecordsCreated += ret[1];
+        	diskstatRecordCreationFailures += ret[2];
+        	diskstatRecordPutFailures += ret[3];
+        	return true;
+        } else {
+        	diskstatRecordProduceRecordFailures++;
+        	return false;
+        }
 	}
 
 	private boolean generateSystemCpuRecord(RecordQueue outputQueue, String producerName) {
-		return SystemCpuRecord.produceRecord(outputQueue, producerName);
+		int[] ret = SystemCpuRecord.produceRecord(outputQueue, producerName);
+		if(ret[0] == 0){
+        	systemCpuRecordsCreated += ret[1];
+        	systemCpuRecordCreationFailures += ret[2];
+        	systemCpuRecordPutFailures += ret[3];
+        	return true;
+        } else {
+        	systemCpuRecordProduceRecordFailures++;
+        	return false;
+        }
 	}
 
 	private boolean generateTcpConnectionStatRecords(RecordQueue outputQueue, String producerName) {
-		return TcpConnectionStatRecord.produceRecords(outputQueue, producerName);
+		int[] ret = TcpConnectionStatRecord.produceRecords(outputQueue, producerName);
+        if(ret[0] == 0){
+        	tcpConnectionStatRecordsCreated += ret[1];
+        	tcpConnectionStatRecordCreationFailures += ret[2];
+        	tcpConnectionStatRecordPutFailures += ret[3];
+        	return true;
+        } else {
+        	tcpConnectionStatRecordProduceRecordFailures++;
+        	return false;
+        }
 	}
 	
 	private void setClockTick(){

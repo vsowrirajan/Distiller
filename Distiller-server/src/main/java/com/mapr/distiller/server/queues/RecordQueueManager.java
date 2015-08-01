@@ -17,7 +17,7 @@ public class RecordQueueManager {
 	}
 	
 	public boolean createQueue(String queueName, int capacity, int maxProducers){
-		if(!queueExists(queueName) && maxProducers>0){
+		if(!queueExists(queueName) && maxProducers>=0){
 			nameToRecordQueueMap.put(queueName, new SubscriptionRecordQueue(queueName, capacity));
 			nameToMaxProducerMap.put(queueName,  maxProducers);
 			return true;
@@ -89,7 +89,8 @@ public class RecordQueueManager {
 	}
 	
 	public boolean registerProducer(String queueName, String producerName){
-		if(queueExists(queueName) && getQueueProducers(queueName).length < getMaxQueueProducers(queueName)){
+		if(queueExists(queueName) && 
+				(getMaxQueueProducers(queueName) == 0 || getQueueProducers(queueName).length < getMaxQueueProducers(queueName))){
 			getQueue(queueName).registerProducer(producerName);
 			return true;
 		}

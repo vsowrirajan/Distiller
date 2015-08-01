@@ -2,6 +2,7 @@ package com.mapr.distiller.server.recordtypes;
 
 import java.math.BigInteger;
 import java.io.RandomAccessFile;
+
 import com.mapr.distiller.server.queues.RecordQueue;
 
 public class SystemCpuRecord extends Record {
@@ -114,18 +115,25 @@ public class SystemCpuRecord extends Record {
 	/**
 	 * PRODUCE RECORD METHODS
 	 */
-	public static boolean produceRecord(RecordQueue outputQueue, String producerName){
+	public static int[] produceRecord(RecordQueue outputQueue, String producerName){
+		int[] ret = new int[] {0, 0, 0, 0};
+		SystemCpuRecord record = null;
 		try {
-			SystemCpuRecord record = new SystemCpuRecord();
-			if(!outputQueue.put(producerName, record)){
-				throw new Exception("Failed to put SystemCpuRecord into output queue " + outputQueue.getQueueName() + " size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.maxQueueSize() + " producerName:" + producerName);
-			}
+			record = new SystemCpuRecord();
 		} catch (Exception e) {
 			System.err.println("Failed to generate a SystemCpuRecord");
 			e.printStackTrace();
-			return false;
+			ret[2] = 1;
 		}
-		return true;
+		if(record != null && !outputQueue.put(producerName, record)){
+			ret[3] = 1;
+			System.err.println("Failed to put SystemCpuRecord into output queue " + outputQueue.getQueueName() + 
+					" size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.maxQueueSize() + 
+					" producerName:" + producerName);
+		} else {
+			ret[1]=1;
+		}	
+		return ret;
 	}
 	
 	/**

@@ -147,18 +147,29 @@ public class ProcessResourceRecord extends Record {
 	/**
 	 * PRODUCE RECORD METHODS
 	 */
-	public static boolean produceRecord(RecordQueue outputQueue, String producerName, String path, int clockTick){
+	//ret[0] - 0 indicates method completed successfully, 1 indicates method failed to run, this is different from failing to create a record.
+	//ret[1] - records created and put to the output queue
+	//ret[2] - failed record creation attempts
+	//ret[3] - outputQueue put failures
+	public static int[] produceRecord(RecordQueue outputQueue, String producerName, String path, int clockTick){
+		int[] ret = new int[] {0, 0, 0, 0};
+		ProcessResourceRecord record = null;
 		try{
-			ProcessResourceRecord record = new ProcessResourceRecord(path, clockTick);
-			if(!outputQueue.put(producerName, record)){
-				throw new Exception("Failed to put ProcessResourceRecord into output queue " + outputQueue.getQueueName() + " size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.maxQueueSize() + " producerName:" + producerName);
-			}
+			record = new ProcessResourceRecord(path, clockTick);
 		} catch (Exception e) {
 			System.err.println("Failed to generate a ProcessResourceRecord");
 			e.printStackTrace();
-			return false;
+			ret[2]=1;
 		}
-		return  true;
+		if(record != null && !outputQueue.put(producerName, record)){
+			ret[3]=1;
+			System.err.println("Failed to put ProcessResourceRecord into output queue " + outputQueue.getQueueName() + 
+					" size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.maxQueueSize() + 
+					" producerName:" + producerName);
+		} else {
+			ret[1] = 1;
+		}
+		return ret;
 	}
 	
 	/**
