@@ -120,18 +120,25 @@ public class NetworkInterfaceRecord extends Record {
 	/**
 	 * PRODUCE RECORD METHODS
 	 */
-	public static boolean produceRecord(RecordQueue outputQueue, String producerName, String ifName){
+	public static int[] produceRecord(RecordQueue outputQueue, String producerName, String ifName){
+		int[] ret = new int[] {0, 0, 0, 0};
+		NetworkInterfaceRecord record = null;
 		try{
-			NetworkInterfaceRecord record = new NetworkInterfaceRecord(ifName);
-			if(!outputQueue.put(producerName, record)){
-				throw new Exception("Failed to put NetworkInterfaceRecord into output queue " + outputQueue.getQueueName() + " size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.maxQueueSize() + " producerName:" + producerName);
-			}
+			record = new NetworkInterfaceRecord(ifName);
 		} catch (Exception e) {
 			System.err.println("Failed to generate a NetworkInterfaceRecord");
 			e.printStackTrace();
-			return false;
+			ret[2] = 1;
 		}
-		return  true;
+		if(record != null && !outputQueue.put(producerName, record)){
+			ret[3]=1;
+			System.err.println("Failed to put NetworkInterfaceRecord into output queue " + outputQueue.getQueueName() + 
+					" size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.maxQueueSize() + 
+					" producerName:" + producerName);
+		} else {
+			ret[1] = 1;
+		}
+		return ret;
 	}
 	
 	/**

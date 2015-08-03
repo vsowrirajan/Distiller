@@ -181,18 +181,25 @@ public class SystemMemoryRecord extends Record {
 	/**
 	 * PRODUCE RECORD METHODS
 	 */
-	public static boolean produceRecord(RecordQueue outputQueue, String producerName){
+	public static int[] produceRecord(RecordQueue outputQueue, String producerName){
+		int[] ret = new int[] {0, 0, 0, 0};
+		SystemMemoryRecord record = null;
 		try {
-			SystemMemoryRecord record = new SystemMemoryRecord();
-			if(!outputQueue.put(producerName, record)){
-				throw new Exception("Failed to put SystemMemoryRecord into output queue " + outputQueue.getQueueName() + " size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.maxQueueSize() + " producerName:" + producerName);
-			}
+			record = new SystemMemoryRecord();
 		} catch (Exception e) {
 			System.err.println("Failed to generate a SystemMemoryRecord");
 			e.printStackTrace();
-			return false;
+			ret[2] = 1;
 		}
-		return true;
+		if(record != null && !outputQueue.put(producerName, record)){
+			ret[3] = 1;
+			System.err.println("Failed to put SystemMemoryRecord into output queue " + outputQueue.getQueueName() + 
+					" size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.maxQueueSize() + 
+					" producerName:" + producerName);
+		} else {
+			ret[1]=1;
+		}		
+		return ret;
 	}
 
 

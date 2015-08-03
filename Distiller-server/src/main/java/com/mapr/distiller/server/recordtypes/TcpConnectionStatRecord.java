@@ -70,7 +70,12 @@ public class TcpConnectionStatRecord extends Record {
 	/**
 	 * PRODUCE RECORD METHODS
 	 */
-	public static boolean produceRecords(RecordQueue outputQueue, String producerName){
+	//ret[0] - 0 indicates method completed successfully, 1 indicates method failed to run, this is different from failing to create a record.
+	//ret[1] - records created and put to the output queue
+	//ret[2] - failed record creation attempts
+	//ret[3] - outputQueue put failures
+	public static int[] produceRecords(RecordQueue outputQueue, String producerName){
+		int[] ret = new int[] {0, 0, 0, 0};
 		try {
 			RandomAccessFile proc_net_tcp = null;
 			long startTime = System.currentTimeMillis();
@@ -93,7 +98,7 @@ public class TcpConnectionStatRecord extends Record {
 			} catch (Exception e){
 				System.err.println("Failed to parse line from /proc/net/tcp: " + line);
 				e.printStackTrace();
-				return false;
+				return new int[] {1, 0, 0, 0};
 			} finally {
 				try {
 					proc_net_tcp.close();
@@ -110,7 +115,7 @@ public class TcpConnectionStatRecord extends Record {
 			};
 			File ppFile = new File("/proc");
 			File[] pPaths = ppFile.listFiles(fnFilter);
-			if(pPaths == null) return false;
+			if(pPaths == null) return new int[] {2, 0, 0, 0};
 			processesChecked = pPaths.length;
 			long timestamp = System.currentTimeMillis();
 			
@@ -130,12 +135,19 @@ public class TcpConnectionStatRecord extends Record {
 								socketId = linkTarget.split("\\[")[1].split("\\]")[0];
 								String[] parts = null;
 								if( (parts = recordMap.get(socketId)) != null ){
-									TcpConnectionStatRecord record = new TcpConnectionStatRecord(parts, pid);
-									if(!outputQueue.put(producerName, record)){
-										System.err.println("Failed to put TcpConnectionStatRecord into output queue " + outputQueue.getQueueName() + " size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.maxQueueSize() + " producerName:" + producerName);
-										return false;
+									TcpConnectionStatRecord record = null;
+									try {
+										record = new TcpConnectionStatRecord(parts, pid);
+									} catch (Exception e) {
+										System.err.println("Failed to generate a TcpConnectionStatRecord");
+										ret[2]++;
 									}
-									recordsGenerated++;
+									if(record != null && !outputQueue.put(producerName, record)){
+										System.err.println("Failed to put TcpConnectionStatRecord into output queue " + outputQueue.getQueueName() + " size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.maxQueueSize() + " producerName:" + producerName);
+										ret[3]++;
+									} else {
+										ret[1]++;
+									}
 								}
 							}
 						} catch (Exception e){}
@@ -148,9 +160,9 @@ public class TcpConnectionStatRecord extends Record {
 		} catch (Exception e) {
 			System.err.println("Failed to generate TcpConnectionStatRecord");
 			e.printStackTrace();
-			return false;
+			ret[0]=3;
 		}
-		return true;
+		return ret;
 	}
 
 	/**
