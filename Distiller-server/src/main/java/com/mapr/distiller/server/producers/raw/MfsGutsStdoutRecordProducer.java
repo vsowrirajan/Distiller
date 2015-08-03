@@ -1,7 +1,9 @@
 package com.mapr.distiller.server.producers.raw;
 
 import com.mapr.distiller.server.queues.RecordQueue;
+import com.mapr.distiller.server.queues.RecordQueueManager;
 import com.mapr.distiller.server.recordtypes.MfsGutsRecord;
+import com.mapr.distiller.server.recordtypes.RawRecordProducerStatusRecord;
 
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -9,14 +11,46 @@ import java.io.BufferedReader;
 import java.util.regex.Pattern;
 
 public class MfsGutsStdoutRecordProducer extends Thread{
-	RecordQueue outputQueue;
+	String producerName;
+	RecordQueue outputQueue, producerStatsQueue;
 	BufferedReader stdout;
-	boolean shouldExit;
+	boolean shouldExit, producerMetricsEnabled;
 	
-	public MfsGutsStdoutRecordProducer(InputStream stdout, RecordQueue outputQueue){
+	//Used to generate metrics about what the ProcRecordProducer is doing
+	private RawRecordProducerStatusRecord mystatus;
+		
+	//The interval for reporting status on what the ProcRecordProducer is doing (e.g. put the mystatus record into the output queue and start on a new mystatus record);
+	//Perhaps this needs to be configurable
+	private static int statusIntervalSeconds=5;
+	
+	public MfsGutsStdoutRecordProducer(InputStream stdout, RecordQueue outputQueue, RecordQueue producerStatsQueue, String producerName){
 		this.stdout = new BufferedReader(new InputStreamReader(stdout));
 		this.outputQueue = outputQueue;
+		this.producerName = producerName;
+		this.producerStatsQueue = producerStatsQueue;
+		if(producerStatsQueue != null){
+			producerMetricsEnabled = true;
+		} else {
+			producerMetricsEnabled=false;
+		}
 		this.shouldExit = false;
+	}
+
+	public boolean enableProducerMetrics(RecordQueue producerStatsQueue){
+		if(!producerMetricsEnabled && producerStatsQueue!= null){
+			this.producerStatsQueue = producerStatsQueue;
+			this.producerMetricsEnabled = true;
+			return true;
+		}
+		return false;
+	}
+	
+	public boolean producerMetricsEnabled(){
+		return producerMetricsEnabled;
+	}
+	
+	public void disableProducerMetrics(){
+		this.producerMetricsEnabled=false;
 	}
 	
 	public void requestExit(){
@@ -32,8 +66,17 @@ public class MfsGutsStdoutRecordProducer extends Thread{
 		return false;
 	}
 	
-	private boolean generateMfsGutsRecord(RecordQueue outputQueue, String producerName, String line) {
-		return MfsGutsRecord.produceRecord(outputQueue, producerName, line);
+	private boolean generateMfsGutsRecord(String line) {
+		int[] ret = MfsGutsRecord.produceRecord(outputQueue, producerName, line);
+		if(ret[0]==0){
+			mystatus.setRecordsCreated(mystatus.getRecordsCreated() + ret[1]);
+			mystatus.setRecordCreationFailures(mystatus.getRecordCreationFailures() + ret[2]);
+			mystatus.setQueuePutFailures(mystatus.getQueuePutFailures() + ret[3]);
+			return true;
+		} else {
+			mystatus.setOtherFailures(mystatus.getOtherFailures() + 1);;
+			return false;
+		}
 	}
 	
 	public boolean isHeader(String line){
@@ -45,10 +88,28 @@ public class MfsGutsStdoutRecordProducer extends Thread{
 	}
 	
 	public void run() {
-		//String myId = "MfsGuts" + "#1000#" + System.identityHashCode(this);
-		String myId = "MfsGutsRecordProducer";
+		
+		mystatus = new RawRecordProducerStatusRecord(producerName);
+		
 		boolean verifiedHeader = false;
 		while(!shouldExit){
+			//Report self metrics
+			if( ((System.currentTimeMillis() - mystatus.getTimestamp()) / 1000l) >= statusIntervalSeconds ){
+				RawRecordProducerStatusRecord newRecord = null;
+				try {
+					newRecord = new RawRecordProducerStatusRecord(mystatus);
+				} catch (Exception e){
+					System.err.println("Failed to generate a RecordProducerStatusRecord");
+					e.printStackTrace();
+					newRecord = new RawRecordProducerStatusRecord(producerName);
+				}
+				if(producerMetricsEnabled && !producerStatsQueue.put(producerName,mystatus)){
+						System.err.println("Failed to put RecordProducerStatusRecord to output queue " + producerStatsQueue.getQueueName() + 
+												" size:" + producerStatsQueue.queueSize() + " maxSize:" + producerStatsQueue.maxQueueSize() + 
+												" producerName:" + producerName);
+				} 
+				mystatus = newRecord;
+			}
 			String line = null;
 			try {
 				line = stdout.readLine();
@@ -56,6 +117,7 @@ public class MfsGutsStdoutRecordProducer extends Thread{
 				System.err.println("ERROR: Could not read from MFS guts stdout");
 				break;
 			}
+			long startTime = System.currentTimeMillis();
 			if(line != null){
 				if(isHeader(line)){
 					//This is all a hack... hard coded header and all.  See MapR bug 19735.
@@ -70,7 +132,7 @@ public class MfsGutsStdoutRecordProducer extends Thread{
 				} else if(isSample(line)){
 					if(verifiedHeader) {
 						try {
-							generateMfsGutsRecord(outputQueue, myId, line);
+							generateMfsGutsRecord(line);
 						} catch (Exception e){
 							System.err.println("Failed to produce a MfsGutsRecord");
 							e.printStackTrace();
@@ -87,6 +149,9 @@ public class MfsGutsStdoutRecordProducer extends Thread{
 				System.err.println("ERROR: Could not read from MFS guts stdout.");
 				break;
 			}
+			
+			mystatus.setRunningTimems(mystatus.getRunningTimems() + System.currentTimeMillis() - startTime);
+			
 		}
 		try {
 			stdout.close();

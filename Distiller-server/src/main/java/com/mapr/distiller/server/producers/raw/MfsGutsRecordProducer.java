@@ -3,6 +3,7 @@ package com.mapr.distiller.server.producers.raw;
 import java.io.RandomAccessFile;
 
 import com.mapr.distiller.server.queues.RecordQueue;
+import com.mapr.distiller.server.queues.RecordQueueManager;
 
 public class MfsGutsRecordProducer extends Thread {
 	
@@ -15,12 +16,39 @@ public class MfsGutsRecordProducer extends Thread {
 		}
 	}
 	
-	private RecordQueue outputQueue;
+	private String producerName;
+	private RecordQueue outputQueue, producerStatsQueue;
+	MfsGutsStdoutRecordProducer mfsGutsStdoutRecordProducer;
 	boolean shouldExit;
 	
-	public MfsGutsRecordProducer(RecordQueue outputQueue){
+	
+	public boolean producerMetricsEnabled(){
+		return (mfsGutsStdoutRecordProducer != null && mfsGutsStdoutRecordProducer.producerMetricsEnabled());
+	}
+	
+	public MfsGutsRecordProducer(RecordQueue outputQueue,String producerName){
 		this.outputQueue = outputQueue;
+		this.producerName = producerName;
+		this.mfsGutsStdoutRecordProducer = null;
+		this.producerStatsQueue = null;
 		shouldExit=false;
+	}
+	
+	public boolean enableProducerMetrics(RecordQueue producerStatsQueue){
+		if(producerStatsQueue!= null){
+			this.producerStatsQueue = producerStatsQueue;
+			if(mfsGutsStdoutRecordProducer != null){
+				return mfsGutsStdoutRecordProducer.enableProducerMetrics(producerStatsQueue);
+			}
+			return true;
+		}
+		return false;
+	}
+	
+	public void disableProducerMetrics(){
+		if(mfsGutsStdoutRecordProducer != null){
+			mfsGutsStdoutRecordProducer.disableProducerMetrics();
+		}
 	}
 	
 	public void requestExit(){
@@ -101,7 +129,7 @@ public class MfsGutsRecordProducer extends Thread {
 				    
 				    if(gutsAlive){
 				    	//If MFS guts is alive, then start processing it's output.
-				    	MfsGutsStdoutRecordProducer mfsGutsStdoutRecordProducer = new MfsGutsStdoutRecordProducer(mfsGutsProcess.getInputStream(), outputQueue);
+				    	mfsGutsStdoutRecordProducer = new MfsGutsStdoutRecordProducer(mfsGutsProcess.getInputStream(), outputQueue, producerStatsQueue, producerName);
 				    	mfsGutsStdoutRecordProducer.start();
 					    
 					    //Loop once a second until one of the following:

@@ -234,18 +234,25 @@ public class MfsGutsRecord extends Record {
 	/**
 	 * PRODUCE RECORD METHODS
 	 */
-	public static boolean produceRecord(RecordQueue outputQueue, String producerName, String line){
+	public static int[] produceRecord(RecordQueue outputQueue, String producerName, String line){
+		int[] ret = new int[] {0, 0, 0, 0};
+		MfsGutsRecord rec = null;
 		try{
-			MfsGutsRecord rec = new MfsGutsRecord(line);
-			if(!outputQueue.put(producerName, rec)){
-				throw new Exception("Failed to insert MfsGutsRecord into output queue " + outputQueue.getQueueName() + " size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.maxQueueSize() + " producerName:" + producerName);
-			}
+			rec = new MfsGutsRecord(line);
 		} catch (Exception e) {
 			System.err.println("Failed to generate a MfsGutsRecord");
 			e.printStackTrace();
-			return false;
+			ret[2]=1;
 		}
-		return true;
+		if(rec != null && !outputQueue.put(producerName, rec)){
+			ret[3] = 1;
+			System.err.println("Failed to put MfsGutsRecord into output queue " + outputQueue.getQueueName() + 
+					" size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.maxQueueSize() + 
+					" producerName:" + producerName);
+		} else {
+			ret[1] = 1;
+		}
+		return ret;
 	}
 
 	/**
