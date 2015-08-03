@@ -21,6 +21,13 @@ public class MfsGutsRecordProducer extends Thread {
 	MfsGutsStdoutRecordProducer mfsGutsStdoutRecordProducer;
 	boolean shouldExit;
 	
+	public RecordQueue getOutputQueue(){
+		return outputQueue;
+	}
+	
+	public RecordQueue getProducerStatsQueue(){
+		return producerStatsQueue;
+	}
 	
 	public boolean producerMetricsEnabled(){
 		return (mfsGutsStdoutRecordProducer != null && mfsGutsStdoutRecordProducer.producerMetricsEnabled());

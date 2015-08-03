@@ -115,6 +115,9 @@ public class ProcRecordProducer extends Thread {
 		this.enabledMetricManager = new ProcMetricDescriptorManager();
 	}
 	
+	public RecordQueue getProducerStatsQueue(){
+		return producerStatsQueue;
+	}
 	public boolean enableProducerMetrics(RecordQueue producerStatsQueue){
 		if(!producerMetricsEnabled && producerStatsQueue!= null){
 			this.producerStatsQueue = producerStatsQueue;
@@ -434,7 +437,6 @@ public class ProcRecordProducer extends Thread {
 	}
 	
 	public boolean disableMetric(String metricName, RecordQueue outputQueue, int periodicity){
-		String metricId = metricName + "#" + periodicity + "#" + System.identityHashCode(this);
 		synchronized(enabledMetricManager){
 			synchronized(metricSchedule){
 				if(!enabledMetricManager.containsDescriptor(metricName, periodicity))
