@@ -159,7 +159,7 @@ public class MfsGutsRecord extends Record {
 		this.slowReadsRate = this.slowReads.doubleValue() * 1000d / (double)this.getDurationms();
 		this.verySlowReadsRate = this.verySlowReads.doubleValue() * 1000d / (double)this.getDurationms();
 	}
-	public MfsGutsRecord(String line) throws Exception {
+	public MfsGutsRecord(String line, int version) throws Exception {
 		super(System.currentTimeMillis());
 		this.dbWriteOpsRate=-1d;
 		this.dbReadOpsRate=-1d;
@@ -175,70 +175,127 @@ public class MfsGutsRecord extends Record {
 		this.pcRate=-1d;
 		
 		String[] parts = line.trim().split("\\s+");
+		if(version==0){
+			//Guts fields: rsf
+	        this.dbResvFree = new BigInteger(parts[17]);
 
-        //Guts fields: rsf
-        this.dbResvFree = new BigInteger(parts[17]);
+	        //Guts fields: ls
+	        this.logSpaceFree = new BigInteger(parts[131]);
 
-        //Guts fields: ls
-        this.logSpaceFree = new BigInteger(parts[131]);
+	        //Guts fields: sr
+	        this.slowReads = new BigInteger(parts[85]);
 
-        //Guts fields: sr
-        this.slowReads = new BigInteger(parts[85]);
+	        //Guts fields: vsr
+	        this.verySlowReads = new BigInteger(parts[88]);
 
-        //Guts fields: vsr
-        this.verySlowReads = new BigInteger(parts[88]);
+	        //Guts fields: cput ccom cinc
+	        this.dbWriteOpsInProgress = (new BigInteger(parts[16])).add(new BigInteger(parts[25])).add(new BigInteger(parts[42]));
 
-        //Guts fields: cput ccom cinc
-        this.dbWriteOpsInProgress = (new BigInteger(parts[16])).add(new BigInteger(parts[25])).add(new BigInteger(parts[42]));
+	        //Guts fields: cget csc cinc ctlk
+	        this.dbReadOpsInProgress = (new BigInteger(parts[5])).add(new BigInteger(parts[30])).add(new BigInteger(parts[42])).add(new BigInteger(parts[46]));
 
-        //Guts fields: cget csc cinc ctlk
-        this.dbReadOpsInProgress = (new BigInteger(parts[5])).add(new BigInteger(parts[30])).add(new BigInteger(parts[42])).add(new BigInteger(parts[46]));
+	        //Guts fields: rput bucketWr(0) fl ffl sfl mcom fcom scr spcr rinc rchk rapp rbulkb rbulks rip rop rob
+	        this.dbWriteOpsCompleted = (new BigInteger(parts[13])).add(new BigInteger(parts[18])).add(new BigInteger(parts[20])).add(new BigInteger(parts[21])).add(new BigInteger(parts[22])).add(new BigInteger(parts[23])).add(new BigInteger(parts[24])).add(new BigInteger(parts[26])).add(new BigInteger(parts[27])).add(new BigInteger(parts[41])).add(new BigInteger(parts[43])).add(new BigInteger(parts[44])).add(new BigInteger(parts[47])).add(new BigInteger(parts[48])).add(new BigInteger(parts[50])).add(new BigInteger(parts[52])).add(new BigInteger(parts[53]));
 
-        //Guts fields: rput bucketWr(0) fl ffl sfl mcom fcom scr spcr rinc rchk rapp rbulkb rbulks rip rop rob
-        this.dbWriteOpsCompleted = (new BigInteger(parts[13])).add(new BigInteger(parts[18])).add(new BigInteger(parts[20])).add(new BigInteger(parts[21])).add(new BigInteger(parts[22])).add(new BigInteger(parts[23])).add(new BigInteger(parts[24])).add(new BigInteger(parts[26])).add(new BigInteger(parts[27])).add(new BigInteger(parts[41])).add(new BigInteger(parts[43])).add(new BigInteger(parts[44])).add(new BigInteger(parts[47])).add(new BigInteger(parts[48])).add(new BigInteger(parts[50])).add(new BigInteger(parts[52])).add(new BigInteger(parts[53]));
+	        //Guts fields: rget tgetR bget sg spg rsc bsc ssc spsc ldbr blkr raSg raSp nAdv raBl rinc rchk rtlk
+	        this.dbReadOpsCompleted = (new BigInteger(parts[2])).add(new BigInteger(parts[4])).add(new BigInteger(parts[9])).add(new BigInteger(parts[10])).add(new BigInteger(parts[11])).add(new BigInteger(parts[28])).add(new BigInteger(parts[31])).add(new BigInteger(parts[32])).add(new BigInteger(parts[33])).add(new BigInteger(parts[35])).add(new BigInteger(parts[36])).add(new BigInteger(parts[37])).add(new BigInteger(parts[38])).add(new BigInteger(parts[39])).add(new BigInteger(parts[40])).add(new BigInteger(parts[41])).add(new BigInteger(parts[43])).add(new BigInteger(parts[45]));
 
-        //Guts fields: rget tgetR bget sg spg rsc bsc ssc spsc ldbr blkr raSg raSp nAdv raBl rinc rchk rtlk
-        this.dbReadOpsCompleted = (new BigInteger(parts[2])).add(new BigInteger(parts[4])).add(new BigInteger(parts[9])).add(new BigInteger(parts[10])).add(new BigInteger(parts[11])).add(new BigInteger(parts[28])).add(new BigInteger(parts[31])).add(new BigInteger(parts[32])).add(new BigInteger(parts[33])).add(new BigInteger(parts[35])).add(new BigInteger(parts[36])).add(new BigInteger(parts[37])).add(new BigInteger(parts[38])).add(new BigInteger(parts[39])).add(new BigInteger(parts[40])).add(new BigInteger(parts[41])).add(new BigInteger(parts[43])).add(new BigInteger(parts[45]));
+	        //Guts fields: rputR tputR
+	        this.dbRowWritesCompleted = (new BigInteger(parts[14])).add(new BigInteger(parts[15]));
 
-        //Guts fields: rputR tputR
-        this.dbRowWritesCompleted = (new BigInteger(parts[14])).add(new BigInteger(parts[15]));
+	        //Guts fields: rgetR rscR spscR
+	        this.dbRowReadsCompleted = (new BigInteger(parts[3])).add(new BigInteger(parts[29])).add(new BigInteger(parts[34]));
 
-        //Guts fields: rgetR rscR spscR
-        this.dbRowReadsCompleted = (new BigInteger(parts[3])).add(new BigInteger(parts[29])).add(new BigInteger(parts[34]));
+	        //Guts fields: rpc
+	        this.rpcCompleted = new BigInteger(parts[0]);
 
-        //Guts fields: rpc
-        this.rpcCompleted = new BigInteger(parts[0]);
+	        //Guts fields: rpc lpc
+	        this.pcCompleted = (new BigInteger(parts[0])).add(new BigInteger(parts[1]));
 
-        //Guts fields: rpc lpc
-        this.pcCompleted = (new BigInteger(parts[0])).add(new BigInteger(parts[1]));
+	        //Guts fields: bin bde bre bsp bme bco
+	        this.btreeWriteOpsCompleted = (new BigInteger(parts[140])).add(new BigInteger(parts[141])).add(new BigInteger(parts[142])).add(new BigInteger(parts[143])).add(new BigInteger(parts[144])).add(new BigInteger(parts[145]));
 
-        //Guts fields: bin bde bre bsp bme bco
-        this.btreeWriteOpsCompleted = (new BigInteger(parts[140])).add(new BigInteger(parts[141])).add(new BigInteger(parts[142])).add(new BigInteger(parts[143])).add(new BigInteger(parts[144])).add(new BigInteger(parts[145]));
+	        //Guts fields: blu
+	        this.btreeReadOpsCompleted = new BigInteger(parts[139]);
 
-        //Guts fields: blu
-        this.btreeReadOpsCompleted = new BigInteger(parts[139]);
+	        //Guts fields: ikv rkv
+	        this.kvstoreOpsCompleted = (new BigInteger(parts[106])).add(new BigInteger(parts[107]));
 
-        //Guts fields: ikv rkv
-        this.kvstoreOpsCompleted = (new BigInteger(parts[106])).add(new BigInteger(parts[107]));
+	        //Guts fields: qi qd bq aq di ic dd dc dm mc bc fc
+	        this.cleanerOpsCompleted = (new BigInteger(parts[108])).add(new BigInteger(parts[109])).add(new BigInteger(parts[110])).add(new BigInteger(parts[111])).add(new BigInteger(parts[112])).add(new BigInteger(parts[113])).add(new BigInteger(parts[114])).add(new BigInteger(parts[115])).add(new BigInteger(parts[116])).add(new BigInteger(parts[117])).add(new BigInteger(parts[118])).add(new BigInteger(parts[119]));
 
-        //Guts fields: qi qd bq aq di ic dd dc dm mc bc fc
-        this.cleanerOpsCompleted = (new BigInteger(parts[108])).add(new BigInteger(parts[109])).add(new BigInteger(parts[110])).add(new BigInteger(parts[111])).add(new BigInteger(parts[112])).add(new BigInteger(parts[113])).add(new BigInteger(parts[114])).add(new BigInteger(parts[115])).add(new BigInteger(parts[116])).add(new BigInteger(parts[117])).add(new BigInteger(parts[118])).add(new BigInteger(parts[119]));
+	        //Guts fields: lkp ga rd rdp rl r
+	        this.fsReadOpsCompleted = (new BigInteger(parts[58])).add(new BigInteger(parts[63])).add(new BigInteger(parts[65])).add(new BigInteger(parts[66])).add(new BigInteger(parts[67])).add(new BigInteger(parts[68]));
 
-        //Guts fields: lkp ga rd rdp rl r
-        this.fsReadOpsCompleted = (new BigInteger(parts[58])).add(new BigInteger(parts[63])).add(new BigInteger(parts[65])).add(new BigInteger(parts[66])).add(new BigInteger(parts[67])).add(new BigInteger(parts[68]));
+	        //Guts fields: cr cdi rdi sl vl ul dvl sa w sf td ksi ksd ltxn
+	        this.fsWriteOpsCompleted = (new BigInteger(parts[55])).add(new BigInteger(parts[56])).add(new BigInteger(parts[57])).add(new BigInteger(parts[59])).add(new BigInteger(parts[60])).add(new BigInteger(parts[61])).add(new BigInteger(parts[62])).add(new BigInteger(parts[64])).add(new BigInteger(parts[69])).add(new BigInteger(parts[70])).add(new BigInteger(parts[71])).add(new BigInteger(parts[72])).add(new BigInteger(parts[73])).add(new BigInteger(parts[134]));		
 
-        //Guts fields: cr cdi rdi sl vl ul dvl sa w sf td ksi ksd ltxn
-        this.fsWriteOpsCompleted = (new BigInteger(parts[55])).add(new BigInteger(parts[56])).add(new BigInteger(parts[57])).add(new BigInteger(parts[59])).add(new BigInteger(parts[60])).add(new BigInteger(parts[61])).add(new BigInteger(parts[62])).add(new BigInteger(parts[64])).add(new BigInteger(parts[69])).add(new BigInteger(parts[70])).add(new BigInteger(parts[71])).add(new BigInteger(parts[72])).add(new BigInteger(parts[73])).add(new BigInteger(parts[134]));		
+		} else if (version==1){
+			//Guts fields: rsf
+	        this.dbResvFree = new BigInteger(parts[17]);
+
+	        //Guts fields: ls
+	        this.logSpaceFree = new BigInteger(parts[131]);
+
+	        //Guts fields: sr
+	        this.slowReads = new BigInteger(parts[85]);
+
+	        //Guts fields: vsr
+	        this.verySlowReads = new BigInteger(parts[88]);
+
+	        //Guts fields: cput ccom cinc
+	        this.dbWriteOpsInProgress = (new BigInteger(parts[16])).add(new BigInteger(parts[25])).add(new BigInteger(parts[42]));
+
+	        //Guts fields: cget csc cinc ctlk
+	        this.dbReadOpsInProgress = (new BigInteger(parts[5])).add(new BigInteger(parts[30])).add(new BigInteger(parts[42])).add(new BigInteger(parts[46]));
+
+	        //Guts fields: rput bucketWr(0) fl ffl sfl mcom fcom scr spcr rinc rchk rapp rbulkb rbulks rip rop rob
+	        this.dbWriteOpsCompleted = (new BigInteger(parts[13])).add(new BigInteger(parts[18])).add(new BigInteger(parts[20])).add(new BigInteger(parts[21])).add(new BigInteger(parts[22])).add(new BigInteger(parts[23])).add(new BigInteger(parts[24])).add(new BigInteger(parts[26])).add(new BigInteger(parts[27])).add(new BigInteger(parts[41])).add(new BigInteger(parts[43])).add(new BigInteger(parts[44])).add(new BigInteger(parts[47])).add(new BigInteger(parts[48])).add(new BigInteger(parts[50])).add(new BigInteger(parts[52])).add(new BigInteger(parts[53]));
+
+	        //Guts fields: rget tgetR bget sg spg rsc bsc ssc spsc ldbr blkr raSg raSp nAdv raBl rinc rchk rtlk
+	        this.dbReadOpsCompleted = (new BigInteger(parts[2])).add(new BigInteger(parts[4])).add(new BigInteger(parts[9])).add(new BigInteger(parts[10])).add(new BigInteger(parts[11])).add(new BigInteger(parts[28])).add(new BigInteger(parts[31])).add(new BigInteger(parts[32])).add(new BigInteger(parts[33])).add(new BigInteger(parts[35])).add(new BigInteger(parts[36])).add(new BigInteger(parts[37])).add(new BigInteger(parts[38])).add(new BigInteger(parts[39])).add(new BigInteger(parts[40])).add(new BigInteger(parts[41])).add(new BigInteger(parts[43])).add(new BigInteger(parts[45]));
+
+	        //Guts fields: rputR tputR
+	        this.dbRowWritesCompleted = (new BigInteger(parts[14])).add(new BigInteger(parts[15]));
+
+	        //Guts fields: rgetR rscR spscR
+	        this.dbRowReadsCompleted = (new BigInteger(parts[3])).add(new BigInteger(parts[29])).add(new BigInteger(parts[34]));
+
+	        //Guts fields: rpc
+	        this.rpcCompleted = new BigInteger(parts[0]);
+
+	        //Guts fields: rpc lpc
+	        this.pcCompleted = (new BigInteger(parts[0])).add(new BigInteger(parts[1]));
+
+	        //Guts fields: bin bde bre bsp bme bco
+	        this.btreeWriteOpsCompleted = (new BigInteger(parts[143])).add(new BigInteger(parts[144])).add(new BigInteger(parts[145])).add(new BigInteger(parts[146])).add(new BigInteger(parts[147])).add(new BigInteger(parts[148]));
+
+	        //Guts fields: blu
+	        this.btreeReadOpsCompleted = new BigInteger(parts[142]);
+
+	        //Guts fields: ikv rkv lkv kln skv
+	        this.kvstoreOpsCompleted = (new BigInteger(parts[106])).add(new BigInteger(parts[107])).add(new BigInteger(parts[108])).add(new BigInteger(parts[109])).add(new BigInteger(parts[110]));
+
+	        //Guts fields: qi qd bq aq di ic dd dc dm mc bc fc
+	        this.cleanerOpsCompleted = (new BigInteger(parts[108])).add(new BigInteger(parts[112])).add(new BigInteger(parts[113])).add(new BigInteger(parts[114])).add(new BigInteger(parts[115])).add(new BigInteger(parts[116])).add(new BigInteger(parts[117])).add(new BigInteger(parts[118])).add(new BigInteger(parts[119])).add(new BigInteger(parts[120])).add(new BigInteger(parts[121])).add(new BigInteger(parts[122]));
+
+	        //Guts fields: lkp ga rd rdp rl r
+	        this.fsReadOpsCompleted = (new BigInteger(parts[58])).add(new BigInteger(parts[63])).add(new BigInteger(parts[65])).add(new BigInteger(parts[66])).add(new BigInteger(parts[67])).add(new BigInteger(parts[68]));
+
+	        //Guts fields: cr cdi rdi sl vl ul dvl sa w sf td ksi ksd ltxn
+	        this.fsWriteOpsCompleted = (new BigInteger(parts[55])).add(new BigInteger(parts[56])).add(new BigInteger(parts[57])).add(new BigInteger(parts[59])).add(new BigInteger(parts[60])).add(new BigInteger(parts[61])).add(new BigInteger(parts[62])).add(new BigInteger(parts[64])).add(new BigInteger(parts[69])).add(new BigInteger(parts[70])).add(new BigInteger(parts[71])).add(new BigInteger(parts[72])).add(new BigInteger(parts[73])).add(new BigInteger(parts[137]));		
+
+		}
 	}
 	
 	/**
 	 * PRODUCE RECORD METHODS
 	 */
-	public static int[] produceRecord(RecordQueue outputQueue, String producerName, String line){
+	public static int[] produceRecord(RecordQueue outputQueue, String producerName, String line, int version){
 		int[] ret = new int[] {0, 0, 0, 0};
 		MfsGutsRecord rec = null;
 		try{
-			rec = new MfsGutsRecord(line);
+			rec = new MfsGutsRecord(line, version);
 		} catch (Exception e) {
 			System.err.println("Failed to generate a MfsGutsRecord");
 			e.printStackTrace();
@@ -259,8 +316,10 @@ public class MfsGutsRecord extends Record {
 	 * OTHER METHODS
 	 */
  	public String toString(){
-		return super.toString() + " MfsGuts";
+		return super.toString() + " MfsGuts rsf:" + dbResvFree + " lsf:" + logSpaceFree + " fsro:" + fsReadOpsCompleted + " fswo:" + fsWriteOpsCompleted + 
+									" btro:" + btreeReadOpsCompleted + " btwo:" + btreeWriteOpsCompleted;
 	}
+
  	public BigInteger getDbResvFree(){
  		return dbResvFree;
  	}

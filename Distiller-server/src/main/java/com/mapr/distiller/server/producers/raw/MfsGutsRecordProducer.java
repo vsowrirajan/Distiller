@@ -102,6 +102,8 @@ public class MfsGutsRecordProducer extends Thread {
 	public void run(){
 		int mfsPid=-1;
 		boolean mfsAlive=false, gutsAlive=false;
+		//E.g.:
+		// /opt/mapr/bin/guts flush:line time:none cpu:none net:none disk:none ssd:none cleaner:all fs:all kv:all btree:all rpc:db db:all dbrepl:all cache:none log:all resync:all io:small
 		ProcessBuilder mfsGutsProcessBuilder = new ProcessBuilder("/opt/mapr/bin/guts", "flush:line", "time:none", "cpu:none", "net:none", "disk:none", "ssd:none", "cleaner:all", "fs:all", "kv:all", "btree:all", "rpc:db", "db:all", "dbrepl:all", "cache:none", "log:all", "resync:all", "io:small");
 		
 		while(!shouldExit){
@@ -155,6 +157,11 @@ public class MfsGutsRecordProducer extends Thread {
 					    		System.err.println("Failed to determine if MFS process is still running with PID " + mfsId.pid + " and starttime " + mfsId.starttime);
 					    		break;
 					    	}
+					    	//Check if MfsGutsStdoutRecordProducer is still running
+					    	if(!mfsGutsStdoutRecordProducer.isAlive()){
+					    		System.err.println("MfsGutsStdoutRecordProducer is not running.");
+					    		break;
+					    	}
 					    	//Check if guts is running
 					    	try {
 					    		int gutsRetCode = mfsGutsProcess.exitValue();
@@ -175,12 +182,6 @@ public class MfsGutsRecordProducer extends Thread {
 					    	} catch (Exception e) {
 					    		break;
 					    	}
-					    	//Check if MfsGutsStdoutRecordProducer is still running
-					    	if(!mfsGutsStdoutRecordProducer.isAlive()){
-					    		System.err.println("MfsGutsStdoutRecordProducer is not running.");
-					    		break;
-					    	}
-					    	//All is well, ask the MfsGutsStdoutRecordProducer to process any pending lines of output from guts
 					    	try {
 								Thread.sleep(1000);
 							} catch (Exception e){}
