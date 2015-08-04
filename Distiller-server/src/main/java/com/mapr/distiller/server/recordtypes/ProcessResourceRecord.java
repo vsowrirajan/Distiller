@@ -11,7 +11,7 @@ public class ProcessResourceRecord extends Record {
 	/**
 	 * DERIVED VALUES
 	 */
-	private double cpuUtilPct, iowaitUtilPct;
+	private double cpuUtilPct, iowaitUtilPct, readCallRate, writeCallRate, readCharRate, writeCharRate, readByteRate, writeByteRate, cancelledWriteByteRate;
 	
 	/**
 	 * RAW VALUES
@@ -21,6 +21,7 @@ public class ProcessResourceRecord extends Record {
 	private int pid, ppid, pgrp, num_threads, clockTick;
 	private long starttime;
 	private BigInteger cguest_time, cmajflt, cminflt, cstime, cutime, delayacct_blkio_ticks, guest_time, majflt, minflt, rss, rsslim, stime, utime, vsize;
+	private BigInteger rchar, wchar, syscr, syscw, read_bytes, write_bytes, cancelled_write_bytes;
 
 	/**
 	 * CONSTRUCTORS
@@ -72,40 +73,69 @@ public class ProcessResourceRecord extends Record {
 		this.minflt = newRecord.get_minflt().subtract(oldRecord.get_minflt());
 		this.stime = newRecord.get_stime().subtract(oldRecord.get_stime());
 		this.utime = newRecord.get_utime().subtract(oldRecord.get_utime());
+		this.rchar = newRecord.get_rchar().subtract(oldRecord.get_rchar());
+		this.wchar = newRecord.get_wchar().subtract(oldRecord.get_wchar());
+		this.syscr = newRecord.get_syscr().subtract(oldRecord.get_syscr());
+		this.syscw = newRecord.get_syscw().subtract(oldRecord.get_syscw());
+		this.read_bytes = newRecord.get_read_bytes().subtract(oldRecord.get_read_bytes());
+		this.write_bytes = newRecord.get_write_bytes().subtract(oldRecord.get_write_bytes());
+		this.cancelled_write_bytes = newRecord.get_cancelled_write_bytes().subtract(oldRecord.get_cancelled_write_bytes());
+
 
 		//Derived values:
 		this.cpuUtilPct = this.utime.add(this.stime).doubleValue() / 					//The number of jiffies used by the process over the duration
 				(((double)(this.clockTick * this.getDurationms())) / 1000d);			//The number of jiffies that went by over the duration
 		this.iowaitUtilPct = this.delayacct_blkio_ticks.doubleValue() / 				//The number of jiffies the process waited for IO over the duration
 				(((double)(this.clockTick * this.getDurationms())) / 1000d);			//The number of jiffies that went by over the duration
+		this.readCallRate = this.syscr.doubleValue() / 
+				(((double)(this.clockTick * this.getDurationms())) / 1000d);
+		this.writeCallRate = this.syscw.doubleValue() / 
+				(((double)(this.clockTick * this.getDurationms())) / 1000d);
+		this.readCharRate = this.rchar.doubleValue() / 
+				(((double)(this.clockTick * this.getDurationms())) / 1000d);
+		this.writeCharRate = this.wchar.doubleValue() / 
+				(((double)(this.clockTick * this.getDurationms())) / 1000d);
+		this.readByteRate = this.read_bytes.doubleValue() / 
+				(((double)(this.clockTick * this.getDurationms())) / 1000d);
+		this.writeByteRate = this.write_bytes.doubleValue() / 
+				(((double)(this.clockTick * this.getDurationms())) / 1000d);
+		this.cancelledWriteByteRate = this.cancelled_write_bytes.doubleValue() / 
+				(((double)(this.clockTick * this.getDurationms())) / 1000d);
 	}
 	
-	public ProcessResourceRecord(String path, int clockTick) throws Exception {
+	public ProcessResourceRecord(String statpath, String iopath, int clockTick) throws Exception {
 		//This constructor takes "path" which should be the path to a /proc/[pid]/stat file
 		//This constructor takes "clockTick" which should be set to jiffies per second from kernel build (obtained in ProcRecordProducer)
 		super(System.currentTimeMillis());
 		this.clockTick = clockTick;
 		this.cpuUtilPct = -1d;
 		this.iowaitUtilPct = -1d;
+		this.readCallRate = -1d;
+		this.writeCallRate = -1d;
+		this.readCharRate = -1d;
+		this.writeCharRate = -1d;
+		this.readByteRate = -1d;
+		this.writeByteRate = -1d;
+		this.cancelledWriteByteRate = -1d;
 		String[] parts = null;
-		int bs = 600; //600 bytes should be enough to hold contents of /proc/[pid]/stat or /proc/[pid]/task/[tid]/stat 
-		FileChannel fc = null;
+		int statbs = 600; //600 bytes should be enough to hold contents of /proc/[pid]/stat or /proc/[pid]/task/[tid]/stat 
+		int iobs = 250; //250 bytes should be enough to hold contents of /proc/[pid]/io or /proc/[pid]/task/[tid]/io
+		FileChannel statfc = null, iofc = null;
 		ByteBuffer b = null;
 		int br=-1;
 		
 		try {
 			//Open, read the file.
-			boolean failedToReadFile=false;
 			try {
-				fc = FileChannel.open(Paths.get(path));
-				b = ByteBuffer.allocate(bs);
-				br = fc.read(b);
+				statfc = FileChannel.open(Paths.get(statpath));
+				b = ByteBuffer.allocate(statbs);
+				br = statfc.read(b);
 			} catch (Exception e) {
-				failedToReadFile=true;
+				throw new Exception("Failed to produce a ProcessResourceRecord due to an exception reading the stats file: " + statpath, e);
 			}
 			
 			//Check whether we were able to read from the file, and whether we were able to read the entire contents
-			if(!failedToReadFile && br > 0 && br < bs){
+			if(br > 0 && br < statbs){
 				//If the file could be read, parse the values
 				String tempStr = new String(b.array());
 				this.pid = Integer.parseInt(tempStr.split("\\s+", 2)[0]);
@@ -135,14 +165,41 @@ public class ProcessResourceRecord extends Record {
 				this.delayacct_blkio_ticks = new BigInteger(parts[39]);
 				this.guest_time = new BigInteger(parts[40]);
 				this.cguest_time = new BigInteger(parts[41]);
-			} else if(!failedToReadFile){
-				throw new Exception("Failed to produce a ProcessResourceRecord due to read response length, br:" + br + " bs:" + bs);
+
+				//Process io file
+				try {
+					iofc = FileChannel.open(Paths.get(iopath));
+					b = ByteBuffer.allocate(iobs);
+					br = iofc.read(b);
+				} catch (Exception e) {
+					throw new Exception("Failed to produce a ThreadResourceRecord due to an exception reading the io file: " + iopath, e);
+				}
+				String line = null;
+				if(br > 0 && br < iobs){
+					line = new String(b.array());
+				} else {
+					throw new Exception("Failed to produce a ThreadResourceRecord from io file due to read response length, br:" + br + " bs:" + iobs);
+				}
+				parts = line.trim().split("\\s+");
+				if(parts.length<14){ //Expect 14 values in /proc/[pid]/task/[tid]/io based on Linux kernel version used for this dev.
+					throw new Exception("Failed to produce a ThreadResourceRecord due to unexpected format of io file, found " + parts.length + " fields");
+				}
+				this.rchar = new BigInteger(parts[1]);
+				this.wchar = new BigInteger(parts[3]);
+				this.syscr = new BigInteger(parts[5]);
+				this.syscw = new BigInteger(parts[7]);
+				this.read_bytes = new BigInteger(parts[9]);
+				this.write_bytes = new BigInteger(parts[11]);
+				this.cancelled_write_bytes = new BigInteger(parts[13]);
+			} else {
+				throw new Exception("Failed to produce a ProcessResourceRecord due to read response length, br:" + br + " bs:" + statbs);
 			}
 		} catch (Exception e) {
-			throw new Exception("Failed to produce a ProcessResourceRecord for path " + path, e);
+			throw new Exception("Failed to produce a ProcessResourceRecord", e);
 		} finally {
 			try{
-				fc.close();
+				statfc.close();
+				iofc.close();
 			} catch (Exception e){}
 		}
 	}
@@ -154,11 +211,11 @@ public class ProcessResourceRecord extends Record {
 	//ret[1] - records created and put to the output queue
 	//ret[2] - failed record creation attempts
 	//ret[3] - outputQueue put failures
-	public static int[] produceRecord(RecordQueue outputQueue, String producerName, String path, int clockTick){
+	public static int[] produceRecord(RecordQueue outputQueue, String producerName, String statpath, String iopath, int clockTick){
 		int[] ret = new int[] {0, 0, 0, 0};
 		ProcessResourceRecord record = null;
 		try{
-			record = new ProcessResourceRecord(path, clockTick);
+			record = new ProcessResourceRecord(statpath, iopath, clockTick);
 		} catch (Exception e) {
 			System.err.println("Failed to generate a ProcessResourceRecord");
 			e.printStackTrace();
@@ -247,10 +304,52 @@ public class ProcessResourceRecord extends Record {
 	public BigInteger get_vsize(){
 		return vsize;
 	}
+	public BigInteger get_rchar(){
+		return rchar;
+	}
+	public BigInteger get_wchar(){
+		return wchar;
+	}
+	public BigInteger get_syscr(){
+		return syscr;
+	}
+	public BigInteger get_syscw(){
+		return syscw;
+	}
+	public BigInteger get_read_bytes(){
+		return read_bytes;
+	}
+	public BigInteger get_write_bytes(){
+		return write_bytes;
+	}
+	public BigInteger get_cancelled_write_bytes(){
+		return cancelled_write_bytes;
+	}
 	public double getCpuUtilPct(){
 		return cpuUtilPct;
 	}
 	public double getIowaitUtilPct(){
 		return iowaitUtilPct;
+	}
+	public double getReadCallRate(){
+		return readCallRate;
+	}
+	public double getWriteCallRate(){
+		return writeCallRate;
+	}
+	public double getReadCharRate(){
+		return readCharRate;
+	}
+	public double getWriteCharRate(){
+		return writeCharRate;
+	}
+	public double getReadByteRate(){
+		return readByteRate;
+	}
+	public double getWriteByteRate(){
+		return writeByteRate;
+	}
+	public double getCancelledWriteByteRate(){
+		return cancelledWriteByteRate;
 	}
 }

@@ -509,7 +509,13 @@ public class ProcRecordProducer extends Thread {
                         if(tPaths != null) {
                                 for (int x=0; x<tPaths.length; x++){
                                         String statPath = tPaths[x].toString() + "/stat";
-                                        int[] ret = ThreadResourceRecord.produceRecord(outputQueue, producerName, statPath, ppid, clockTick);
+                                        String ioPath = tPaths[x].toString() + "/io";
+                                        int[] ret = null;
+                                        try {
+                                        	ret = ThreadResourceRecord.produceRecord(outputQueue, producerName, statPath, ioPath, ppid, clockTick);
+                                        } catch (Exception e) {
+                                        	ret = new int[] {1, 0, 0, 0};
+                                        }
                                         if(ret[0] == 0){
                                         	threadResourceRecordsCreated += ret[1];
                                         	threadResourceRecordCreationFailures += ret[2];
@@ -545,7 +551,14 @@ public class ProcRecordProducer extends Thread {
                 //For each process in /proc
                 for (int pn = 0; pn<pPaths.length; pn++){
                         //Retrieve the process counters contained in /proc/[pid]/stat
-                	int[] ret = ProcessResourceRecord.produceRecord(outputQueue, producerName, pPaths[pn].toString() + "/stat", clockTick);
+                	String statPath = pPaths[pn].toString() + "/stat";
+                	String ioPath = pPaths[pn].toString() + "/io";
+                	int[] ret = null;
+                	try {
+                		ret = ProcessResourceRecord.produceRecord(outputQueue, producerName, statPath, ioPath, clockTick);
+                	} catch (Exception e) {
+                		ret = new int[]{1,0,0,0};
+                	}
                 	if(ret[0] == 0){
                     	processResourceRecordsCreated += ret[1];
                     	processResourceRecordCreationFailures += ret[2];
@@ -566,7 +579,12 @@ public class ProcRecordProducer extends Thread {
                         if(i.getName().equals("lo")){
                                 continue;
                         }
-                        int ret[] = NetworkInterfaceRecord.produceRecord(outputQueue, producerName, i.getName());
+                        int[] ret = null;
+                        try {
+                          ret = NetworkInterfaceRecord.produceRecord(outputQueue, producerName, i.getName());
+                        } catch (Exception e) {
+                        	ret = new int[] {1, 0, 0, 0};
+                        }
                         if(ret[0] == 0){
                         	networkInterfaceRecordsCreated += ret[1];
                         	networkInterfaceRecordCreationFailures += ret[2];
@@ -585,7 +603,12 @@ public class ProcRecordProducer extends Thread {
 	}
 
 	private boolean generateSystemMemoryRecord(RecordQueue outputQueue) {
-		int ret[] =  SystemMemoryRecord.produceRecord(outputQueue, producerName);
+		int[] ret = null;
+		try {
+			ret =  SystemMemoryRecord.produceRecord(outputQueue, producerName);
+		} catch (Exception e) {
+			ret = new int[] {1, 0, 0, 0};
+		}
 		if(ret[0] == 0){
         	systemMemoryRecordsCreated += ret[1];
         	systemMemoryRecordCreationFailures += ret[2];
@@ -598,7 +621,12 @@ public class ProcRecordProducer extends Thread {
 	}
 
 	private boolean generateDiskstatRecords(RecordQueue outputQueue) {
-		int[] ret =  DiskstatRecord.produceRecords(outputQueue, producerName);
+		int[] ret = null;
+		try {
+			ret =  DiskstatRecord.produceRecords(outputQueue, producerName);
+		} catch (Exception e) {
+			ret = new int[] {1, 0, 0, 0};
+		}
 		if(ret[0] == 0){
         	diskstatRecordsCreated += ret[1];
         	diskstatRecordCreationFailures += ret[2];
@@ -611,7 +639,12 @@ public class ProcRecordProducer extends Thread {
 	}
 
 	private boolean generateSystemCpuRecord(RecordQueue outputQueue) {
-		int[] ret = SystemCpuRecord.produceRecord(outputQueue, producerName);
+		int[] ret = null;
+		try {
+			ret = SystemCpuRecord.produceRecord(outputQueue, producerName);
+		} catch (Exception e){
+			ret = new int[] {1, 0, 0, 0};
+		}
 		if(ret[0] == 0){
         	systemCpuRecordsCreated += ret[1];
         	systemCpuRecordCreationFailures += ret[2];
@@ -624,7 +657,12 @@ public class ProcRecordProducer extends Thread {
 	}
 
 	private boolean generateTcpConnectionStatRecords(RecordQueue outputQueue) {
-		int[] ret = TcpConnectionStatRecord.produceRecords(outputQueue, producerName);
+		int[] ret = null;
+		try {
+			ret = TcpConnectionStatRecord.produceRecords(outputQueue, producerName);
+		} catch (Exception e) {
+			ret = new int[] {1, 0, 0, 0};
+		}
         if(ret[0] == 0){
         	tcpConnectionStatRecordsCreated += ret[1];
         	tcpConnectionStatRecordCreationFailures += ret[2];

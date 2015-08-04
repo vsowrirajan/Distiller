@@ -11,7 +11,7 @@ public class ThreadResourceRecord extends Record {
 	/**
 	 * DERIVED VALUES
 	 */
-	private Double cpuUtilPct, iowaitUtilPct;
+	private double cpuUtilPct, iowaitUtilPct, readCallRate, writeCallRate, readCharRate, writeCharRate, readByteRate, writeByteRate, cancelledWriteByteRate;
 	
 	/**
 	 * RAW VALUES
@@ -21,6 +21,7 @@ public class ThreadResourceRecord extends Record {
 	private int pid, ppid, clockTick;
 	private long starttime;
 	private BigInteger delayacct_blkio_ticks, guest_time, majflt, minflt, stime, utime;
+	private BigInteger rchar, wchar, syscr, syscw, read_bytes, write_bytes, cancelled_write_bytes;
 
 	/**
 	 * CONSTRUCTORS
@@ -62,59 +63,114 @@ public class ThreadResourceRecord extends Record {
 		this.minflt = newRecord.get_minflt().subtract(oldRecord.get_minflt());
 		this.stime = newRecord.get_stime().subtract(oldRecord.get_stime());
 		this.utime = newRecord.get_utime().subtract(oldRecord.get_utime());
+		this.rchar = newRecord.get_rchar().subtract(oldRecord.get_rchar());
+		this.wchar = newRecord.get_wchar().subtract(oldRecord.get_wchar());
+		this.syscr = newRecord.get_syscr().subtract(oldRecord.get_syscr());
+		this.syscw = newRecord.get_syscw().subtract(oldRecord.get_syscw());
+		this.read_bytes = newRecord.get_read_bytes().subtract(oldRecord.get_read_bytes());
+		this.write_bytes = newRecord.get_write_bytes().subtract(oldRecord.get_write_bytes());
+		this.cancelled_write_bytes = newRecord.get_cancelled_write_bytes().subtract(oldRecord.get_cancelled_write_bytes());
 
 		//Derived values:
 		this.cpuUtilPct = this.utime.add(this.stime).doubleValue() / 					//The number of jiffies used by the process over the duration
 				(((double)(this.clockTick * this.getDurationms())) / 1000d);			//The number of jiffies that went by over the duration
 		this.iowaitUtilPct = this.delayacct_blkio_ticks.doubleValue() / 				//The number of jiffies the process waited for IO over the duration
 				(((double)(this.clockTick * this.getDurationms())) / 1000d);			//The number of jiffies that went by over the duration
+		this.readCallRate = this.syscr.doubleValue() / 
+				(((double)(this.clockTick * this.getDurationms())) / 1000d);
+		this.writeCallRate = this.syscw.doubleValue() / 
+				(((double)(this.clockTick * this.getDurationms())) / 1000d);
+		this.readCharRate = this.rchar.doubleValue() / 
+				(((double)(this.clockTick * this.getDurationms())) / 1000d);
+		this.writeCharRate = this.wchar.doubleValue() / 
+				(((double)(this.clockTick * this.getDurationms())) / 1000d);
+		this.readByteRate = this.read_bytes.doubleValue() / 
+				(((double)(this.clockTick * this.getDurationms())) / 1000d);
+		this.writeByteRate = this.write_bytes.doubleValue() / 
+				(((double)(this.clockTick * this.getDurationms())) / 1000d);
+		this.cancelledWriteByteRate = this.cancelled_write_bytes.doubleValue() / 
+				(((double)(this.clockTick * this.getDurationms())) / 1000d);
 	}
-	public ThreadResourceRecord(String path, int ppid, int clockTick) throws Exception{
+	public ThreadResourceRecord(String statPath, String ioPath, int ppid, int clockTick) throws Exception{
 		super(System.currentTimeMillis());
 		this.cpuUtilPct=-1d;
 		this.iowaitUtilPct = -1d;
+		this.readCallRate = -1d;
+		this.writeCallRate = -1d;
+		this.readCharRate = -1d;
+		this.writeCharRate = -1d;
+		this.readByteRate = -1d;
+		this.writeByteRate = -1d;
+		this.cancelledWriteByteRate = -1d;
 		this.ppid = ppid;
 		this.clockTick = clockTick;
-		int bs = 600; //600 bytes should be enough to hold contents of /proc/[pid]/stat or /proc/[pid]/task/[tid]/stat 
-		FileChannel fc = null;
+		int statbs = 600; //600 bytes should be enough to hold contents of /proc/[pid]/stat or /proc/[pid]/task/[tid]/stat 
+		int iobs = 250; //250 bytes should be enough to hold contents of /proc/[pid]/io or /proc/[pid]/task/[tid]/io
+		FileChannel statfc = null, iofc = null;
 		ByteBuffer b = null;
 		int br=-1;
 		String line;
 		try {
-			boolean failedToReadFile=false;
+			//Process stat file
 			try {
-				fc = FileChannel.open(Paths.get(path));
-				b = ByteBuffer.allocate(bs);
-				br = fc.read(b);
+				statfc = FileChannel.open(Paths.get(statPath));
+				b = ByteBuffer.allocate(statbs);
+				br = statfc.read(b);
 			} catch (Exception e) {
-				failedToReadFile = true;
+				throw new Exception("Failed to produce a ThreadResourceRecord due to an exception reading the stats file: " + statPath, e);
 			}
-			if(!failedToReadFile){
-				if(br > 0 && br < bs){
-					line = new String(b.array());
-				} else {
-					throw new Exception("Failed to produce a ThreadResourceRecord due to read response length, br:" + br + " bs:" + bs);
-				}
-				String[] parts = line.split("\\)", 2)[1].trim().split("\\s+");
-				if(parts.length<42){ //Expect 44 values in /proc/[pid]/task/[tid]/stat based on Linux kernel version used for this dev.
-					throw new Exception("Failed to produce a ThreadResourceRecord due to unexpected format of stat file, found " + parts.length + " fields");
-				}
-				this.pid = Integer.parseInt(line.split("\\s+", 2)[0]);
-				this.comm = "(" + line.split("\\(", 2)[1].split("\\)", 2)[0] + ")";
-				this.state = parts[0].charAt(0);
-				this.minflt = new BigInteger(parts[7]);
-				this.majflt = new BigInteger(parts[9]);
-				this.utime = new BigInteger(parts[11]);
-				this.stime = new BigInteger(parts[12]);
-				this.starttime = Integer.parseInt(parts[19]);
-				this.delayacct_blkio_ticks = new BigInteger(parts[39]);
-				this.guest_time = new BigInteger(parts[40]);
+			if(br > 0 && br < statbs){
+				line = new String(b.array());
+			} else {
+				throw new Exception("Failed to produce a ThreadResourceRecord from stat file due to read response length, br:" + br + " bs:" + statbs);
 			}
+			String[] parts = line.split("\\)", 2)[1].trim().split("\\s+");
+			if(parts.length<42){ //Expect 44 values in /proc/[pid]/task/[tid]/stat based on Linux kernel version used for this dev.
+				throw new Exception("Failed to produce a ThreadResourceRecord due to unexpected format of stat file, found " + parts.length + " fields");
+			}
+			this.pid = Integer.parseInt(line.split("\\s+", 2)[0]);
+			this.comm = "(" + line.split("\\(", 2)[1].split("\\)", 2)[0] + ")";
+			this.state = parts[0].charAt(0);
+			this.minflt = new BigInteger(parts[7]);
+			this.majflt = new BigInteger(parts[9]);
+			this.utime = new BigInteger(parts[11]);
+			this.stime = new BigInteger(parts[12]);
+			this.starttime = Integer.parseInt(parts[19]);
+			this.delayacct_blkio_ticks = new BigInteger(parts[39]);
+			this.guest_time = new BigInteger(parts[40]);
+			
+			//Process io file
+			try {
+				iofc = FileChannel.open(Paths.get(ioPath));
+				b = ByteBuffer.allocate(iobs);
+				br = iofc.read(b);
+			} catch (Exception e) {
+				throw new Exception("Failed to produce a ThreadResourceRecord due to an exception reading the io file: " + ioPath, e);
+			}
+			if(br > 0 && br < iobs){
+				line = new String(b.array());
+			} else {
+				throw new Exception("Failed to produce a ThreadResourceRecord from io file due to read response length, br:" + br + " bs:" + iobs);
+			}
+			parts = line.trim().split("\\s+");
+			if(parts.length<14){ //Expect 14 values in /proc/[pid]/task/[tid]/io based on Linux kernel version used for this dev.
+				throw new Exception("Failed to produce a ThreadResourceRecord due to unexpected format of io file, found " + parts.length + " fields");
+			}
+			this.rchar = new BigInteger(parts[1]);
+			this.wchar = new BigInteger(parts[3]);
+			this.syscr = new BigInteger(parts[5]);
+			this.syscw = new BigInteger(parts[7]);
+			this.read_bytes = new BigInteger(parts[9]);
+			this.write_bytes = new BigInteger(parts[11]);
+			this.cancelled_write_bytes = new BigInteger(parts[13]);
 		} catch (Exception e) {
 			throw new Exception("Failed to generate ThreadResourceRecord", e);
 		} finally {
 			try{
-				fc.close();
+				iofc.close();
+			} catch (Exception e) {}
+			try{
+				statfc.close();
 			} catch (Exception e) {}
 		}
 	}
@@ -126,11 +182,11 @@ public class ThreadResourceRecord extends Record {
 	//ret[1] - records created and put to the output queue
 	//ret[2] - failed record creation attempts
 	//ret[3] - outputQueue put failures
-	public static int[] produceRecord(RecordQueue outputQueue, String producerName, String path, int ppid, int clockTick){
+	public static int[] produceRecord(RecordQueue outputQueue, String producerName, String statpath, String iopath, int ppid, int clockTick){
 		int[] ret = new int[] {0, 0, 0, 0};
 		ThreadResourceRecord record = null;
 		try{
-			record = new ThreadResourceRecord(path, ppid, clockTick);
+			record = new ThreadResourceRecord(statpath, iopath, ppid, clockTick);
 		} catch (Exception e) {
 			System.err.println("Failed to generate a ThreadResourceRecord");
 			e.printStackTrace();
@@ -189,10 +245,52 @@ public class ThreadResourceRecord extends Record {
 	public BigInteger get_utime(){
 		return utime;
 	}
+	public BigInteger get_rchar(){
+		return rchar;
+	}
+	public BigInteger get_wchar(){
+		return wchar;
+	}
+	public BigInteger get_syscr(){
+		return syscr;
+	}
+	public BigInteger get_syscw(){
+		return syscw;
+	}
+	public BigInteger get_read_bytes(){
+		return read_bytes;
+	}
+	public BigInteger get_write_bytes(){
+		return write_bytes;
+	}
+	public BigInteger get_cancelled_write_bytes(){
+		return cancelled_write_bytes;
+	}
 	public double getCpuUtilPct(){
 		return cpuUtilPct;
 	}
 	public double getIowaitUtilPct(){
 		return iowaitUtilPct;
+	}
+	public double getReadCallRate(){
+		return readCallRate;
+	}
+	public double getWriteCallRate(){
+		return writeCallRate;
+	}
+	public double getReadCharRate(){
+		return readCharRate;
+	}
+	public double getWriteCharRate(){
+		return writeCharRate;
+	}
+	public double getReadByteRate(){
+		return readByteRate;
+	}
+	public double getWriteByteRate(){
+		return writeByteRate;
+	}
+	public double getCancelledWriteByteRate(){
+		return cancelledWriteByteRate;
 	}
 }
