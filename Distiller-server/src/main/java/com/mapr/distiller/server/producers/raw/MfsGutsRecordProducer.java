@@ -60,6 +60,9 @@ public class MfsGutsRecordProducer extends Thread {
 	
 	public void requestExit(){
 		shouldExit=true;
+		if(mfsGutsStdoutRecordProducer != null){
+			mfsGutsStdoutRecordProducer.requestExit();
+		}
 	}
 	
 	private MfsId readMfsIdFromFile(String path) throws Exception {
@@ -124,7 +127,7 @@ public class MfsGutsRecordProducer extends Thread {
 					System.err.println("Found MFS pid " + mfsPid + " from pid file, but could not identify MFS process running from /proc/" + mfsPid + "/stat, will try again...");
 					mfsAlive = false;
 				}
-				if(mfsAlive){
+				if(mfsAlive && !shouldExit){
 					//If MFS is alive, then try to create an MFS guts process...
 					Process mfsGutsProcess = null;
 				    try {
@@ -159,7 +162,8 @@ public class MfsGutsRecordProducer extends Thread {
 					    	}
 					    	//Check if MfsGutsStdoutRecordProducer is still running
 					    	if(!mfsGutsStdoutRecordProducer.isAlive()){
-					    		System.err.println("MfsGutsStdoutRecordProducer is not running.");
+					    		if(!shouldExit)
+					    			System.err.println("MfsGutsStdoutRecordProducer is not running.");
 					    		break;
 					    	}
 					    	//Check if guts is running
@@ -207,5 +211,14 @@ public class MfsGutsRecordProducer extends Thread {
 				}
 			}
 		}
+		if(mfsGutsStdoutRecordProducer!=null){
+			System.err.println("MfsGutsRecordProducer." + System.identityHashCode(this) + " is waiting for MfsGutsStdoutRecordProducer to exit");
+			while(mfsGutsStdoutRecordProducer.isAlive()){
+				try {
+					Thread.sleep(1000);
+				} catch (Exception e){}
+			}
+		}
+		System.err.println("MfsGutsRecordProducer." + System.identityHashCode(this) + " exited.");
 	}
 }
