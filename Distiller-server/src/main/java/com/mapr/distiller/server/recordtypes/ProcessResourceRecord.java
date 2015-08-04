@@ -217,8 +217,6 @@ public class ProcessResourceRecord extends Record {
 		try{
 			record = new ProcessResourceRecord(statpath, iopath, clockTick);
 		} catch (Exception e) {
-			System.err.println("Failed to generate a ProcessResourceRecord");
-			e.printStackTrace();
 			ret[2]=1;
 		}
 		if(record != null && !outputQueue.put(producerName, record)){

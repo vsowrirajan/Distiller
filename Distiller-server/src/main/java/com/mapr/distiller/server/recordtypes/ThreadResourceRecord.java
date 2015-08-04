@@ -188,8 +188,6 @@ public class ThreadResourceRecord extends Record {
 		try{
 			record = new ThreadResourceRecord(statpath, iopath, ppid, clockTick);
 		} catch (Exception e) {
-			System.err.println("Failed to generate a ThreadResourceRecord");
-			e.printStackTrace();
 			ret[2] = 1;
 		}
 		if(record!= null && !outputQueue.put(producerName, record)){

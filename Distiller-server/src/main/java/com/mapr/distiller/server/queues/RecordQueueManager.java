@@ -55,18 +55,26 @@ public class RecordQueueManager {
 	}
 	
 	public int getQueueCapacity(String name) {
+		if(nameToRecordQueueMap.get(name)==null)
+			return -1;
 		return nameToRecordQueueMap.get(name).maxQueueSize();
 	}
 	
 	public String[] getQueueProducers(String name) {
+		if(nameToRecordQueueMap.get(name)==null)
+			return new String[0];
 		return nameToRecordQueueMap.get(name).listProducers();
 	}
 	
 	public String[] getQueueConsumers(String name) {
+		if(nameToRecordQueueMap.get(name)==null)
+			return new String[0];
 		return nameToRecordQueueMap.get(name).listConsumers();
 	}
 	
 	public int getMaxQueueProducers(String name) {
+		if(!nameToMaxProducerMap.containsKey(name))
+			return -1;
 		return nameToMaxProducerMap.get(name);
 	}
 	

@@ -103,6 +103,9 @@ public class ProcRecordProducer extends Thread {
 	//Producer name to use when putting output records to record queues
 	String producerName;
 	
+	public String getProducerName(){
+		return producerName;
+	}
 	public ProcRecordProducer(String producerName) {
 		setClockTick();
 		this.producerStatsQueue = null;
@@ -336,12 +339,16 @@ public class ProcRecordProducer extends Thread {
 			//We might have a metric to gather within the next 1 second, there is no backing out at this point, the metric must be collected
 			} else {	
 				//We may need to modify the metric schedule, so synchronize on it
+				boolean retrievedEvent=false;
 				synchronized(metricSchedule){
 					//Check the next metric to gather in the schedule
-					event = metricSchedule.first();
+					try {
+						event = metricSchedule.first();
+						retrievedEvent=true;
+					} catch (NoSuchElementException e){}
 				}
 				//If the metric should be gathered within the next 1 second, then commit to gathering it this iteration.
-				if(event.getTargetTime() - System.currentTimeMillis() <= 1000){
+				if(retrievedEvent && event.getTargetTime() - System.currentTimeMillis() <= 1000){
 					//Track if we are able to gather the metric
 					boolean gatheredMetric=false;
 					
@@ -350,8 +357,12 @@ public class ProcRecordProducer extends Thread {
 						Thread.sleep(event.getTargetTime() - System.currentTimeMillis());
 					} catch (Exception e) {}
 					synchronized(metricSchedule){
-						event = metricSchedule.first();
-						if(event.getTargetTime() <= System.currentTimeMillis()){
+						retrievedEvent=false;
+						try {
+							event = metricSchedule.first();
+							retrievedEvent=true;
+						} catch (NoSuchElementException e){}
+						if(retrievedEvent && event.getTargetTime() <= System.currentTimeMillis()){
 							actionStartTime = System.currentTimeMillis();
 							try {
 								//It's time to gather the metric...
@@ -436,7 +447,47 @@ public class ProcRecordProducer extends Thread {
 		return false;
 	}
 	
+	public String[] listEnabledMetrics(){
+		synchronized(metricSchedule){
+			String[] ret = new String[metricSchedule.size()];
+			int pos=0;
+			Iterator<GatherMetricEvent> i = metricSchedule.iterator();
+			while(i.hasNext()){
+				GatherMetricEvent e = i.next();
+				ret[pos++] = "Metric:\"" + e.getMetricName() + "\"\tQueue:\"" + e.getRecordQueue().getQueueName() + "\"\tPeriodicity:" + e.getPeriodicity();
+			}
+			return ret;
+		}
+	}
+	
+	public boolean isMetricEnabled(String metricName, RecordQueue outputQueue, int periodicity){
+		if(metricName==null || outputQueue == null){
+			return false;
+		}
+		if(!enabledMetricManager.containsDescriptor(metricName, periodicity)){
+			return false;
+		}
+		boolean found=false;
+		synchronized(metricSchedule){
+			Iterator<GatherMetricEvent> i = metricSchedule.iterator();
+			while(i.hasNext()){
+				GatherMetricEvent e = i.next();
+				if(e.getMetricName().equals(metricName) && e.getRecordQueue().equals(outputQueue) && e.getPeriodicity() == periodicity){
+					found=true;
+					break;
+				}
+			}
+		}
+		if(!found){
+			return false;
+		}
+		return true;
+	}
 	public boolean disableMetric(String metricName, RecordQueue outputQueue, int periodicity){
+		if(outputQueue == null || metricName == null){
+			System.err.println("Can't disable null metric");
+			return false;
+		}
 		synchronized(enabledMetricManager){
 			synchronized(metricSchedule){
 				if(!enabledMetricManager.containsDescriptor(metricName, periodicity))
