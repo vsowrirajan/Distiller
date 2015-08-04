@@ -3,7 +3,6 @@ package com.mapr.distiller.server.producers.raw;
 import java.io.RandomAccessFile;
 
 import com.mapr.distiller.server.queues.RecordQueue;
-import com.mapr.distiller.server.queues.RecordQueueManager;
 
 public class MfsGutsRecordProducer extends Thread {
 	

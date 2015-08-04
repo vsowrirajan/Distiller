@@ -22,7 +22,6 @@ import com.mapr.distiller.server.recordtypes.ThreadResourceRecord;
 import com.mapr.distiller.server.scheduler.GatherMetricEvent;
 import com.mapr.distiller.server.scheduler.MetricEventComparator;
 import com.mapr.distiller.server.queues.RecordQueue;
-import com.mapr.distiller.server.queues.RecordQueueManager;
 import com.mapr.distiller.server.datatypes.ProcMetricDescriptorManager;
 import com.mapr.distiller.server.recordtypes.RawRecordProducerStatusRecord;
 

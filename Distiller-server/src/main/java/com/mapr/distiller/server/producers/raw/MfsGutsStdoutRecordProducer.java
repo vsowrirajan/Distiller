@@ -1,7 +1,6 @@
 package com.mapr.distiller.server.producers.raw;
 
 import com.mapr.distiller.server.queues.RecordQueue;
-import com.mapr.distiller.server.queues.RecordQueueManager;
 import com.mapr.distiller.server.recordtypes.MfsGutsRecord;
 import com.mapr.distiller.server.recordtypes.RawRecordProducerStatusRecord;
 
