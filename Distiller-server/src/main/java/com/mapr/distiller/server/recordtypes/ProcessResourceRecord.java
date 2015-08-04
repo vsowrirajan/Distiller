@@ -11,7 +11,7 @@ public class ProcessResourceRecord extends Record {
 	/**
 	 * DERIVED VALUES
 	 */
-	private double cpuUtilPct;;
+	private double cpuUtilPct, iowaitUtilPct;
 	
 	/**
 	 * RAW VALUES
@@ -76,6 +76,8 @@ public class ProcessResourceRecord extends Record {
 		//Derived values:
 		this.cpuUtilPct = this.utime.add(this.stime).doubleValue() / 					//The number of jiffies used by the process over the duration
 				(((double)(this.clockTick * this.getDurationms())) / 1000d);			//The number of jiffies that went by over the duration
+		this.iowaitUtilPct = this.delayacct_blkio_ticks.doubleValue() / 				//The number of jiffies the process waited for IO over the duration
+				(((double)(this.clockTick * this.getDurationms())) / 1000d);			//The number of jiffies that went by over the duration
 	}
 	
 	public ProcessResourceRecord(String path, int clockTick) throws Exception {
@@ -84,6 +86,7 @@ public class ProcessResourceRecord extends Record {
 		super(System.currentTimeMillis());
 		this.clockTick = clockTick;
 		this.cpuUtilPct = -1d;
+		this.iowaitUtilPct = -1d;
 		String[] parts = null;
 		int bs = 600; //600 bytes should be enough to hold contents of /proc/[pid]/stat or /proc/[pid]/task/[tid]/stat 
 		FileChannel fc = null;
@@ -246,5 +249,8 @@ public class ProcessResourceRecord extends Record {
 	}
 	public double getCpuUtilPct(){
 		return cpuUtilPct;
+	}
+	public double getIowaitUtilPct(){
+		return iowaitUtilPct;
 	}
 }

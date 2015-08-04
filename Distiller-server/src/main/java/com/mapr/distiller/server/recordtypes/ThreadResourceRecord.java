@@ -11,7 +11,7 @@ public class ThreadResourceRecord extends Record {
 	/**
 	 * DERIVED VALUES
 	 */
-	private Double cpuUtilPct;
+	private Double cpuUtilPct, iowaitUtilPct;
 	
 	/**
 	 * RAW VALUES
@@ -66,10 +66,13 @@ public class ThreadResourceRecord extends Record {
 		//Derived values:
 		this.cpuUtilPct = this.utime.add(this.stime).doubleValue() / 					//The number of jiffies used by the process over the duration
 				(((double)(this.clockTick * this.getDurationms())) / 1000d);			//The number of jiffies that went by over the duration
+		this.iowaitUtilPct = this.delayacct_blkio_ticks.doubleValue() / 				//The number of jiffies the process waited for IO over the duration
+				(((double)(this.clockTick * this.getDurationms())) / 1000d);			//The number of jiffies that went by over the duration
 	}
 	public ThreadResourceRecord(String path, int ppid, int clockTick) throws Exception{
 		super(System.currentTimeMillis());
 		this.cpuUtilPct=-1d;
+		this.iowaitUtilPct = -1d;
 		this.ppid = ppid;
 		this.clockTick = clockTick;
 		int bs = 600; //600 bytes should be enough to hold contents of /proc/[pid]/stat or /proc/[pid]/task/[tid]/stat 
@@ -188,5 +191,8 @@ public class ThreadResourceRecord extends Record {
 	}
 	public double getCpuUtilPct(){
 		return cpuUtilPct;
+	}
+	public double getIowaitUtilPct(){
+		return iowaitUtilPct;
 	}
 }
