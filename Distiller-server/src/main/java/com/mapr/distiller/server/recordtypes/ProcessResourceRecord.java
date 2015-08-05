@@ -11,7 +11,7 @@ public class ProcessResourceRecord extends Record {
 	/**
 	 * DERIVED VALUES
 	 */
-	private double cpuUtilPct, iowaitUtilPct, readCallRate, writeCallRate, readCharRate, writeCharRate, readByteRate, writeByteRate, cancelledWriteByteRate;
+	private double cpuUtilPct, iowaitUtilPct, readIoCallRate, writeIoCallRate, readIoCharRate, writeIoCharRate, readIoByteRate, writeIoByteRate, cancelledWriteIoByteRate;
 	
 	/**
 	 * RAW VALUES
@@ -87,19 +87,19 @@ public class ProcessResourceRecord extends Record {
 				(((double)(this.clockTick * this.getDurationms())) / 1000d);			//The number of jiffies that went by over the duration
 		this.iowaitUtilPct = this.delayacct_blkio_ticks.doubleValue() / 				//The number of jiffies the process waited for IO over the duration
 				(((double)(this.clockTick * this.getDurationms())) / 1000d);			//The number of jiffies that went by over the duration
-		this.readCallRate = this.syscr.doubleValue() / 
+		this.readIoCallRate = this.syscr.doubleValue() / 
 				(((double)(this.clockTick * this.getDurationms())) / 1000d);
-		this.writeCallRate = this.syscw.doubleValue() / 
+		this.writeIoCallRate = this.syscw.doubleValue() / 
 				(((double)(this.clockTick * this.getDurationms())) / 1000d);
-		this.readCharRate = this.rchar.doubleValue() / 
+		this.readIoCharRate = this.rchar.doubleValue() / 
 				(((double)(this.clockTick * this.getDurationms())) / 1000d);
-		this.writeCharRate = this.wchar.doubleValue() / 
+		this.writeIoCharRate = this.wchar.doubleValue() / 
 				(((double)(this.clockTick * this.getDurationms())) / 1000d);
-		this.readByteRate = this.read_bytes.doubleValue() / 
+		this.readIoByteRate = this.read_bytes.doubleValue() / 
 				(((double)(this.clockTick * this.getDurationms())) / 1000d);
-		this.writeByteRate = this.write_bytes.doubleValue() / 
+		this.writeIoByteRate = this.write_bytes.doubleValue() / 
 				(((double)(this.clockTick * this.getDurationms())) / 1000d);
-		this.cancelledWriteByteRate = this.cancelled_write_bytes.doubleValue() / 
+		this.cancelledWriteIoByteRate = this.cancelled_write_bytes.doubleValue() / 
 				(((double)(this.clockTick * this.getDurationms())) / 1000d);
 	}
 	
@@ -110,13 +110,13 @@ public class ProcessResourceRecord extends Record {
 		this.clockTick = clockTick;
 		this.cpuUtilPct = -1d;
 		this.iowaitUtilPct = -1d;
-		this.readCallRate = -1d;
-		this.writeCallRate = -1d;
-		this.readCharRate = -1d;
-		this.writeCharRate = -1d;
-		this.readByteRate = -1d;
-		this.writeByteRate = -1d;
-		this.cancelledWriteByteRate = -1d;
+		this.readIoCallRate = -1d;
+		this.writeIoCallRate = -1d;
+		this.readIoCharRate = -1d;
+		this.writeIoCharRate = -1d;
+		this.readIoByteRate = -1d;
+		this.writeIoByteRate = -1d;
+		this.cancelledWriteIoByteRate = -1d;
 		String[] parts = null;
 		int statbs = 600; //600 bytes should be enough to hold contents of /proc/[pid]/stat or /proc/[pid]/task/[tid]/stat 
 		int iobs = 250; //250 bytes should be enough to hold contents of /proc/[pid]/io or /proc/[pid]/task/[tid]/io
@@ -329,25 +329,25 @@ public class ProcessResourceRecord extends Record {
 	public double getIowaitUtilPct(){
 		return iowaitUtilPct;
 	}
-	public double getReadCallRate(){
-		return readCallRate;
+	public double getReadIoCallRate(){
+		return readIoCallRate;
 	}
-	public double getWriteCallRate(){
-		return writeCallRate;
+	public double getWriteIoCallRate(){
+		return writeIoCallRate;
 	}
-	public double getReadCharRate(){
-		return readCharRate;
+	public double getReadIoCharRate(){
+		return readIoCharRate;
 	}
-	public double getWriteCharRate(){
-		return writeCharRate;
+	public double getWriteIoCharRate(){
+		return writeIoCharRate;
 	}
-	public double getReadByteRate(){
-		return readByteRate;
+	public double getReadIoByteRate(){
+		return readIoByteRate;
 	}
-	public double getWriteByteRate(){
-		return writeByteRate;
+	public double getWriteIoByteRate(){
+		return writeIoByteRate;
 	}
-	public double getCancelledWriteByteRate(){
-		return cancelledWriteByteRate;
+	public double getCancelledWriteIoByteRate(){
+		return cancelledWriteIoByteRate;
 	}
 }

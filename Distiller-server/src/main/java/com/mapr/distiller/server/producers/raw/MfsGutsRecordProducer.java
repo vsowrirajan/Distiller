@@ -104,6 +104,7 @@ public class MfsGutsRecordProducer extends Thread {
 	public void run(){
 		int mfsPid=-1;
 		boolean mfsAlive=false, gutsAlive=false;
+		long lastTimeMfsDownPrinted=0l, minTime=60000;
 		//E.g.:
 		// /opt/mapr/bin/guts flush:line time:none cpu:none net:none disk:none ssd:none cleaner:all fs:all kv:all btree:all rpc:db db:all dbrepl:all cache:none log:all resync:all io:small
 		ProcessBuilder mfsGutsProcessBuilder = new ProcessBuilder("/opt/mapr/bin/guts", "flush:line", "time:none", "cpu:none", "net:none", "disk:none", "ssd:none", "cleaner:all", "fs:all", "kv:all", "btree:all", "rpc:db", "db:all", "dbrepl:all", "cache:none", "log:all", "resync:all", "io:small");
@@ -123,7 +124,10 @@ public class MfsGutsRecordProducer extends Thread {
 					mfsId = readMfsIdFromFile("/proc/" + mfsPid + "/stat");
 					mfsAlive = true;
 				} catch (Exception e){
-					System.err.println("Found MFS pid " + mfsPid + " from pid file, but could not identify MFS process running from /proc/" + mfsPid + "/stat, will try again...");
+					if(System.currentTimeMillis() > lastTimeMfsDownPrinted + minTime){
+						System.err.println("Found MFS pid " + mfsPid + " from pid file, but could not identify MFS process running from /proc/" + mfsPid + "/stat, will try again...");
+						lastTimeMfsDownPrinted = System.currentTimeMillis();
+					}
 					mfsAlive = false;
 				}
 				if(mfsAlive && !shouldExit){
