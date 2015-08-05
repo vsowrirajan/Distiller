@@ -13,6 +13,8 @@ import java.util.concurrent.TimeUnit;
 import com.mapr.distiller.server.metricactions.MetricAction;
 import com.mapr.distiller.server.metricactions.SystemCpuMetricAction;
 import com.mapr.distiller.server.metricactions.SystemMemoryMetricAction;
+import com.mapr.distiller.server.producers.raw.ProcRecordProducer;
+import com.mapr.distiller.server.queues.RecordQueueManager;
 import com.mapr.distiller.server.utils.MetricConfig;
 import com.mapr.distiller.server.utils.MetricConfig.MetricConfigBuilder;
 import com.typesafe.config.Config;
@@ -29,6 +31,14 @@ public class Coordinator {
 	private Map<String, Boolean> metricActionsStateMap;
 	private Map<String, Future<MetricAction>> metricActionsIdFuturesMap;
 
+	private ProcRecordProducer procRecordProducer;
+	private RecordQueueManager recordQueueManager;
+
+	public Coordinator() {
+		this.recordQueueManager = new RecordQueueManager();
+		this.procRecordProducer = new ProcRecordProducer("ProcRecordProducer");
+	}
+
 	public void start() {
 		metricActionsStateMap = new HashMap<String, Boolean>();
 		metricActionsIdFuturesMap = new HashMap<String, Future<MetricAction>>();
@@ -42,7 +52,7 @@ public class Coordinator {
 	}
 
 	public void stop() {
-
+		executor.shutdown();
 	}
 
 	public void createMetricConfigs(Config config) {
@@ -139,14 +149,14 @@ public class Coordinator {
 			MetricAction metricAction;
 			switch (config.getRecordType()) {
 			case "SystemCpuRecord":
-				metricAction = SystemCpuMetricAction.getInstance(config);
+				metricAction = SystemCpuMetricAction.getInstance(config,
+						recordQueueManager);
 				this.metricActionsIdMap.put(metricAction.getId(), metricAction);
 				break;
 
 			case "SystemMemoryRecord":
-				// Just a filler - Have to change this after implementing
-				// SystemMemoryAction
-				metricAction = SystemMemoryMetricAction.getInstance(config);
+				metricAction = SystemMemoryMetricAction.getInstance(config,
+						recordQueueManager);
 				this.metricActionsIdMap.put(metricAction.getId(), metricAction);
 				break;
 			default:
@@ -209,6 +219,6 @@ public class Coordinator {
 		coordinator.killMetric("Metric 1");
 		TimeUnit.SECONDS.sleep(3);
 		coordinator.killMetric("Metric 2");
-		coordinator.executor.shutdown();
+		coordinator.stop();
 	}
 }

@@ -11,6 +11,7 @@ import org.apache.xmlrpc.XmlRpcException;
 
 import com.mapr.distiller.server.producers.raw.ProcRecordProducer;
 import com.mapr.distiller.server.queues.RecordQueue;
+import com.mapr.distiller.server.queues.RecordQueueManager;
 import com.mapr.distiller.server.utils.DefaultConfiguration;
 
 public class SystemMonitor {
@@ -39,7 +40,7 @@ public class SystemMonitor {
 			return ret;
 		}
 
-		public String printRecords(String queueName) {
+		public String printRecords(String consumerName, String queueName) {
 			if (!nameToRecordQueueMap.containsKey(queueName)) {
 				return "No such RecordQueue: " + queueName;
 			}
@@ -49,12 +50,12 @@ public class SystemMonitor {
 						.println("Request received to print all records from queue "
 								+ queueName
 								+ " with more than 100 records, will limit results to 100");
-				return printNewestRecords(queueName, 100);
+				return printNewestRecords(consumerName, queueName, 100);
 			}
-			return q.printRecords();
+			return q.printRecords(consumerName);
 		}
 
-		public String printNewestRecords(String queueName, int numRecords) {
+		public String printNewestRecords(String consumerName, String queueName, int numRecords) {
 			if (numRecords > 100) {
 				System.err.println("Request received to print " + numRecords
 						+ " records from queue " + queueName
@@ -65,7 +66,7 @@ public class SystemMonitor {
 				return "No such RecordQueue: " + queueName;
 			}
 			RecordQueue q = nameToRecordQueueMap.get(queueName);
-			return q.printNewestRecords(numRecords);
+			return q.printNewestRecords(consumerName, numRecords);
 		}
 
 	};
@@ -139,7 +140,8 @@ public class SystemMonitor {
 		rawMetricList.put("process.resources", 3000);
 		rawMetricList.put("thread.resources", 3000);
 		rawMetricList.put("tcp.connection.stats", 3000);
-		ProcRecordProducer procRecordProducer = new ProcRecordProducer(nameToRecordQueueMap, rawMetricList);
+		RecordQueueManager queueManager = new RecordQueueManager();
+		ProcRecordProducer procRecordProducer = new ProcRecordProducer("ProcRecordProducer");
 		procRecordProducer.start();
 
 		// Monitors are started, now wait until its time to shut down.

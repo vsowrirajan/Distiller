@@ -4,6 +4,10 @@ import java.util.Map;
 
 import com.mapr.distiller.server.processors.SystemCpuRecordProcessor;
 import com.mapr.distiller.server.queues.RecordQueue;
+import com.mapr.distiller.server.queues.RecordQueueManager;
+import com.mapr.distiller.server.recordtypes.Record;
+import com.mapr.distiller.server.recordtypes.SystemCpuRecord;
+import com.mapr.distiller.server.utils.Constants;
 import com.mapr.distiller.server.utils.MetricConfig;
 
 public class SystemCpuMetricAction extends MetricAction implements
@@ -22,20 +26,28 @@ public class SystemCpuMetricAction extends MetricAction implements
 	private boolean shouldPersist;
 
 	public SystemCpuMetricAction(String id, String recordType,
-			String aggregationType, Map<String, String> aggregationMap) {
+			String aggregationType, Map<String, String> aggregationMap,
+			RecordQueue inputQueue, RecordQueue outputQueue) {
 		super(id);
 		this.recordType = recordType;
 		this.aggregationType = aggregationType;
 		this.aggregationMap = aggregationMap;
+
+		this.inputQueue = inputQueue;
+		this.outputQueue = outputQueue;
+
 		setGathericMetric(true);
 	}
 
 	// We also need one more argument which has a RecordQueue map to their names
-	public static SystemCpuMetricAction getInstance(MetricConfig metricConfig) {
+	public static SystemCpuMetricAction getInstance(MetricConfig metricConfig,
+			RecordQueueManager queueManager) {
 		return new SystemCpuMetricAction(metricConfig.getId(),
 				metricConfig.getRecordType(),
 				metricConfig.getAggregationType(),
-				metricConfig.getAggregationMap());
+				metricConfig.getAggregationMap(),
+				queueManager.getQueue(metricConfig.getInputQueue()),
+				queueManager.getQueue(metricConfig.getOutputQueue()));
 	}
 
 	@Override
@@ -43,13 +55,13 @@ public class SystemCpuMetricAction extends MetricAction implements
 		System.out.println("****" + this.recordType + "****");
 		while (!Thread.interrupted()) {
 			if (isGathericMetric()) {
-				System.out.println(this.aggregationType);
-				try {
+				selectSequentialRecords();
+				/*try {
 					Thread.sleep(1000);
 				} catch (InterruptedException e) {
 					System.out.println("Thread got interrupted - Going down");
 					break;
-				}
+				}*/
 			}
 
 			else {
@@ -102,8 +114,37 @@ public class SystemCpuMetricAction extends MetricAction implements
 
 	@Override
 	public void selectSequentialRecords() {
-		// TODO Auto-generated method stub
+		System.out.println("Id "+id);
+		inputQueue.registerConsumer(id);
+		outputQueue.registerProducer(id);
 
+		try {
+			SystemCpuRecord newRecord = null;
+			SystemCpuRecord oldRecord = (SystemCpuRecord) inputQueue.get(id);
+			System.out.println("Is Record null "+oldRecord != null);
+			while (((newRecord = (SystemCpuRecord) inputQueue.get(id)) != null)
+					&& !isGathericMetric) {
+				switch (aggregationType) {
+				case Constants.MOVING_AVERAGE:
+					Record processedRecord = recordProcessor.movingAverage(
+							oldRecord, newRecord);
+					outputQueue.put(id, processedRecord);
+					break;
+
+				default:
+					throw new Exception("Not a valid processing type "
+							+ aggregationType);
+				}
+			}
+		} catch (Exception e) {
+			System.err.println(e.getMessage());
+		}
+
+		finally {
+			inputQueue.unregisterConsumer(id);
+			outputQueue.unregisterProducer(id);
+		}
+		System.out.println("Processed Sequential records");
 	}
 
 	@Override
