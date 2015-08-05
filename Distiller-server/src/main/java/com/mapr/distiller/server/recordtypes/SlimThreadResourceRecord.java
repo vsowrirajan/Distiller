@@ -7,7 +7,7 @@ import java.nio.file.Paths;
 
 import com.mapr.distiller.server.queues.RecordQueue;
 
-public class SlimProcessResourceRecord extends Record {
+public class SlimThreadResourceRecord extends Record {
 	/**
 	 * DERIVED VALUES
 	 */
@@ -19,22 +19,22 @@ public class SlimProcessResourceRecord extends Record {
 	private String commandName;
 	private int pid, ppid, clockTick;
 	private long startTime;
-	private BigInteger iowaitTicks, cpuUsageTicks, rss;
+	private BigInteger iowaitTicks, cpuUsageTicks;
 	private BigInteger ioCalls, ioBytesRead, ioBytesWritten;	
 
 	/**
 	 * CONSTRUCTORS
 	 */
-	public SlimProcessResourceRecord(SlimProcessResourceRecord rec1, SlimProcessResourceRecord rec2) throws Exception{
-		SlimProcessResourceRecord oldRecord, newRecord;
+	public SlimThreadResourceRecord(SlimThreadResourceRecord rec1, SlimThreadResourceRecord rec2) throws Exception{
+		SlimThreadResourceRecord oldRecord, newRecord;
 		
 		//Check the input records to ensure they can be diff'd.
 		if(rec1.getStartTime() != rec2.getStartTime() || rec1.getPid() != rec2.getPid())
-			throw new Exception("Differential SlimProcessResourceRecord can only be generated from input records from the same process");
+			throw new Exception("Differential SlimThreadResourceRecord can only be generated from input records from the same process");
 		if(rec1.getCpuUtilPct()!=-1d || rec2.getCpuUtilPct()!=-1d || rec1.getPreviousTimestamp()!=-1l || rec2.getPreviousTimestamp()!=-1l)
-			throw new Exception("Differential SlimProcessResourceRecord can only be generated from raw SlimProcessResourceRecords");
+			throw new Exception("Differential SlimThreadResourceRecord can only be generated from raw SlimThreadResourceRecords");
 		if(rec1.getTimestamp() == rec2.getTimestamp())
-			throw new Exception("Can not generate differential SlimProcessResourceRecord from input records with matching timestamp values");
+			throw new Exception("Can not generate differential SlimThreadResourceRecord from input records with matching timestamp values");
 		
 		//Organize the input records.
 		if(rec1.getTimestamp() < rec2.getTimestamp()){
@@ -53,7 +53,6 @@ public class SlimProcessResourceRecord extends Record {
 		this.ppid = newRecord.getPpid();
 		this.clockTick = newRecord.getClockTick();
 		this.startTime = newRecord.getStartTime();
-		this.rss = newRecord.getRss();
 		
 		//Differential values:
 		this.iowaitTicks = newRecord.getIowaitTicks().subtract(oldRecord.getIowaitTicks());
@@ -74,85 +73,74 @@ public class SlimProcessResourceRecord extends Record {
 		this.writeIoByteRate = this.getIoBytesWritten().doubleValue() / 
 				(((double)(this.clockTick * this.getDurationms())) / 1000d);
 	}
-	
-	public SlimProcessResourceRecord(String statpath, String iopath, int clockTick) throws Exception {
-		//This constructor takes "path" which should be the path to a /proc/[pid]/stat file
-		//This constructor takes "clockTick" which should be set to jiffies per second from kernel build (obtained in ProcRecordProducer)
+	public SlimThreadResourceRecord(String statPath, String ioPath, int ppid, int clockTick) throws Exception{
 		super(System.currentTimeMillis());
 		this.clockTick = clockTick;
+		this.ppid = ppid;
 		this.cpuUtilPct = -1d;
 		this.iowaitUtilPct = -1d;
 		this.ioCallRate = -1d;
 		this.readIoByteRate = -1d;
 		this.writeIoByteRate = -1d;
-		
-		String[] parts = null;
 		int statbs = 600; //600 bytes should be enough to hold contents of /proc/[pid]/stat or /proc/[pid]/task/[tid]/stat 
 		int iobs = 250; //250 bytes should be enough to hold contents of /proc/[pid]/io or /proc/[pid]/task/[tid]/io
 		FileChannel statfc = null, iofc = null;
 		ByteBuffer b = null;
 		int br=-1;
-		
+		String line;
 		try {
-			//Open, read the file.
+			//Process stat file
 			try {
-				statfc = FileChannel.open(Paths.get(statpath));
+				statfc = FileChannel.open(Paths.get(statPath));
 				b = ByteBuffer.allocate(statbs);
 				br = statfc.read(b);
 			} catch (Exception e) {
-				throw new Exception("Failed to produce a SlimProcessResourceRecord due to an exception reading the stats file: " + statpath, e);
+				throw new Exception("Failed to produce a SlimThreadResourceRecord due to an exception reading the stats file: " + statPath, e);
 			}
-			
-			//Check whether we were able to read from the file, and whether we were able to read the entire contents
 			if(br > 0 && br < statbs){
-				//If the file could be read, parse the values
-				String tempStr = new String(b.array());
-				this.pid = Integer.parseInt(tempStr.split("\\s+", 2)[0]);
-				this.commandName = "(" + tempStr.split("\\(", 2)[1].split("\\)", 2)[0] + ")";
-				parts = tempStr.split("\\)", 2)[1].trim().split("\\s+");
-				//Expect 44 values in /proc/[pid]/stat based on Linux kernel version used for this dev.
-				//Note that 42 is used in below check because 
-				if(parts.length<42){ 
-					throw new Exception("Failed to produce a SlimProcessResourceRecord due to unexpected format of stat file, found " + parts.length + " fields");
-				}
-				this.ppid = Integer.parseInt(parts[1]);
-				this.cpuUsageTicks = new BigInteger(parts[11]).add(new BigInteger(parts[12]));
-				this.startTime = Integer.parseInt(parts[19]);
-				this.rss = new BigInteger(parts[21]);
-				this.iowaitTicks = new BigInteger(parts[39]);
-				
-
-				//Process io file
-				try {
-					iofc = FileChannel.open(Paths.get(iopath));
-					b = ByteBuffer.allocate(iobs);
-					br = iofc.read(b);
-				} catch (Exception e) {
-					throw new Exception("Failed to produce a SlimProcessResourceRecord due to an exception reading the io file: " + iopath, e);
-				}
-				String line = null;
-				if(br > 0 && br < iobs){
-					line = new String(b.array());
-				} else {
-					throw new Exception("Failed to produce a SlimProcessResourceRecord from io file due to read response length, br:" + br + " bs:" + iobs);
-				}
-				parts = line.trim().split("\\s+");
-				if(parts.length<14){ //Expect 14 values in /proc/[pid]/task/[tid]/io based on Linux kernel version used for this dev.
-					throw new Exception("Failed to produce a ThreadResourceRecord due to unexpected format of io file, found " + parts.length + " fields");
-				}
-				this.ioCalls = new BigInteger(parts[5]).add(new BigInteger(parts[7]));
-				this.ioBytesRead = new BigInteger(parts[9]);
-				this.ioBytesWritten = new BigInteger(parts[11]);
+				line = new String(b.array());
 			} else {
-				throw new Exception("Failed to produce a ProcessResourceRecord due to read response length, br:" + br + " bs:" + statbs);
+				throw new Exception("Failed to produce a SlimThreadResourceRecord from stat file due to read response length, br:" + br + " bs:" + statbs);
 			}
+			String[] parts = line.split("\\)", 2)[1].trim().split("\\s+");
+			if(parts.length<42){ //Expect 44 values in /proc/[pid]/task/[tid]/stat based on Linux kernel version used for this dev.
+				throw new Exception("Failed to produce a SlimThreadResourceRecord due to unexpected format of stat file, found " + parts.length + " fields");
+			}
+			this.pid = Integer.parseInt(line.split("\\s+", 2)[0]);
+			this.commandName = "(" + line.split("\\(", 2)[1].split("\\)", 2)[0] + ")";
+			this.cpuUsageTicks = new BigInteger(parts[11]).add(new BigInteger(parts[12]));
+			this.startTime = Integer.parseInt(parts[19]);
+			this.iowaitTicks = new BigInteger(parts[39]);
+			
+			//Process io file
+			try {
+				iofc = FileChannel.open(Paths.get(ioPath));
+				b = ByteBuffer.allocate(iobs);
+				br = iofc.read(b);
+			} catch (Exception e) {
+				throw new Exception("Failed to produce a SlimThreadResourceRecord due to an exception reading the io file: " + ioPath, e);
+			}
+			if(br > 0 && br < iobs){
+				line = new String(b.array());
+			} else {
+				throw new Exception("Failed to produce a SlimThreadResourceRecord from io file due to read response length, br:" + br + " bs:" + iobs);
+			}
+			parts = line.trim().split("\\s+");
+			if(parts.length<14){ //Expect 14 values in /proc/[pid]/task/[tid]/io based on Linux kernel version used for this dev.
+				throw new Exception("Failed to produce a SlimThreadResourceRecord due to unexpected format of io file, found " + parts.length + " fields");
+			}
+			this.ioCalls = new BigInteger(parts[5]).add(new BigInteger(parts[7]));
+			this.ioBytesRead = new BigInteger(parts[9]);
+			this.ioBytesWritten = new BigInteger(parts[11]);
 		} catch (Exception e) {
-			throw new Exception("Failed to produce a ProcessResourceRecord", e);
+			throw new Exception("Failed to generate ThreadResourceRecord", e);
 		} finally {
 			try{
-				statfc.close();
 				iofc.close();
-			} catch (Exception e){}
+			} catch (Exception e) {}
+			try{
+				statfc.close();
+			} catch (Exception e) {}
 		}
 	}
 
@@ -163,22 +151,22 @@ public class SlimProcessResourceRecord extends Record {
 	//ret[1] - records created and put to the output queue
 	//ret[2] - failed record creation attempts
 	//ret[3] - outputQueue put failures
-	public static int[] produceRecord(RecordQueue outputQueue, String producerName, String statpath, String iopath, int clockTick){
+	public static int[] produceRecord(RecordQueue outputQueue, String producerName, String statpath, String iopath, int ppid, int clockTick){
 		int[] ret = new int[] {0, 0, 0, 0};
-		SlimProcessResourceRecord record = null;
+		SlimThreadResourceRecord record = null;
 		try{
-			record = new SlimProcessResourceRecord(statpath, iopath, clockTick);
+			record = new SlimThreadResourceRecord(statpath, iopath, ppid, clockTick);
 		} catch (Exception e) {
-			ret[2]=1;
+			ret[2] = 1;
 		}
-		if(record != null && !outputQueue.put(producerName, record)){
+		if(record!= null && !outputQueue.put(producerName, record)){
 			ret[3]=1;
-			System.err.println("Failed to put SlimProcessResourceRecord into output queue " + outputQueue.getQueueName() + 
+			System.err.println("Failed to put SlimThreadResourceRecord into output queue " + outputQueue.getQueueName() + 
 					" size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.maxQueueSize() + 
 					" producerName:" + producerName);
 		} else {
-			ret[1] = 1;
-		}
+			ret[1]=1;
+		}		
 		return ret;
 	}
 	
@@ -187,8 +175,8 @@ public class SlimProcessResourceRecord extends Record {
 	 */
 	public String toString(){
 		if(this.getPreviousTimestamp()==-1l)
-			return super.toString() + " SPRR c:" + commandName + " p:" + pid + " cpu:" + cpuUsageTicks + " rss:" + rss + " ior:" + ioBytesRead + " iow:" + ioBytesWritten;
-		return super.toString() + " SPRR c:" + commandName + " p:" + pid + " cpu:" + cpuUtilPct + " wait:" + iowaitUtilPct + " ioc:" + ioCallRate + " ior:" + readIoByteRate + " iow:" + writeIoByteRate + " rss:" + rss;
+			return super.toString() + " STRR c:" + commandName + " p:" + pid + " cpu:" + cpuUsageTicks + " ior:" + ioBytesRead + " iow:" + ioBytesWritten;
+		return super.toString() + " STRR c:" + commandName + " p:" + pid + " cpu:" + cpuUtilPct + " wait:" + iowaitUtilPct + " ioc:" + ioCallRate + " ior:" + readIoByteRate + " iow:" + writeIoByteRate;
 	}
 	
 	public double getCpuUtilPct(){
@@ -226,9 +214,6 @@ public class SlimProcessResourceRecord extends Record {
 	}
 	private BigInteger getCpuUsageTicks(){
 		return cpuUsageTicks;
-	}
-	private BigInteger getRss(){
-		return rss;
 	}
 	private BigInteger getIoCalls(){
 		return ioCalls;

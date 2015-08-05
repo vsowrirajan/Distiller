@@ -31,11 +31,11 @@ public class ThreadResourceRecord extends Record {
 		
 		//Check the input records to ensure they can be diff'd.
 		if(rec1.get_starttime() != rec2.get_starttime() || rec1.get_pid() != rec2.get_pid())
-			throw new Exception("Differential ProcessResourceRecord can only be generated from input records from the same process");
+			throw new Exception("Differential ThreadResourceRecord can only be generated from input records from the same process");
 		if(rec1.getCpuUtilPct()!=-1d || rec2.getCpuUtilPct()!=-1d || rec1.getPreviousTimestamp()!=-1l || rec2.getPreviousTimestamp()!=-1l)
-			throw new Exception("Differential ProcessResourceRecord can only be generated from raw ProcessResourceRecords");
+			throw new Exception("Differential ThreadResourceRecord can only be generated from raw ThreadResourceRecords");
 		if(rec1.getTimestamp() == rec2.getTimestamp())
-			throw new Exception("Can not generate differential ProcessResourceRecord from input records with matching timestamp values");
+			throw new Exception("Can not generate differential ThreadResourceRecord from input records with matching timestamp values");
 		
 		//Organize the input records.
 		if(rec1.getTimestamp() < rec2.getTimestamp()){

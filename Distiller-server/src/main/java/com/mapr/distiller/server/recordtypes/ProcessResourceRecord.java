@@ -172,17 +172,17 @@ public class ProcessResourceRecord extends Record {
 					b = ByteBuffer.allocate(iobs);
 					br = iofc.read(b);
 				} catch (Exception e) {
-					throw new Exception("Failed to produce a ThreadResourceRecord due to an exception reading the io file: " + iopath, e);
+					throw new Exception("Failed to produce a ProcessResourceRecord due to an exception reading the io file: " + iopath, e);
 				}
 				String line = null;
 				if(br > 0 && br < iobs){
 					line = new String(b.array());
 				} else {
-					throw new Exception("Failed to produce a ThreadResourceRecord from io file due to read response length, br:" + br + " bs:" + iobs);
+					throw new Exception("Failed to produce a ProcessResourceRecord from io file due to read response length, br:" + br + " bs:" + iobs);
 				}
 				parts = line.trim().split("\\s+");
 				if(parts.length<14){ //Expect 14 values in /proc/[pid]/task/[tid]/io based on Linux kernel version used for this dev.
-					throw new Exception("Failed to produce a ThreadResourceRecord due to unexpected format of io file, found " + parts.length + " fields");
+					throw new Exception("Failed to produce a ProcessResourceRecord due to unexpected format of io file, found " + parts.length + " fields");
 				}
 				this.rchar = new BigInteger(parts[1]);
 				this.wchar = new BigInteger(parts[3]);

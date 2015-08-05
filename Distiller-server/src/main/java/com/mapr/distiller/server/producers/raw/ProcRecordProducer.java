@@ -20,6 +20,7 @@ import com.mapr.distiller.server.recordtypes.SystemCpuRecord;
 import com.mapr.distiller.server.recordtypes.SystemMemoryRecord;
 import com.mapr.distiller.server.recordtypes.TcpConnectionStatRecord;
 import com.mapr.distiller.server.recordtypes.ThreadResourceRecord;
+import com.mapr.distiller.server.recordtypes.SlimThreadResourceRecord;
 import com.mapr.distiller.server.scheduler.GatherMetricEvent;
 import com.mapr.distiller.server.scheduler.MetricEventComparator;
 import com.mapr.distiller.server.queues.RecordQueue;
@@ -35,7 +36,8 @@ public class ProcRecordProducer extends Thread {
 		systemCpuRecordCreationFailures,
 		systemMemoryRecordCreationFailures,
 		tcpConnectionStatRecordCreationFailures,
-		threadResourceRecordCreationFailures;
+		threadResourceRecordCreationFailures,
+		slimThreadResourceRecordCreationFailures;
 	
 	//Counters for how many times a raw metric Record could not be put to the output RecordQueue
 	int diskstatRecordPutFailures,
@@ -45,7 +47,8 @@ public class ProcRecordProducer extends Thread {
 		systemCpuRecordPutFailures,
 		systemMemoryRecordPutFailures,
 		tcpConnectionStatRecordPutFailures,
-		threadResourceRecordPutFailures;
+		threadResourceRecordPutFailures,
+		slimThreadResourceRecordPutFailures;
 	
 	//Calls to produceRecord methods of each Record type that did not complete successfully.
 	int diskstatRecordProduceRecordFailures,
@@ -55,7 +58,8 @@ public class ProcRecordProducer extends Thread {
 		systemCpuRecordProduceRecordFailures,
 		systemMemoryRecordProduceRecordFailures,
 		tcpConnectionStatRecordProduceRecordFailures,
-		threadResourceRecordProduceRecordFailures;
+		threadResourceRecordProduceRecordFailures,
+		slimThreadResourceRecordProduceRecordFailures;
 	
 	//Counters for how many times a raw metric was successfully sampled
 	int diskstatRecordsCreated,
@@ -65,7 +69,8 @@ public class ProcRecordProducer extends Thread {
 		systemCpuRecordsCreated,
 		systemMemoryRecordsCreated,
 		tcpConnectionStatRecordsCreated,
-		threadResourceRecordsCreated;
+		threadResourceRecordsCreated,
+		slimThreadResourceRecordsCreated;
 	
 	//Counters for time spent collecting each type of raw metric
 	int diskstatRunningTime,
@@ -75,7 +80,8 @@ public class ProcRecordProducer extends Thread {
 		systemCpuRunningTime,
 		systemMemoryRunningTime,
 		tcpConnectionStatRunningTime,
-		threadResourceRunningTime;
+		threadResourceRunningTime,
+		slimThreadResourceRunningTime;
 	
 	//Used to generate metrics about what the ProcRecordProducer is doing
 	private RawRecordProducerStatusRecord mystatus;
@@ -153,6 +159,7 @@ public class ProcRecordProducer extends Thread {
 		systemMemoryRecordCreationFailures=0;
 		tcpConnectionStatRecordCreationFailures=0;
 		threadResourceRecordCreationFailures=0;
+		slimThreadResourceRecordCreationFailures=0;
 		diskstatRecordProduceRecordFailures=0;
 		networkInterfaceRecordProduceRecordFailures=0;
 		processResourceRecordProduceRecordFailures=0;
@@ -161,6 +168,7 @@ public class ProcRecordProducer extends Thread {
 		systemMemoryRecordProduceRecordFailures=0;
 		tcpConnectionStatRecordProduceRecordFailures=0;
 		threadResourceRecordProduceRecordFailures=0;
+		slimThreadResourceRecordProduceRecordFailures=0;
 		diskstatRecordPutFailures=0;
 		networkInterfaceRecordPutFailures=0;
 		processResourceRecordPutFailures=0;
@@ -169,6 +177,7 @@ public class ProcRecordProducer extends Thread {
 		systemMemoryRecordPutFailures=0;
 		tcpConnectionStatRecordPutFailures=0;
 		threadResourceRecordPutFailures=0;
+		slimThreadResourceRecordPutFailures=0;
 		diskstatRecordsCreated=0;
 		networkInterfaceRecordsCreated=0;
 		processResourceRecordsCreated=0;
@@ -177,6 +186,7 @@ public class ProcRecordProducer extends Thread {
 		systemMemoryRecordsCreated=0;
 		tcpConnectionStatRecordsCreated=0;
 		threadResourceRecordsCreated=0;
+		slimThreadResourceRecordsCreated=0;
 		diskstatRunningTime=0;
 		networkInterfaceRunningTime=0;
 		processResourceRunningTime=0;
@@ -185,6 +195,7 @@ public class ProcRecordProducer extends Thread {
 		systemMemoryRunningTime=0;
 		tcpConnectionStatRunningTime=0;
 		threadResourceRunningTime=0;
+		slimThreadResourceRunningTime=0;
 		
 		//Keep trying to generate requested metrics until explicitly requested to exit
 		while(!shouldExit){
@@ -205,7 +216,8 @@ public class ProcRecordProducer extends Thread {
 												systemCpuRecordPutFailures + 
 												systemMemoryRecordPutFailures + 
 												tcpConnectionStatRecordPutFailures + 
-												threadResourceRecordPutFailures );
+												threadResourceRecordPutFailures +
+												slimThreadResourceRecordPutFailures );
 				mystatus.setRecordsCreated(	diskstatRecordsCreated + 
 											networkInterfaceRecordsCreated + 
 											processResourceRecordsCreated + 
@@ -213,7 +225,8 @@ public class ProcRecordProducer extends Thread {
 											systemCpuRecordsCreated + 
 											systemMemoryRecordsCreated + 
 											tcpConnectionStatRecordsCreated + 
-											threadResourceRecordsCreated );
+											threadResourceRecordsCreated +
+											slimThreadResourceRecordsCreated );
 				mystatus.setRecordCreationFailures(	diskstatRecordCreationFailures + 
 													networkInterfaceRecordCreationFailures + 
 													processResourceRecordCreationFailures + 
@@ -221,7 +234,8 @@ public class ProcRecordProducer extends Thread {
 													systemCpuRecordCreationFailures + 
 													systemMemoryRecordCreationFailures + 
 													tcpConnectionStatRecordCreationFailures + 
-													threadResourceRecordCreationFailures );
+													threadResourceRecordCreationFailures +
+													slimThreadResourceRecordCreationFailures );
 				mystatus.setOtherFailures(	diskstatRecordProduceRecordFailures + 
 											networkInterfaceRecordProduceRecordFailures + 
 											processResourceRecordProduceRecordFailures + 
@@ -229,7 +243,8 @@ public class ProcRecordProducer extends Thread {
 											systemCpuRecordProduceRecordFailures + 
 											systemMemoryRecordProduceRecordFailures + 
 											tcpConnectionStatRecordProduceRecordFailures +
-											threadResourceRecordProduceRecordFailures );
+											threadResourceRecordProduceRecordFailures + 
+											slimThreadResourceRecordProduceRecordFailures);
 				mystatus.setRunningTimems(	diskstatRunningTime + 
 											networkInterfaceRunningTime + 
 											processResourceRunningTime + 
@@ -237,7 +252,8 @@ public class ProcRecordProducer extends Thread {
 											systemCpuRunningTime + 
 											systemMemoryRunningTime + 
 											tcpConnectionStatRunningTime + 
-											threadResourceRunningTime );
+											threadResourceRunningTime +
+											slimThreadResourceRunningTime );
 											
 				mystatus.addExtraInfo("diskstatRecordProduceRecordFailures", Integer.toString(diskstatRecordProduceRecordFailures));
 				mystatus.addExtraInfo("networkInterfaceRecordProduceRecordFailures", Integer.toString(networkInterfaceRecordProduceRecordFailures));
@@ -247,6 +263,7 @@ public class ProcRecordProducer extends Thread {
 				mystatus.addExtraInfo("systemMemoryRecordProduceRecordFailures", Integer.toString(systemMemoryRecordProduceRecordFailures));
 				mystatus.addExtraInfo("tcpConnectionStatRecordProduceRecordFailures", Integer.toString(tcpConnectionStatRecordProduceRecordFailures));
 				mystatus.addExtraInfo("threadResourceRecordProduceRecordFailures", Integer.toString(threadResourceRecordProduceRecordFailures));
+				mystatus.addExtraInfo("slimThreadResourceRecordProduceRecordFailures", Integer.toString(slimThreadResourceRecordProduceRecordFailures));
 				mystatus.addExtraInfo("diskstatRecordCreationFailures", Integer.toString(diskstatRecordCreationFailures));
 				mystatus.addExtraInfo("networkInterfaceRecordCreationFailures", Integer.toString(networkInterfaceRecordCreationFailures));
 				mystatus.addExtraInfo("processResourceRecordCreationFailures", Integer.toString(processResourceRecordCreationFailures));
@@ -255,6 +272,7 @@ public class ProcRecordProducer extends Thread {
 				mystatus.addExtraInfo("systemMemoryRecordCreationFailures", Integer.toString(systemMemoryRecordCreationFailures));
 				mystatus.addExtraInfo("tcpConnectionStatRecordCreationFailures", Integer.toString(tcpConnectionStatRecordCreationFailures));
 				mystatus.addExtraInfo("threadResourceRecordCreationFailures", Integer.toString(threadResourceRecordCreationFailures));
+				mystatus.addExtraInfo("slimThreadResourceRecordCreationFailures", Integer.toString(slimThreadResourceRecordCreationFailures));
 				mystatus.addExtraInfo("diskstatRecordPutFailures", Integer.toString(diskstatRecordPutFailures));
 				mystatus.addExtraInfo("networkInterfaceRecordPutFailures", Integer.toString(networkInterfaceRecordPutFailures));
 				mystatus.addExtraInfo("processResourceRecordPutFailures", Integer.toString(processResourceRecordPutFailures));
@@ -263,6 +281,7 @@ public class ProcRecordProducer extends Thread {
 				mystatus.addExtraInfo("systemMemoryRecordPutFailures", Integer.toString(systemMemoryRecordPutFailures));
 				mystatus.addExtraInfo("tcpConnectionStatRecordPutFailures", Integer.toString(tcpConnectionStatRecordPutFailures));
 				mystatus.addExtraInfo("threadResourceRecordPutFailures", Integer.toString(threadResourceRecordPutFailures));
+				mystatus.addExtraInfo("slimThreadResourceRecordPutFailures", Integer.toString(slimThreadResourceRecordPutFailures));
 				mystatus.addExtraInfo("diskstatRecordsCreated", Integer.toString(diskstatRecordsCreated));
 				mystatus.addExtraInfo("networkInterfaceRecordsCreated", Integer.toString(networkInterfaceRecordsCreated));
 				mystatus.addExtraInfo("processResourceRecordsCreated", Integer.toString(processResourceRecordsCreated));
@@ -271,6 +290,7 @@ public class ProcRecordProducer extends Thread {
 				mystatus.addExtraInfo("systemMemoryRecordsCreated", Integer.toString(systemMemoryRecordsCreated));
 				mystatus.addExtraInfo("tcpConnectionStatRecordsCreated", Integer.toString(tcpConnectionStatRecordsCreated));
 				mystatus.addExtraInfo("threadResourceRecordsCreated", Integer.toString(threadResourceRecordsCreated));
+				mystatus.addExtraInfo("slimThreadResourceRecordsCreated", Integer.toString(slimThreadResourceRecordsCreated));
 				mystatus.addExtraInfo("diskstatRunningTime", Integer.toString(diskstatRunningTime));
 				mystatus.addExtraInfo("networkInterfaceRunningTime", Integer.toString(networkInterfaceRunningTime));
 				mystatus.addExtraInfo("processResourceRunningTime", Integer.toString(processResourceRunningTime));
@@ -279,6 +299,7 @@ public class ProcRecordProducer extends Thread {
 				mystatus.addExtraInfo("systemMemoryRunningTime", Integer.toString(systemMemoryRunningTime));
 				mystatus.addExtraInfo("tcpConnectionStatRunningTime", Integer.toString(tcpConnectionStatRunningTime));
 				mystatus.addExtraInfo("threadResourceRunningTime", Integer.toString(threadResourceRunningTime));
+				mystatus.addExtraInfo("slimThreadResourceRunningTime", Integer.toString(slimThreadResourceRunningTime));
 				mystatus.addExtraInfo("diskstatRunningTime%", Double.toString(100d * ((double)diskstatRunningTime) / ((double)mystatus.getDurationms())));
 				mystatus.addExtraInfo("networkInterfaceRunningTime%", Double.toString(100d * ((double)networkInterfaceRunningTime) / ((double)mystatus.getDurationms())));
 				mystatus.addExtraInfo("processResourceRunningTime%", Double.toString(100d * ((double)processResourceRunningTime) / ((double)mystatus.getDurationms())));
@@ -287,6 +308,7 @@ public class ProcRecordProducer extends Thread {
 				mystatus.addExtraInfo("systemMemoryRunningTime%", Double.toString(100d * ((double)systemMemoryRunningTime) / ((double)mystatus.getDurationms())));
 				mystatus.addExtraInfo("tcpConnectionStatRunningTime%", Double.toString(100d * ((double)tcpConnectionStatRunningTime) / ((double)mystatus.getDurationms())));
 				mystatus.addExtraInfo("threadResourceRunningTime%", Double.toString(100d * ((double)threadResourceRunningTime) / ((double)mystatus.getDurationms())));
+				mystatus.addExtraInfo("slimThreadResourceRunningTime%", Double.toString(100d * ((double)slimThreadResourceRunningTime) / ((double)mystatus.getDurationms())));
 				if(producerMetricsEnabled && !producerStatsQueue.put(producerName,mystatus)){
 					System.err.println("Failed to put RecordProducerStatusRecord to output queue " + producerStatsQueue.getQueueName() + 
 											" size:" + producerStatsQueue.queueSize() + " maxSize:" + producerStatsQueue.maxQueueSize() + 
@@ -301,6 +323,7 @@ public class ProcRecordProducer extends Thread {
 				systemMemoryRecordCreationFailures=0;
 				tcpConnectionStatRecordCreationFailures=0;
 				threadResourceRecordCreationFailures=0;
+				slimThreadResourceRecordCreationFailures=0;
 				diskstatRecordProduceRecordFailures=0;
 				networkInterfaceRecordProduceRecordFailures=0;
 				processResourceRecordProduceRecordFailures=0;
@@ -309,6 +332,7 @@ public class ProcRecordProducer extends Thread {
 				systemMemoryRecordProduceRecordFailures=0;
 				tcpConnectionStatRecordProduceRecordFailures=0;
 				threadResourceRecordProduceRecordFailures=0;
+				slimThreadResourceRecordProduceRecordFailures=0;
 				diskstatRecordPutFailures=0;
 				networkInterfaceRecordPutFailures=0;
 				processResourceRecordPutFailures=0;
@@ -317,6 +341,7 @@ public class ProcRecordProducer extends Thread {
 				systemMemoryRecordPutFailures=0;
 				tcpConnectionStatRecordPutFailures=0;
 				threadResourceRecordPutFailures=0;
+				slimThreadResourceRecordPutFailures=0;
 				diskstatRecordsCreated=0;
 				networkInterfaceRecordsCreated=0;
 				processResourceRecordsCreated=0;
@@ -325,6 +350,7 @@ public class ProcRecordProducer extends Thread {
 				systemMemoryRecordsCreated=0;
 				tcpConnectionStatRecordsCreated=0;
 				threadResourceRecordsCreated=0;
+				slimThreadResourceRecordsCreated=0;
 				diskstatRunningTime=0;
 				networkInterfaceRunningTime=0;
 				processResourceRunningTime=0;
@@ -333,6 +359,7 @@ public class ProcRecordProducer extends Thread {
 				systemMemoryRunningTime=0;
 				tcpConnectionStatRunningTime=0;
 				threadResourceRunningTime=0;
+				slimThreadResourceRunningTime=0;
 			}
 			
 			//We need to check what's in metricSchedule, so synchronize on it since other threads might be modifying it at the same time
@@ -409,6 +436,8 @@ public class ProcRecordProducer extends Thread {
 									gatheredMetric = generateTcpConnectionStatRecords(event.getRecordQueue());
 								} else if (event.getMetricName().equals("ThreadResource")) {
 									gatheredMetric = generateThreadResourceRecords(event.getRecordQueue());
+								} else if (event.getMetricName().equals("SlimThreadResource")) {
+									gatheredMetric = generateSlimThreadResourceRecords(event.getRecordQueue());
 								} else 
 									throw new Exception("GatherMetricEvent for unknown metric type:" + event.getMetricName());
 							} catch (Exception e) {
@@ -432,6 +461,8 @@ public class ProcRecordProducer extends Thread {
 									tcpConnectionStatRunningTime += System.currentTimeMillis() - actionStartTime;
 								else if (event.getMetricName().equals("ThreadResource")) 
 									threadResourceRunningTime += System.currentTimeMillis() - actionStartTime;
+								else if (event.getMetricName().equals("SlimThreadResource")) 
+									slimThreadResourceRunningTime += System.currentTimeMillis() - actionStartTime;
 							}
 							//Now that we've tried to gather the metric, we can remove the event from the schedule, regardless of whether we were successful
 							metricSchedule.remove(metricSchedule.first());
@@ -472,7 +503,7 @@ public class ProcRecordProducer extends Thread {
 	public boolean isValidMetricName(String metricName){
 		if(metricName.equals("Diskstat") || metricName.equals("NetworkInterface") || metricName.equals("ProcessResource") ||
 				metricName.equals("SystemCpu") || metricName.equals("SystemMemory") || metricName.equals ("TcpConnectionStat") ||
-				metricName.equals("ThreadResource") || metricName.equals("SlimProcessResource") )
+				metricName.equals("ThreadResource") || metricName.equals("SlimThreadResource") || metricName.equals("SlimProcessResource") )
 			return true;
 		return false;
 	}
@@ -603,6 +634,54 @@ public class ProcRecordProducer extends Thread {
                                         	threadResourceRecordPutFailures += ret[3];
                                         } else {
                                         	threadResourceRecordProduceRecordFailures++;
+                                        	returnCode=false;
+                                        }
+                                }
+                        }
+                }
+        } catch(Exception e){
+        	System.err.println("Unexpected exception:");
+        	e.printStackTrace();
+        	return false;
+        }
+        return returnCode;
+	}
+	
+	private boolean generateSlimThreadResourceRecords(RecordQueue outputQueue){
+		boolean returnCode = true;
+        try {
+                FilenameFilter fnFilter = new FilenameFilter() {
+                        public boolean accept(File dir, String name) {
+                                if(name.charAt(0) >= '1' && name.charAt(0) <= '9')
+                                        return true;
+                                return false;
+                        }
+                };
+                File ppFile = new File("/proc");
+                File[] pPaths = ppFile.listFiles(fnFilter);
+                //For each process in /proc
+                for (int pn = 0; pn<pPaths.length; pn++){
+                        int ppid = Integer.parseInt(pPaths[pn].getName());
+                        String taskPathStr = pPaths[pn].toString() + "/task";
+
+                        File tpFile = new File(taskPathStr);
+                        File[] tPaths = tpFile.listFiles(fnFilter);
+                        if(tPaths != null) {
+                                for (int x=0; x<tPaths.length; x++){
+                                        String statPath = tPaths[x].toString() + "/stat";
+                                        String ioPath = tPaths[x].toString() + "/io";
+                                        int[] ret = null;
+                                        try {
+                                        	ret = SlimThreadResourceRecord.produceRecord(outputQueue, producerName, statPath, ioPath, ppid, clockTick);
+                                        } catch (Exception e) {
+                                        	ret = new int[] {1, 0, 0, 0};
+                                        }
+                                        if(ret[0] == 0){
+                                        	slimThreadResourceRecordsCreated += ret[1];
+                                        	slimThreadResourceRecordCreationFailures += ret[2];
+                                        	slimThreadResourceRecordPutFailures += ret[3];
+                                        } else {
+                                        	slimThreadResourceRecordProduceRecordFailures++;
                                         	returnCode=false;
                                         }
                                 }
