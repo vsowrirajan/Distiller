@@ -9,17 +9,19 @@ public class RawRecordProducerStatusRecord extends Record {
 	private String producerId;							//This should uniquely identify what generated this status record (e.g. an instance of ProcRecordProducer)
 	private long 	recordsCreated,						//The number of Records created by the producer	
 					recordCreationFailures,				//The number of times the producer tried to create a Record and failed
-					queuePutFailures=0l,				//The number of calls to put a Record into a RecordQueue that did not return successfully
-					otherFailures=0l,					//Number of any other types of failures that don't fit into the other buckets.
-					runningTimems=0l;					//The amount of time the record producer was actively running (vs. waiting for input).  This is basically the CPU consumption of the record producer
+					queuePutFailures,				//The number of calls to put a Record into a RecordQueue that did not return successfully
+					otherFailures,					//Number of any other types of failures that don't fit into the other buckets.
+					runningTimems;					//The amount of time the record producer was actively running (vs. waiting for input).  This is basically the CPU consumption of the record producer
 	private HashMap<String,String> extraInfo=null;		//Extra info that a record producer can choose to include.
 
 	public RawRecordProducerStatusRecord(String producerId){
 		super(System.currentTimeMillis());
 		this.producerId = producerId;
-		recordsCreated=0l;
-		recordCreationFailures=0l;
-		runningTimems=0l;
+		this.recordsCreated=0l;
+		this.recordCreationFailures=0l;
+		this.queuePutFailures=0l;
+		this.otherFailures=0l;
+		this.runningTimems=0l;
 	}
 
 	public RawRecordProducerStatusRecord(RawRecordProducerStatusRecord oldRecord) throws Exception{
@@ -32,9 +34,11 @@ public class RawRecordProducerStatusRecord extends Record {
 			throw new Exception("Failed to set timestamps on old record: " + oldRecord.getPreviousTimestamp() + 
 								" " + oldRecord.getTimestamp() + this.getTimestamp(), e);
 		}
-		recordsCreated=0l;
-		recordCreationFailures=0l;
-		runningTimems=0l;
+		this.recordsCreated=0l;
+		this.recordCreationFailures=0l;
+		this.queuePutFailures=0l;
+		this.otherFailures=0l;
+		this.runningTimems=0l;
 	}
 
 	@Override
@@ -54,6 +58,7 @@ public class RawRecordProducerStatusRecord extends Record {
 		return super.toString() + ":RPSRec:" + producerId + "\truntime:" + runningTimems +"\trecC:" + recordsCreated +  
 				"\trFail:" +  recordCreationFailures + 
 				"\tpFail:" + queuePutFailures + 
+				"\toFail:" + otherFailures + 
 				cpuString + eiString;	
 	}
 

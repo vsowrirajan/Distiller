@@ -30,20 +30,20 @@ public class ProcMetricDescriptorManager {
 		return false;
 	}
 
-	public boolean containsDescriptor(String metricName, String queueName, int periodicity, int queueCapacity){
+	public boolean containsDescriptor(String metricName, int periodicity){
 		ListIterator<ProcMetricDescriptor> i = metricList.listIterator();
 		while(i.hasNext()){
-			if(i.next().equals(metricName, queueName, periodicity, queueCapacity))
+			if(i.next().equals(metricName, periodicity))
 				return true;
 		}
 		return false;
 	}
 	
-	public boolean addDescriptor(String metricName, String queueName, int periodicity, int queueCapacity){
-		return metricList.add(new ProcMetricDescriptor(metricName, queueName, periodicity, queueCapacity));
+	public boolean addDescriptor(String metricName, int periodicity){
+		return metricList.add(new ProcMetricDescriptor(metricName, periodicity));
 	}
 
-	public boolean removeDescriptor(String metricName, String queueName, int periodicity, int queueCapacity){
-		return metricList.remove(new ProcMetricDescriptor(metricName, queueName, periodicity, queueCapacity));
+	public boolean removeDescriptor(String metricName, int periodicity){
+		return metricList.remove(new ProcMetricDescriptor(metricName, periodicity));
 	}
 }

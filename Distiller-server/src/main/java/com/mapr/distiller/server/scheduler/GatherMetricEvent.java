@@ -1,21 +1,23 @@
 package com.mapr.distiller.server.scheduler;
 
+import com.mapr.distiller.server.queues.RecordQueue;
+
 public class GatherMetricEvent {
 	private long previousTime, targetTime;
-	private String metricName, queueName, producerName;
+	private String metricName;
+	RecordQueue outputQueue;
 	private int periodicity;
 	
-	public GatherMetricEvent(long previousTime, long targetTime, String metricName, String queueName, String producerName, int periodicity) {
+	public GatherMetricEvent(long previousTime, long targetTime, String metricName, RecordQueue outputQueue, int periodicity) {
 		this.previousTime = previousTime;
 		this.targetTime = targetTime;
 		this.metricName = metricName;
-		this.queueName = queueName;
-		this.producerName = producerName;
+		this.outputQueue = outputQueue;
 		this.periodicity = periodicity;
 	}
 	
-	public String getProducerName(){
-		return producerName;
+	public RecordQueue getRecordQueue(){
+		return outputQueue;
 	}
 	public String getMetricName(){
 		return metricName;
@@ -32,11 +34,7 @@ public class GatherMetricEvent {
 	public int getPeriodicity(){
 		return periodicity;
 	}
-	
-	public String getQueueName(){
-		return queueName;
-	}
-	
+
 	public void setPreviousTime(long previousTime){
 		this.previousTime = previousTime;
 	}
