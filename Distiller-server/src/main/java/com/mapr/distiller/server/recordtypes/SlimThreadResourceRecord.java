@@ -25,6 +25,24 @@ public class SlimThreadResourceRecord extends Record {
 	/**
 	 * CONSTRUCTORS
 	 */
+	public SlimThreadResourceRecord(ThreadResourceRecord tRec) throws Exception{
+		try{
+			this.setPreviousTimestamp(tRec.getPreviousTimestamp());
+			this.setTimestamp(tRec.getTimestamp());
+		} catch (Exception e){
+			throw new Exception("Could not construct SlimThreadResourceRecord from ThreadResourceRecord", e);
+		}
+		this.commandName = tRec.get_comm();
+		this.pid = tRec.get_pid();
+		this.ppid = tRec.get_ppid();
+		this.clockTick = tRec.getClockTick();
+		this.startTime = tRec.get_starttime();
+		this.iowaitTicks = tRec.get_delayacct_blkio_ticks();
+		this.cpuUsageTicks = tRec.get_utime().add(tRec.get_stime());
+		this.ioCalls = tRec.get_syscr().add(tRec.get_syscw());
+		this.ioBytesRead = tRec.get_read_bytes();
+		this.ioBytesWritten = tRec.get_write_bytes();
+	}
 	public SlimThreadResourceRecord(SlimThreadResourceRecord rec1, SlimThreadResourceRecord rec2) throws Exception{
 		SlimThreadResourceRecord oldRecord, newRecord;
 		

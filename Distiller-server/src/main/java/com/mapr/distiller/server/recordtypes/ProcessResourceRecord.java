@@ -27,17 +27,13 @@ public class ProcessResourceRecord extends Record {
 	 * CONSTRUCTORS
 	 */
 	public ProcessResourceRecord(ProcessResourceRecord rec1, ProcessResourceRecord rec2) throws Exception{
-		ProcessResourceRecord oldRecord, newRecord;
-		
-		//Check the input records to ensure they can be diff'd.
-		if(rec1.get_starttime() != rec2.get_starttime() || rec1.get_pid() != rec2.get_pid())
-			throw new Exception("Differential ProcessResourceRecord can only be generated from input records from the same process");
-		if(rec1.getCpuUtilPct()!=-1d || rec2.getCpuUtilPct()!=-1d || rec1.getPreviousTimestamp()!=-1l || rec2.getPreviousTimestamp()!=-1l)
-			throw new Exception("Differential ProcessResourceRecord can only be generated from raw ProcessResourceRecords");
 		if(rec1.getTimestamp() == rec2.getTimestamp())
 			throw new Exception("Can not generate differential ProcessResourceRecord from input records with matching timestamp values");
+		if(rec1.get_starttime() != rec2.get_starttime() || rec1.get_pid() != rec2.get_pid())
+			throw new Exception("Differential ProcessResourceRecord can only be generated from input records from the same process");
 		
 		//Organize the input records.
+		ProcessResourceRecord oldRecord, newRecord;
 		if(rec1.getTimestamp() < rec2.getTimestamp()){
 			oldRecord = rec1;
 			newRecord = rec2;
@@ -46,9 +42,6 @@ public class ProcessResourceRecord extends Record {
 			newRecord = rec1;
 		}
 		
-		//Copied values:
-		this.setTimestamp(newRecord.getTimestamp());
-		this.setPreviousTimestamp(oldRecord.getTimestamp());
 		this.comm = newRecord.get_comm();
 		this.state = newRecord.get_state();
 		this.pid = newRecord.get_pid();
@@ -57,32 +50,74 @@ public class ProcessResourceRecord extends Record {
 		this.num_threads = newRecord.get_num_threads();
 		this.clockTick = newRecord.getClockTick();
 		this.starttime = newRecord.get_starttime();
-		this.rss = newRecord.get_rss();
 		this.rsslim = newRecord.get_rsslim();
-		this.vsize = newRecord.get_vsize();
 		
-		//Differential values:
-		this.cguest_time = newRecord.get_cguest_time().subtract(oldRecord.get_cguest_time());
-		this.cmajflt = newRecord.get_cmajflt().subtract(oldRecord.get_cmajflt());
-		this.cminflt = newRecord.get_cminflt().subtract(oldRecord.get_cminflt());
-		this.cstime = newRecord.get_cstime().subtract(oldRecord.get_cstime());
-		this.cutime = newRecord.get_cutime().subtract(oldRecord.get_cutime());
-		this.delayacct_blkio_ticks = newRecord.get_delayacct_blkio_ticks().subtract(oldRecord.get_delayacct_blkio_ticks());
-		this.guest_time = newRecord.get_guest_time().subtract(oldRecord.get_guest_time());
-		this.majflt = newRecord.get_majflt().subtract(oldRecord.get_majflt());
-		this.minflt = newRecord.get_minflt().subtract(oldRecord.get_minflt());
-		this.stime = newRecord.get_stime().subtract(oldRecord.get_stime());
-		this.utime = newRecord.get_utime().subtract(oldRecord.get_utime());
-		this.rchar = newRecord.get_rchar().subtract(oldRecord.get_rchar());
-		this.wchar = newRecord.get_wchar().subtract(oldRecord.get_wchar());
-		this.syscr = newRecord.get_syscr().subtract(oldRecord.get_syscr());
-		this.syscw = newRecord.get_syscw().subtract(oldRecord.get_syscw());
-		this.read_bytes = newRecord.get_read_bytes().subtract(oldRecord.get_read_bytes());
-		this.write_bytes = newRecord.get_write_bytes().subtract(oldRecord.get_write_bytes());
-		this.cancelled_write_bytes = newRecord.get_cancelled_write_bytes().subtract(oldRecord.get_cancelled_write_bytes());
+		//Check if these are raw records
+		if(rec1.getCpuUtilPct()==-1d && rec2.getCpuUtilPct()==-1d){
+			//Copied values:
+			this.setTimestamp(newRecord.getTimestamp());
+			this.setPreviousTimestamp(oldRecord.getTimestamp());
+			
+			//Differential values:
+			this.cguest_time = newRecord.get_cguest_time().subtract(oldRecord.get_cguest_time());
+			this.cmajflt = newRecord.get_cmajflt().subtract(oldRecord.get_cmajflt());
+			this.cminflt = newRecord.get_cminflt().subtract(oldRecord.get_cminflt());
+			this.cstime = newRecord.get_cstime().subtract(oldRecord.get_cstime());
+			this.cutime = newRecord.get_cutime().subtract(oldRecord.get_cutime());
+			this.delayacct_blkio_ticks = newRecord.get_delayacct_blkio_ticks().subtract(oldRecord.get_delayacct_blkio_ticks());
+			this.guest_time = newRecord.get_guest_time().subtract(oldRecord.get_guest_time());
+			this.majflt = newRecord.get_majflt().subtract(oldRecord.get_majflt());
+			this.minflt = newRecord.get_minflt().subtract(oldRecord.get_minflt());
+			this.stime = newRecord.get_stime().subtract(oldRecord.get_stime());
+			this.utime = newRecord.get_utime().subtract(oldRecord.get_utime());
+			this.rchar = newRecord.get_rchar().subtract(oldRecord.get_rchar());
+			this.wchar = newRecord.get_wchar().subtract(oldRecord.get_wchar());
+			this.syscr = newRecord.get_syscr().subtract(oldRecord.get_syscr());
+			this.syscw = newRecord.get_syscw().subtract(oldRecord.get_syscw());
+			this.read_bytes = newRecord.get_read_bytes().subtract(oldRecord.get_read_bytes());
+			this.write_bytes = newRecord.get_write_bytes().subtract(oldRecord.get_write_bytes());
+			this.cancelled_write_bytes = newRecord.get_cancelled_write_bytes().subtract(oldRecord.get_cancelled_write_bytes());
 
 
-		//Derived values:
+			//Derived values:
+			this.rss = newRecord.get_rss().multiply(new BigInteger(Long.toString(this.getDurationms())));
+			this.vsize = newRecord.get_vsize().multiply(new BigInteger(Long.toString(this.getDurationms())));
+	
+		//Check if these are differential records
+		} else if(rec1.getCpuUtilPct()!=-1d && rec2.getCpuUtilPct()!=-1d){
+			//Check if these are chronologically consecutive differential records
+			if(oldRecord.getTimestamp() != newRecord.getPreviousTimestamp())
+				throw new Exception("Can not generate differential ProcessResourceRecord from non-consecutive differential records");
+			//Copied values:
+			this.setTimestamp(newRecord.getTimestamp());					//Set the end timestamp to the timestamp of the newer record
+			this.setPreviousTimestamp(oldRecord.getPreviousTimestamp());	//Set the start timestamp to the start timestamp of the older record
+			
+			//Differential values:
+			this.cguest_time = newRecord.get_cguest_time().add(oldRecord.get_cguest_time());
+			this.cmajflt = newRecord.get_cmajflt().add(oldRecord.get_cmajflt());
+			this.cminflt = newRecord.get_cminflt().add(oldRecord.get_cminflt());
+			this.cstime = newRecord.get_cstime().add(oldRecord.get_cstime());
+			this.cutime = newRecord.get_cutime().add(oldRecord.get_cutime());
+			this.delayacct_blkio_ticks = newRecord.get_delayacct_blkio_ticks().add(oldRecord.get_delayacct_blkio_ticks());
+			this.guest_time = newRecord.get_guest_time().add(oldRecord.get_guest_time());
+			this.majflt = newRecord.get_majflt().add(oldRecord.get_majflt());
+			this.minflt = newRecord.get_minflt().add(oldRecord.get_minflt());
+			this.stime = newRecord.get_stime().add(oldRecord.get_stime());
+			this.utime = newRecord.get_utime().add(oldRecord.get_utime());
+			this.rchar = newRecord.get_rchar().add(oldRecord.get_rchar());
+			this.wchar = newRecord.get_wchar().add(oldRecord.get_wchar());
+			this.syscr = newRecord.get_syscr().add(oldRecord.get_syscr());
+			this.syscw = newRecord.get_syscw().add(oldRecord.get_syscw());
+			this.read_bytes = newRecord.get_read_bytes().add(oldRecord.get_read_bytes());
+			this.write_bytes = newRecord.get_write_bytes().add(oldRecord.get_write_bytes());
+			this.cancelled_write_bytes = newRecord.get_cancelled_write_bytes().add(oldRecord.get_cancelled_write_bytes());
+			this.rss = newRecord.get_rss().add(oldRecord.get_rss());
+			this.vsize = newRecord.get_vsize().add(oldRecord.get_vsize());
+
+		//Otherwise, we are being asked to merge one raw record with one derived record and that is not valid.
+		} else {
+			throw new Exception("Can not generate differential ProcessResourceRecord from a raw record and a differential record");
+		}
 		this.cpuUtilPct = this.utime.add(this.stime).doubleValue() / 					//The number of jiffies used by the process over the duration
 				(((double)(this.clockTick * this.getDurationms())) / 1000d);			//The number of jiffies that went by over the duration
 		this.iowaitUtilPct = this.delayacct_blkio_ticks.doubleValue() / 				//The number of jiffies the process waited for IO over the duration

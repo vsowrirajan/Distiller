@@ -25,18 +25,33 @@ public class SlimProcessResourceRecord extends Record {
 	/**
 	 * CONSTRUCTORS
 	 */
+	public SlimProcessResourceRecord(ProcessResourceRecord pRec) throws Exception{
+		try{
+			this.setPreviousTimestamp(pRec.getPreviousTimestamp());
+			this.setTimestamp(pRec.getTimestamp());
+		} catch (Exception e){
+			throw new Exception("Could not construct SlimProcessResourceRecord from ProcessResourceRecord", e);
+		}
+		this.commandName = pRec.get_comm();
+		this.pid = pRec.get_pid();
+		this.ppid = pRec.get_ppid();
+		this.clockTick = pRec.getClockTick();
+		this.startTime = pRec.get_starttime();
+		this.iowaitTicks = pRec.get_delayacct_blkio_ticks();
+		this.cpuUsageTicks = pRec.get_utime().add(pRec.get_stime());
+		this.ioCalls = pRec.get_syscr().add(pRec.get_syscw());
+		this.ioBytesRead = pRec.get_read_bytes();
+		this.ioBytesWritten = pRec.get_write_bytes();
+		this.rss = pRec.get_rss();
+	}
 	public SlimProcessResourceRecord(SlimProcessResourceRecord rec1, SlimProcessResourceRecord rec2) throws Exception{
-		SlimProcessResourceRecord oldRecord, newRecord;
-		
-		//Check the input records to ensure they can be diff'd.
-		if(rec1.getStartTime() != rec2.getStartTime() || rec1.getPid() != rec2.getPid())
-			throw new Exception("Differential SlimProcessResourceRecord can only be generated from input records from the same process");
-		if(rec1.getCpuUtilPct()!=-1d || rec2.getCpuUtilPct()!=-1d || rec1.getPreviousTimestamp()!=-1l || rec2.getPreviousTimestamp()!=-1l)
-			throw new Exception("Differential SlimProcessResourceRecord can only be generated from raw SlimProcessResourceRecords");
 		if(rec1.getTimestamp() == rec2.getTimestamp())
 			throw new Exception("Can not generate differential SlimProcessResourceRecord from input records with matching timestamp values");
+		if(rec1.getStartTime() != rec2.getStartTime() || rec1.getPid() != rec2.getPid())
+			throw new Exception("Differential SlimProcessResourceRecord can only be generated from input records from the same process");
 		
 		//Organize the input records.
+		SlimProcessResourceRecord oldRecord, newRecord;
 		if(rec1.getTimestamp() < rec2.getTimestamp()){
 			oldRecord = rec1;
 			newRecord = rec2;
@@ -53,16 +68,41 @@ public class SlimProcessResourceRecord extends Record {
 		this.ppid = newRecord.getPpid();
 		this.clockTick = newRecord.getClockTick();
 		this.startTime = newRecord.getStartTime();
-		this.rss = newRecord.getRss();
 		
-		//Differential values:
-		this.iowaitTicks = newRecord.getIowaitTicks().subtract(oldRecord.getIowaitTicks());
-		this.cpuUsageTicks = newRecord.getCpuUsageTicks().subtract(oldRecord.getCpuUsageTicks());
-		this.ioCalls = newRecord.getIoCalls().subtract(oldRecord.getIoCalls());
-		this.ioBytesRead = newRecord.getIoBytesRead().subtract(oldRecord.getIoBytesRead());
-		this.ioBytesWritten = newRecord.getIoBytesWritten().subtract(oldRecord.getIoBytesWritten());
-
-		//Derived values:
+		//Check if these are raw records
+		if(rec1.getCpuUtilPct()==-1d && rec2.getCpuUtilPct()==-1d){
+			this.setTimestamp(newRecord.getTimestamp());
+			this.setPreviousTimestamp(oldRecord.getTimestamp());
+				
+			this.iowaitTicks = newRecord.getIowaitTicks().subtract(oldRecord.getIowaitTicks());
+			this.cpuUsageTicks = newRecord.getCpuUsageTicks().subtract(oldRecord.getCpuUsageTicks());
+			this.ioCalls = newRecord.getIoCalls().subtract(oldRecord.getIoCalls());
+			this.ioBytesRead = newRecord.getIoBytesRead().subtract(oldRecord.getIoBytesRead());
+			this.ioBytesWritten = newRecord.getIoBytesWritten().subtract(oldRecord.getIoBytesWritten());
+			
+			this.rss = newRecord.getRss().multiply(new BigInteger(Long.toString(this.getDurationms())));
+			
+		//Check if these are differential records
+		} else if(rec1.getCpuUtilPct()!=-1d && rec2.getCpuUtilPct()!=-1d){
+			//Check if these are chronologically consecutive differential records
+			if(oldRecord.getTimestamp() != newRecord.getPreviousTimestamp())
+				throw new Exception("Can not generate differential SlimProcessResourceRecord from non-consecutive differential records");
+			
+			this.setTimestamp(newRecord.getTimestamp());					//Set the end timestamp to the timestamp of the newer record
+			this.setPreviousTimestamp(oldRecord.getPreviousTimestamp());	//Set the start timestamp to the start timestamp of the older record
+			
+			this.iowaitTicks = newRecord.getIowaitTicks().add(oldRecord.getIowaitTicks());
+			this.cpuUsageTicks = newRecord.getCpuUsageTicks().add(oldRecord.getCpuUsageTicks());
+			this.ioCalls = newRecord.getIoCalls().add(oldRecord.getIoCalls());
+			this.ioBytesRead = newRecord.getIoBytesRead().add(oldRecord.getIoBytesRead());
+			this.ioBytesWritten = newRecord.getIoBytesWritten().add(oldRecord.getIoBytesWritten());
+			this.rss = newRecord.getRss().add(oldRecord.getRss());
+		
+		//Otherwise, we are being asked to merge one raw record with one derived record and that is not valid.
+		} else {
+			throw new Exception("Can not generate differential ProcessResourceRecord from a raw record and a differential record");
+		}
+		
 		this.cpuUtilPct = this.getCpuUsageTicks().doubleValue() / 					//The number of jiffies used by the process over the duration
 				(((double)(this.clockTick * this.getDurationms())) / 1000d);			//The number of jiffies that went by over the duration
 		this.iowaitUtilPct = this.getIowaitTicks().doubleValue() / 				//The number of jiffies the process waited for IO over the duration
