@@ -2,8 +2,7 @@ package com.mapr.distiller.server.processors;
 
 import com.mapr.distiller.server.recordtypes.TcpConnectionStatRecord;
 
-public class TcpConnectionStatRecordProcessor implements
-		Thresholdable<TcpConnectionStatRecord>, MovingAverageable<TcpConnectionStatRecord> {
+public class TcpConnectionStatRecordProcessor implements RecordProcessor<TcpConnectionStatRecord> {
 	
 	public boolean isNotEqual(TcpConnectionStatRecord record, String metric,
 			String thresholdValue) throws Exception {

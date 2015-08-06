@@ -1,10 +1,10 @@
 package com.mapr.distiller.server.processors;
 
 import com.mapr.distiller.server.recordtypes.MfsGutsRecord;
+
 import java.math.BigInteger;
 
-public class MfsGutsRecordProcessor implements
-		Thresholdable<MfsGutsRecord>, MovingAverageable<MfsGutsRecord> {
+public class MfsGutsRecordProcessor implements RecordProcessor<MfsGutsRecord> {
 	
 	public boolean isNotEqual(MfsGutsRecord record, String metric,
 			String thresholdValue) throws Exception {

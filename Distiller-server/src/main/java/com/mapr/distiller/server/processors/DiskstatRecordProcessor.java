@@ -2,8 +2,7 @@ package com.mapr.distiller.server.processors;
 
 import com.mapr.distiller.server.recordtypes.DiskstatRecord;
 
-public class DiskstatRecordProcessor implements 
-		Thresholdable<DiskstatRecord>, MovingAverageable<DiskstatRecord> {
+public class DiskstatRecordProcessor implements RecordProcessor<DiskstatRecord> {
 	
 	public boolean isNotEqual(DiskstatRecord record, String metric,
 			String thresholdValue) throws Exception {

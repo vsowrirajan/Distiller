@@ -4,8 +4,7 @@ import com.mapr.distiller.server.recordtypes.NetworkInterfaceRecord;
 
 import java.math.BigInteger;
 
-public class NetworkInterfaceRecordProcessor implements 
-		Thresholdable<NetworkInterfaceRecord>, MovingAverageable<NetworkInterfaceRecord> {
+public class NetworkInterfaceRecordProcessor implements RecordProcessor<NetworkInterfaceRecord> {
 	
 	public boolean isNotEqual(NetworkInterfaceRecord record, String metric,
 			String thresholdValue) throws Exception {

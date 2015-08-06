@@ -4,8 +4,7 @@ import java.math.BigInteger;
 
 import com.mapr.distiller.server.recordtypes.ThreadResourceRecord;
 
-public class ThreadResourceRecordProcessor implements 
-	Thresholdable<ThreadResourceRecord>, MovingAverageable<ThreadResourceRecord> {
+public class ThreadResourceRecordProcessor implements RecordProcessor<ThreadResourceRecord> {
 	public boolean isNotEqual(ThreadResourceRecord record, String metric,
 			String thresholdValue) throws Exception {
 		return !isEqual(record, metric, thresholdValue);
