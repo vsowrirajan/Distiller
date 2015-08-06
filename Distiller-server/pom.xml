@@ -33,13 +33,6 @@
 			<artifactId>xmlrpc-common</artifactId>
 			<version>${xmlrpc.version}</version>
 		</dependency>
-
-		<dependency>
-			<groupId>com.typesafe</groupId>
-			<artifactId>config</artifactId>
-			<version>1.0.2</version>
-		</dependency>
-
 	</dependencies>
 
 	<build>
@@ -85,7 +78,7 @@
 								<!-- add Main-Class to manifest file -->
 								<transformer
 									implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-									<mainClass>Coordinator</mainClass>
+									<mainClass>SystemMonitor</mainClass>
 								</transformer>
 							</transformers>
 						</configuration>

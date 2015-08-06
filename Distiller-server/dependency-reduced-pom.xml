@@ -39,7 +39,7 @@
             <configuration>
               <transformers>
                 <transformer>
-                  <mainClass>Coordinator</mainClass>
+                  <mainClass>SystemMonitor</mainClass>
                 </transformer>
               </transformers>
             </configuration>
