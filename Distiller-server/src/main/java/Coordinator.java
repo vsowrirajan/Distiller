@@ -10,11 +10,18 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import com.mapr.distiller.server.metricactions.DiskstatMetricAction;
 import com.mapr.distiller.server.metricactions.MetricAction;
+import com.mapr.distiller.server.metricactions.MfsGutsMetricAction;
+import com.mapr.distiller.server.metricactions.NetworkInterfaceMetricAction;
+import com.mapr.distiller.server.metricactions.ProcessResourceMetricAction;
 import com.mapr.distiller.server.metricactions.SystemCpuMetricAction;
 import com.mapr.distiller.server.metricactions.SystemMemoryMetricAction;
+import com.mapr.distiller.server.metricactions.TcpConnectionStatMetricAction;
+import com.mapr.distiller.server.metricactions.ThreadResourceMetricAction;
 import com.mapr.distiller.server.producers.raw.ProcRecordProducer;
 import com.mapr.distiller.server.queues.RecordQueueManager;
+import com.mapr.distiller.server.utils.Constants;
 import com.mapr.distiller.server.utils.MetricConfig;
 import com.mapr.distiller.server.utils.MetricConfig.MetricConfigBuilder;
 import com.typesafe.config.Config;
@@ -73,7 +80,8 @@ public class Coordinator {
 			String id = metricConfig.getString("id");
 			String inputQueue = metricConfig.getString("inputqueue");
 			String outputQueue = metricConfig.getString("outputqueue");
-			String recordType = metricConfig.getString("recordtype");
+			String recordType = metricConfig.getString("recordtype")
+					.toLowerCase();
 
 			configMetricBuilder = new MetricConfigBuilder(id, inputQueue,
 					outputQueue, recordType);
@@ -148,17 +156,54 @@ public class Coordinator {
 		for (MetricConfig config : metricConfigs) {
 			MetricAction metricAction;
 			switch (config.getRecordType()) {
-			case "SystemCpuRecord":
+			case Constants.SYSTEMCPURECORD:
 				metricAction = SystemCpuMetricAction.getInstance(config,
 						recordQueueManager);
 				this.metricActionsIdMap.put(metricAction.getId(), metricAction);
 				break;
 
-			case "SystemMemoryRecord":
+			case Constants.SYSTEMMEMORYRECORD:
 				metricAction = SystemMemoryMetricAction.getInstance(config,
 						recordQueueManager);
 				this.metricActionsIdMap.put(metricAction.getId(), metricAction);
 				break;
+
+			case Constants.DISKSTATRECORD:
+				metricAction = DiskstatMetricAction.getInstance(config,
+						recordQueueManager);
+				this.metricActionsIdMap.put(metricAction.getId(), metricAction);
+				break;
+
+			case Constants.NETWORKINTERFACERECORD:
+				metricAction = NetworkInterfaceMetricAction.getInstance(config,
+						recordQueueManager);
+				this.metricActionsIdMap.put(metricAction.getId(), metricAction);
+				break;
+
+			case Constants.THREADRESOURCERECORD:
+				metricAction = ThreadResourceMetricAction.getInstance(config,
+						recordQueueManager);
+				this.metricActionsIdMap.put(metricAction.getId(), metricAction);
+				break;
+
+			case Constants.PROCESSRESOURCERECORD:
+				metricAction = ProcessResourceMetricAction.getInstance(config,
+						recordQueueManager);
+				this.metricActionsIdMap.put(metricAction.getId(), metricAction);
+				break;
+
+			case Constants.TCPCONNECTIONRECORD:
+				metricAction = TcpConnectionStatMetricAction.getInstance(
+						config, recordQueueManager);
+				this.metricActionsIdMap.put(metricAction.getId(), metricAction);
+				break;
+
+			case Constants.MFSGUTSRECORD:
+				metricAction = MfsGutsMetricAction.getInstance(config,
+						recordQueueManager);
+				this.metricActionsIdMap.put(metricAction.getId(), metricAction);
+				break;
+
 			default:
 				throw new IllegalArgumentException(
 						"Not a supported recordType - "
@@ -182,7 +227,7 @@ public class Coordinator {
 		System.out.println(configLocation);
 		Config config = ConfigFactory.parseFile(new File(configLocation));
 		if (config == null) {
-			System.out.println("Config not loaded properly");
+			System.err.println("Config not loaded properly");
 		}
 		coordinator.createMetricConfigs(config);
 		List<MetricConfig> metricConfigs = coordinator.getMetricConfigs();

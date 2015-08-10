@@ -8,11 +8,10 @@ import com.mapr.distiller.server.recordtypes.Record;
 import com.mapr.distiller.server.utils.Constants;
 
 public abstract class MetricAction implements Runnable, MetricsSelectable {
+	Object object = new Object();
+	
 	protected String id;
 	protected volatile boolean gatherMetric;
-
-	Object object = new Object();
-
 	protected RecordQueue inputQueue;
 	protected RecordQueue outputQueue;
 	protected String recordType;
@@ -39,12 +38,35 @@ public abstract class MetricAction implements Runnable, MetricsSelectable {
 
 		setGathericMetric(true);
 	}
+	
+	@Override
+	public void run() {
+		System.out.println("****" + this.recordType + "****");
+		while (!Thread.interrupted()) {
+			if (isGathericMetric()) {
+				System.out.println("Processing metric " + this.id);
+				try {
+					Thread.sleep(1000);
+				} catch (InterruptedException e) {
+					System.out.println("Thread got interrupted - Going down");
+					break;
+				}
+			}
 
-	public abstract void suspend() throws InterruptedException;
+			else {
+				try {
+					synchronized (object) {
+						object.wait();
+					}
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}
+		}
 
-	public abstract void resume();
-
-	public abstract void kill();
+		System.out.println("Exiting Metric action due to kill action");
+	}
 
 	@Override
 	public void selectSequentialRecords() {
@@ -90,6 +112,37 @@ public abstract class MetricAction implements Runnable, MetricsSelectable {
 	public void selectTimeSeparatedRecords() {
 		// TODO Auto-generated method stub
 
+	}
+	
+
+	public void suspend() throws InterruptedException {
+		System.out.println("Stopping metric with id = " + id);
+		if (gatherMetric) {
+			gatherMetric = false;
+		}
+
+		else {
+			System.out.println("Already suspended metric " + id);
+		}
+	}
+
+	public void resume() {
+		synchronized (object) {
+			if (!gatherMetric) {
+				System.out.println("Resuming metric with id = " + id);
+				gatherMetric = true;
+				object.notifyAll();
+			}
+
+			else {
+				System.out.println("Already running Metric " + id);
+			}
+		}
+	}
+
+	public void kill() {
+		System.out.println("Kill metric with id = " + id);
+		gatherMetric = false;
 	}
 
 	public boolean isGathericMetric() {
