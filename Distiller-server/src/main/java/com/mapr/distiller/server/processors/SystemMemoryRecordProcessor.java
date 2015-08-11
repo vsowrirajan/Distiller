@@ -5,6 +5,10 @@ import com.mapr.distiller.server.recordtypes.SystemMemoryRecord;
 
 public class SystemMemoryRecordProcessor implements RecordProcessor<Record> {
 
+	public String getName(){
+		return "SystemMemoryRecordProcessor";
+	}
+	
 	public boolean isNotEqual(SystemMemoryRecord record, String metric,
 			String thresholdValue) throws Exception {
 		return !isEqual(record, metric, thresholdValue);
@@ -54,7 +58,7 @@ public class SystemMemoryRecordProcessor implements RecordProcessor<Record> {
 	public boolean isBelowThreshold(Record record, String metric,
 			String thresholdValue) throws Exception {
 		SystemMemoryRecord currentRecord = (SystemMemoryRecord) record;
-
+		
 		switch (metric) {
 		case "%free":
 			if (currentRecord.getFreeMemPct() == -1d)

@@ -94,7 +94,7 @@ public class ProcRecordProducer extends Thread {
 	private boolean shouldExit=false;
 	
 	//Controls whether metrics about how this raw record producer is running will be generated.
-	private boolean producerMetricsEnabled=true;
+	private boolean producerMetricsEnabled=false;
 	
 	//This holds the list of metrics to gather sorted by the time at which they should be gathered.
 	private TreeSet<GatherMetricEvent> metricSchedule = new TreeSet<GatherMetricEvent>(new MetricEventComparator());
@@ -121,11 +121,7 @@ public class ProcRecordProducer extends Thread {
 		setClockTick();
 		this.producerStatsQueue = null;
 		this.producerName = producerName;
-		if(producerStatsQueue != null){
-			producerMetricsEnabled = true;
-		} else {
-			producerMetricsEnabled=false;
-		}
+		this.producerMetricsEnabled=false;
 		this.enabledMetricManager = new ProcMetricDescriptorManager();
 	}
 	
@@ -148,7 +144,6 @@ public class ProcRecordProducer extends Thread {
 	public void run() {
 		long actionStartTime;
 		GatherMetricEvent event = null;
-		boolean producerMetricsEnabled=true;
 		
 		mystatus = new RawRecordProducerStatusRecord(producerName);
 		diskstatRecordCreationFailures=0;
@@ -311,7 +306,7 @@ public class ProcRecordProducer extends Thread {
 				mystatus.addExtraInfo("slimThreadResourceRunningTime%", Double.toString(100d * ((double)slimThreadResourceRunningTime) / ((double)mystatus.getDurationms())));
 				if(producerMetricsEnabled && !producerStatsQueue.put(producerName,mystatus)){
 					System.err.println("Failed to put RecordProducerStatusRecord to output queue " + producerStatsQueue.getQueueName() + 
-											" size:" + producerStatsQueue.queueSize() + " maxSize:" + producerStatsQueue.maxQueueSize() + 
+											" size:" + producerStatsQueue.queueSize() + " maxSize:" + producerStatsQueue.getQueueRecordCapacity() + 
 											" producerName:" + producerName);
 				} 
 				mystatus = newRecord;
@@ -500,7 +495,7 @@ public class ProcRecordProducer extends Thread {
 		return producerMetricsEnabled;
 	}
 
-	public boolean isValidMetricName(String metricName){
+	public static boolean isValidMetricName(String metricName){
 		if(metricName.equals("Diskstat") || metricName.equals("NetworkInterface") || metricName.equals("ProcessResource") ||
 				metricName.equals("SystemCpu") || metricName.equals("SystemMemory") || metricName.equals ("TcpConnectionStat") ||
 				metricName.equals("ThreadResource") || metricName.equals("SlimThreadResource") || metricName.equals("SlimProcessResource") )

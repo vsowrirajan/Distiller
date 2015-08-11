@@ -7,6 +7,10 @@ import java.math.BigInteger;
 
 public class MfsGutsRecordProcessor implements RecordProcessor<Record> {
 
+	public String getName(){
+		return "MfsGutsRecordProcessor";
+	}
+	
 	public boolean isNotEqual(Record record, String metric,
 			String thresholdValue) throws Exception {
 		return !isEqual(record, metric, thresholdValue);

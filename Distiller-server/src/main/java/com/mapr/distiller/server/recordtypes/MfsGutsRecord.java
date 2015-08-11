@@ -304,7 +304,7 @@ public class MfsGutsRecord extends Record {
 		if(rec != null && !outputQueue.put(producerName, rec)){
 			ret[3] = 1;
 			System.err.println("Failed to put MfsGutsRecord into output queue " + outputQueue.getQueueName() + 
-					" size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.maxQueueSize() + 
+					" size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.getQueueRecordCapacity() + 
 					" producerName:" + producerName);
 		} else {
 			ret[1] = 1;

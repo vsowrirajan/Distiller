@@ -132,7 +132,7 @@ public class SystemMemoryRecord extends Record {
 			this.pswpout = newRecord.get_pswpout().subtract(oldRecord.get_pswpout());
 			this.allocstall = newRecord.get_allocstall().subtract(oldRecord.get_allocstall());
 			
-			this.freeMemPct = MemFree.divide(MemTotal).doubleValue();											//The mean MemFree of the input records expressed as a percentage of MemTotal.  ...Actually, it's just divided by the MemTotal.  E.g. the acceptable values are 0<=V<=1.  Should it be multiplied by 100?
+			this.freeMemPct = MemFree.doubleValue() / MemTotal.doubleValue();											//The mean MemFree of the input records expressed as a percentage of MemTotal.  ...Actually, it's just divided by the MemTotal.  E.g. the acceptable values are 0<=V<=1.  Should it be multiplied by 100?
 			this.freeMemByteMilliseconds = MemFree.multiply(new BigInteger(Long.toString(getDurationms())));	//The amount of free memory over the elapsed time expressed in a jiffy-like manner
 			
 		//Check if these are differential SystemMemoryRecords
@@ -167,7 +167,7 @@ public class SystemMemoryRecord extends Record {
 			this.pswpout = newRecord.get_pswpout().add(oldRecord.get_pswpout());
 			this.allocstall = newRecord.get_allocstall().add(oldRecord.get_allocstall());
 			
-			this.freeMemPct = MemFree.divide(MemTotal).doubleValue();											//The mean MemFree of the input records expressed as a percentage of MemTotal.
+			this.freeMemPct = MemFree.doubleValue() / MemTotal.doubleValue();
 			this.freeMemByteMilliseconds = MemFree.multiply(new BigInteger(Long.toString(getDurationms())));	//The amount of free memory over the elapsed time expressed in a jiffy-like manner
 			
 		//Otherwise, we are being asked to merge one raw record with one derived record and that is not valid.
@@ -194,7 +194,7 @@ public class SystemMemoryRecord extends Record {
 		if(record != null && !outputQueue.put(producerName, record)){
 			ret[3] = 1;
 			System.err.println("Failed to put SystemMemoryRecord into output queue " + outputQueue.getQueueName() + 
-					" size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.maxQueueSize() + 
+					" size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.getQueueRecordCapacity() + 
 					" producerName:" + producerName);
 		} else {
 			ret[1]=1;

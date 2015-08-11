@@ -143,7 +143,7 @@ public class TcpConnectionStatRecord extends Record {
 										ret[2]++;
 									}
 									if(record != null && !outputQueue.put(producerName, record)){
-										System.err.println("Failed to put TcpConnectionStatRecord into output queue " + outputQueue.getQueueName() + " size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.maxQueueSize() + " producerName:" + producerName);
+										System.err.println("Failed to put TcpConnectionStatRecord into output queue " + outputQueue.getQueueName() + " size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.getQueueRecordCapacity() + " producerName:" + producerName);
 										ret[3]++;
 									} else {
 										ret[1]++;

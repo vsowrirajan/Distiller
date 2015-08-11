@@ -193,7 +193,7 @@ public class ThreadResourceRecord extends Record {
 		if(record!= null && !outputQueue.put(producerName, record)){
 			ret[3]=1;
 			System.err.println("Failed to put ThreadResourceRecord into output queue " + outputQueue.getQueueName() + 
-					" size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.maxQueueSize() + 
+					" size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.getQueueRecordCapacity() + 
 					" producerName:" + producerName);
 		} else {
 			ret[1]=1;

@@ -109,7 +109,7 @@ public class MfsGutsStdoutRecordProducer extends Thread{
 				}
 				if(producerMetricsEnabled && !producerStatsQueue.put(producerName,mystatus)){
 						System.err.println("Failed to put RecordProducerStatusRecord to output queue " + producerStatsQueue.getQueueName() + 
-												" size:" + producerStatsQueue.queueSize() + " maxSize:" + producerStatsQueue.maxQueueSize() + 
+												" size:" + producerStatsQueue.queueSize() + " maxSize:" + producerStatsQueue.getQueueRecordCapacity() + 
 												" producerName:" + producerName);
 				} 
 				mystatus = newRecord;

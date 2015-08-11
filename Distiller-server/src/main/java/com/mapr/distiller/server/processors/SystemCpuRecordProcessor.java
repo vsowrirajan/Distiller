@@ -5,6 +5,10 @@ import com.mapr.distiller.server.recordtypes.SystemCpuRecord;
 
 public class SystemCpuRecordProcessor implements RecordProcessor<Record> {
 
+	public String getName(){
+		return "SystemCpuRecordProcessor";
+	}
+	
 	public boolean isNotEqual(Record record, String metric,
 			String thresholdValue) throws Exception {
 		return !isEqual(record, metric, thresholdValue);

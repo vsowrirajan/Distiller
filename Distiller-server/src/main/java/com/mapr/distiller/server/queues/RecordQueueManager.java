@@ -8,29 +8,48 @@ import com.mapr.distiller.server.queues.RecordQueue;
 import com.mapr.distiller.server.queues.SubscriptionRecordQueue;
 
 public class RecordQueueManager {
+	private boolean DEBUG_ENABLED=true;
 	private static ConcurrentHashMap<String, RecordQueue> nameToRecordQueueMap;
 	private static ConcurrentHashMap<String, Integer> nameToMaxProducerMap;
 	
 	public RecordQueueManager(){
+		if(DEBUG_ENABLED)
+			System.err.println("RecordQueueManager-" + System.identityHashCode(this) + ": Initializing");
 		nameToRecordQueueMap = new ConcurrentHashMap<String, RecordQueue>(1000);
 		nameToMaxProducerMap = new ConcurrentHashMap<String, Integer>(1000);
 	}
 	
-	public boolean createQueue(String queueName, int capacity, int maxProducers){
+	public boolean createQueue(String queueName, int recordCapacity, int timeCapacity, int maxProducers){
+		if(DEBUG_ENABLED)
+			System.err.println("RecordQueueManager-" + System.identityHashCode(this) + ": Request to create queue " + queueName + 
+					" rCap:" + recordCapacity + " tCap:" + timeCapacity + " maxProducer:" + maxProducers);
 		if(!queueExists(queueName) && maxProducers>=0){
-			nameToRecordQueueMap.put(queueName, new SubscriptionRecordQueue(queueName, capacity));
+			nameToRecordQueueMap.put(queueName, new SubscriptionRecordQueue(queueName, recordCapacity, timeCapacity));
 			nameToMaxProducerMap.put(queueName,  maxProducers);
+			if(DEBUG_ENABLED)
+				System.err.println("RecordQueueManager-" + System.identityHashCode(this) + ": Created queue " + queueName);
 			return true;
 		}
+		if(DEBUG_ENABLED)
+			System.err.println("RecordQueueManager-" + System.identityHashCode(this) + ": Could not create queue");
 		return false;
 	}
 	
 	public boolean deleteQueue(String queueName){
+		if(DEBUG_ENABLED)
+			System.err.println("RecordQueueManager-" + System.identityHashCode(this) + ": Request to delete queue " + queueName);
 		if(queueExists(queueName) && getQueue(queueName).listConsumers().length == 0 && getQueue(queueName).listProducers().length ==0){
 			nameToRecordQueueMap.remove(queueName);
 			nameToMaxProducerMap.remove(queueName);
-		} else if (!queueExists(queueName))
+			if(DEBUG_ENABLED)
+				System.err.println("RecordQueueManager-" + System.identityHashCode(this) + ": Deleted queue " + queueName);
+		} else if (!queueExists(queueName)){
+			if(DEBUG_ENABLED)
+				System.err.println("RecordQueueManager-" + System.identityHashCode(this) + ": Request to delete non-existant queue " + queueName);
 			return true;
+		}
+		if(DEBUG_ENABLED)
+			System.err.println("RecordQueueManager-" + System.identityHashCode(this) + ": Failed to delete queue " + queueName);
 		return false;
 	}
 	
@@ -54,12 +73,18 @@ public class RecordQueueManager {
 		return nameToRecordQueueMap.containsKey(name);
 	}
 	
-	public int getQueueCapacity(String name) {
+	public int getQueueRecordCapacity(String name) {
 		if(nameToRecordQueueMap.get(name)==null)
 			return -1;
-		return nameToRecordQueueMap.get(name).maxQueueSize();
+		return nameToRecordQueueMap.get(name).getQueueRecordCapacity();
 	}
 	
+	public int getQueueTimeCapacity(String name) {
+		if(nameToRecordQueueMap.get(name)==null)
+			return -1;
+		return nameToRecordQueueMap.get(name).getQueueTimeCapacity();
+	}
+
 	public String[] getQueueProducers(String name) {
 		if(nameToRecordQueueMap.get(name)==null)
 			return new String[0];
@@ -97,31 +122,51 @@ public class RecordQueueManager {
 	}
 	
 	public boolean registerProducer(String queueName, String producerName){
+		if(DEBUG_ENABLED)
+			System.err.println("RecordQueueManager-" + System.identityHashCode(this) + ": Request to register producer " + producerName + " with queue " + queueName);
 		if(queueExists(queueName) && 
 				(getMaxQueueProducers(queueName) == 0 || getQueueProducers(queueName).length < getMaxQueueProducers(queueName))){
 			getQueue(queueName).registerProducer(producerName);
+			if(DEBUG_ENABLED)
+				System.err.println("RecordQueueManager-" + System.identityHashCode(this) + ": Registered producer " + producerName + " with queue " + queueName);
 			return true;
 		}
+		if(DEBUG_ENABLED)
+			System.err.println("RecordQueueManager-" + System.identityHashCode(this) + ": Failed to register producer " + producerName + " with queue " + queueName);
 		return false;
 	}
 	
 	public boolean registerConsumer(String queueName, String consumerName){
+		if(DEBUG_ENABLED)
+			System.err.println("RecordQueueManager-" + System.identityHashCode(this) + ": Request to register consumer " + consumerName + " with queue " + queueName);
 		if(queueExists(queueName)){
 			getQueue(queueName).registerConsumer(consumerName);
+			if(DEBUG_ENABLED)
+				System.err.println("RecordQueueManager-" + System.identityHashCode(this) + ": Registered consumer " + consumerName + " with queue " + queueName);
 			return true;
 		}
+		if(DEBUG_ENABLED)
+			System.err.println("RecordQueueManager-" + System.identityHashCode(this) + ": Failed to register consumer " + consumerName + " with queue " + queueName);
 		return false;
 	}
 	
 	public boolean unregisterProducer(String queueName, String producerName){
+		if(DEBUG_ENABLED)
+			System.err.println("RecordQueueManager-" + System.identityHashCode(this) + ": Request to unregister producer " + producerName + " from queue " + queueName);
 		if(queueExists(queueName) && checkForQueueProducer(queueName, producerName))
 			return getQueue(queueName).unregisterProducer(producerName);
+		if(DEBUG_ENABLED)
+			System.err.println("RecordQueueManager-" + System.identityHashCode(this) + ": Failed to unregister producer " + producerName + " from queue " + queueName);
 		return false;
 	}
 
 	public boolean unregisterConsumer(String queueName, String consumerName){
+		if(DEBUG_ENABLED)
+			System.err.println("RecordQueueManager-" + System.identityHashCode(this) + ": Request to unregister consumer " + consumerName + " from queue " + queueName);
 		if(queueExists(queueName) && checkForQueueConsumer(queueName, consumerName))
 			return getQueue(queueName).unregisterConsumer(consumerName);
+		if(DEBUG_ENABLED)
+			System.err.println("RecordQueueManager-" + System.identityHashCode(this) + ": Failed to unregister consumer " + consumerName + " from queue " + queueName);
 		return false;
 	}
 }

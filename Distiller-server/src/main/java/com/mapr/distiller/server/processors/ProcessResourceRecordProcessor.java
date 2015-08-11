@@ -7,6 +7,10 @@ import com.mapr.distiller.server.recordtypes.Record;
 
 public class ProcessResourceRecordProcessor implements RecordProcessor<Record> {
 
+	public String getName(){
+		return "ProcessResourceRecordProcessor";
+	}
+	
 	public boolean isNotEqual(Record record, String metric,
 			String thresholdValue) throws Exception {
 		return !isEqual(record, metric, thresholdValue);

@@ -6,6 +6,10 @@ import com.mapr.distiller.server.recordtypes.TcpConnectionStatRecord;
 public class TcpConnectionStatRecordProcessor implements
 		RecordProcessor<Record> {
 
+	public String getName(){
+		return "TcpConnectionStatRecordProcessor";
+	}
+	
 	public boolean isNotEqual(Record record, String metric,
 			String thresholdValue) throws Exception {
 		return !isEqual(record, metric, thresholdValue);

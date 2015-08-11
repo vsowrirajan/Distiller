@@ -6,18 +6,24 @@ public interface RecordQueue {
 	//Return the name of the RecordQueue
 	public String getQueueName();
 	
-	//Return the maximum queue size
-	public int maxQueueSize();
-	
+	//Return the queue capacity in number of Records
+	public int getQueueRecordCapacity();
+		
+	//Return the queue capacity in number of seconds
+	public int getQueueTimeCapacity();
+		
 	//Return the number of elements in the queue.
 	public int queueSize();
 
 	//Add a Record onto the end of the queue
 	public boolean put(String producer, Record record);
 
-	//Get the next sequential Record for the specific subscriber
+	//Perform a blocking get for the next sequential Record for the specific subscriber
 	public Record get(String subscriber) throws Exception;
 
+	//Perform a get for the next sequential Record for the specific consumer, either blocking or non blocking as specified, return null for non-blocking requests where no records are available
+	public Record get(String subscriber, boolean blocking);
+	
 	//Return a String array where each element represents the name of a registered Producer
 	public String[] listProducers();
 
@@ -42,6 +48,9 @@ public interface RecordQueue {
 	//Returns true if the consumer with the given name was successfully removed as a consumer (false if no change)
 	public boolean unregisterConsumer(String name);
 
+	//Returns the value of getTimestamp from the oldest record in the queue or now if the queue is empty
+	public long getOldestRecordTimestamp();
+	
 	//Iterate through the records in the queue, calling Record.toString() for each Record that the specified consumer can consume
 	//What happens if this gets too big???
 	public String printRecords(String subscriber);
