@@ -6,6 +6,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import com.mapr.distiller.server.queues.RecordQueue;
 import com.mapr.distiller.server.queues.SubscriptionRecordQueue;
+import com.mapr.distiller.server.utils.Constants;
 
 public class RecordQueueManager {
 	private boolean DEBUG_ENABLED=true;
@@ -19,12 +20,35 @@ public class RecordQueueManager {
 		nameToMaxProducerMap = new ConcurrentHashMap<String, Integer>(1000);
 	}
 	
-	public boolean createQueue(String queueName, int recordCapacity, int timeCapacity, int maxProducers){
+	public String getQueueType(String queueName){
+		return getQueue(queueName).getQueueType();
+	}
+	
+	public String getQueueQualifierKey(String queueName){
+		return getQueue(queueName).getQueueQualifierKey();
+	}
+	
+	public boolean createQueue(String queueName, int recordCapacity, int timeCapacity, int maxProducers, String queueType, String qualifierKey){
 		if(DEBUG_ENABLED)
 			System.err.println("RecordQueueManager-" + System.identityHashCode(this) + ": Request to create queue " + queueName + 
-					" rCap:" + recordCapacity + " tCap:" + timeCapacity + " maxProducer:" + maxProducers);
+					" rCap:" + recordCapacity + " tCap:" + timeCapacity + " maxProducer:" + maxProducers + " queueType:" + queueType);
+		if(queueType == null)
+			queueType = Constants.SUBSCRIPTION_RECORD_QUEUE;
+
 		if(!queueExists(queueName) && maxProducers>=0){
-			nameToRecordQueueMap.put(queueName, new SubscriptionRecordQueue(queueName, recordCapacity, timeCapacity));
+			if(queueType.equals(Constants.SUBSCRIPTION_RECORD_QUEUE))
+				nameToRecordQueueMap.put(queueName, new SubscriptionRecordQueue(queueName, recordCapacity, timeCapacity));
+			else if (queueType.equals(Constants.UPDATING_SUBSCRIPTION_RECORD_QUEUE)){
+				try {
+					nameToRecordQueueMap.put(queueName, new UpdatingSubscriptionRecordQueue(queueName, recordCapacity, timeCapacity, qualifierKey));
+				} catch (Exception e) {
+					System.err.println("RecordQueueManager-" + System.identityHashCode(this) + ": Failed to construct UpdatingSubscriptionRecordQueue for \"" + queueName + "\"");
+					return false;
+				}
+			} else {
+				System.err.println("RecordQueueManager-" + System.identityHashCode(this) + ": Invalid queueType \"" + queueType + "\" requested for queue \"" + queueName + "\"");
+				return false;
+			}
 			nameToMaxProducerMap.put(queueName,  maxProducers);
 			if(DEBUG_ENABLED)
 				System.err.println("RecordQueueManager-" + System.identityHashCode(this) + ": Created queue " + queueName);
@@ -43,6 +67,7 @@ public class RecordQueueManager {
 			nameToMaxProducerMap.remove(queueName);
 			if(DEBUG_ENABLED)
 				System.err.println("RecordQueueManager-" + System.identityHashCode(this) + ": Deleted queue " + queueName);
+			return true;
 		} else if (!queueExists(queueName)){
 			if(DEBUG_ENABLED)
 				System.err.println("RecordQueueManager-" + System.identityHashCode(this) + ": Request to delete non-existant queue " + queueName);

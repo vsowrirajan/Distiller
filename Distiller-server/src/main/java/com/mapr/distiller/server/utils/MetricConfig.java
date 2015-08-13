@@ -27,6 +27,9 @@ public class MetricConfig {
 	private long metricActionStatusRecordFrequency;
 	private long timeSelectorMaxDelta;
 	private long timeSelectorMinDelta;
+	private String selectorQualifierKey;
+	private long cumulativeSelectorFlushTime;
+	private String outputQueueType;
 	
 	private MetricConfig(MetricConfigBuilder metricConfigBuilder) {
 		this.id = metricConfigBuilder.id;
@@ -50,6 +53,9 @@ public class MetricConfig {
 		this.metricActionStatusRecordFrequency = metricConfigBuilder.metricActionStatusRecordFrequency;
 		this.timeSelectorMaxDelta = metricConfigBuilder.timeSelectorMaxDelta;
 		this.timeSelectorMinDelta = metricConfigBuilder.timeSelectorMinDelta;
+		this.selectorQualifierKey = metricConfigBuilder.selectorQualifierKey;
+		this.cumulativeSelectorFlushTime = metricConfigBuilder.cumulativeSelectorFlushTime;
+		this.outputQueueType = metricConfigBuilder.outputQueueType;
 		this.initialized = false;
 	}
 	
@@ -70,13 +76,29 @@ public class MetricConfig {
 				((selector==null || selector.equals("")) ? "" : (" selector:" + selector)) + 
 				((processor==null || processor.equals("")) ? "" : (" processor:" + processor)) + 
 				((method==null || method.equals("")) ? "" : (" method:" + method)) + 
+				" cumulativeSelectorFlushTime:" + cumulativeSelectorFlushTime  +
 				" metricActionStatusRecordsEnabled:" + metricActionStatusRecordsEnabled + 
 				" metricActionStatusRecordFrequency:" + metricActionStatusRecordFrequency + 
 				((thresholdKey==null || thresholdKey.equals("")) ? "" : (" thresholdKey:" + thresholdKey)) + 
 				((thresholdValue==null || thresholdValue.equals("")) ? "" : (" thresholdValue:" + thresholdValue) + 
 				" timeSelectorMinDelta:" + timeSelectorMinDelta + 
-				" timeSelectorMaxDelta:" + timeSelectorMaxDelta );
+				" timeSelectorMaxDelta:" + timeSelectorMaxDelta +
+				" selectorQualifierKey:" + ((selectorQualifierKey==null) ? "null" : selectorQualifierKey) + 
+				" outputQueueType:" + ((outputQueueType==null) ? "null" : outputQueueType)
+				);
 
+	}
+	
+	public String getOutputQueueType(){
+		return outputQueueType;
+	}
+	
+	public long getCumulativeSelectorFlushTime() {
+		return cumulativeSelectorFlushTime;
+	}
+	
+	public String getSelectorQualifierKey(){
+		return selectorQualifierKey;
 	}
 	
 	public long getTimeSelectorMinDelta(){
@@ -145,6 +167,9 @@ public class MetricConfig {
 		private long metricActionStatusRecordFrequency;
 		private long timeSelectorMinDelta;
 		private long timeSelectorMaxDelta;
+		private String selectorQualifierKey;
+		private long cumulativeSelectorFlushTime;
+		private String outputQueueType;
 		
 
 		
@@ -153,7 +178,8 @@ public class MetricConfig {
 				String procRecordProducerMetricName, boolean rawProducerMetricsEnabled, String metricDescription,
 				String rawRecordProducerName, String selector, String processor, String method, 
 				boolean metricActionStatusRecordsEnabled, long metricActionStatusRecordFrequency,
-				String thresholdKey, String thresholdValue, long timeSelectorMaxDelta, long timeSelectorMinDelta) throws Exception{
+				String thresholdKey, String thresholdValue, long timeSelectorMaxDelta, long timeSelectorMinDelta,
+				String selectorQualifierKey, long cumulativeSelectorFlushTime, String outputQueueType) throws Exception{
 			
 			//Everything needs an id (e.g. "metric.name")
 			if(id == null || id.equals(""))
@@ -225,6 +251,9 @@ public class MetricConfig {
 			this.metricActionStatusRecordsEnabled = metricActionStatusRecordsEnabled;
 			this.timeSelectorMaxDelta = timeSelectorMaxDelta;
 			this.timeSelectorMinDelta = timeSelectorMinDelta;
+			this.selectorQualifierKey = selectorQualifierKey;
+			this.cumulativeSelectorFlushTime = cumulativeSelectorFlushTime;
+			this.outputQueueType = outputQueueType;
 		}
 
 		public MetricConfig build() {

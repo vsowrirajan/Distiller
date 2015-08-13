@@ -16,6 +16,7 @@ public interface Constants {
 	public static final String OUTPUT_QUEUE_CAPACITY_SECONDS	 		= "output.queue.capacity.seconds";
 	public static final String OUTPUT_QUEUE_MAX_PRODUCERS	 			= "output.queue.max.producers";
 	public static final String OUTPUT_QUEUE_NAME	 					= "output.queue.name";
+	public static final String OUTPUT_QUEUE_TYPE	 					= "output.queue.type";
 	public static final String PERIODICITY_MS	 						= "periodicity.ms";
 	public static final String PROC_RECORD_PRODUCER_METRIC_NAME	 		= "proc.record.producer.metric.name";
 	public static final String RAW_PRODUCER_METRICS_ENABLED	 			= "raw.producer.metrics.enabled";
@@ -23,6 +24,12 @@ public interface Constants {
 	public static final String RECORD_TYPE	 							= "record.type";
 	public static final String THRESHOLD_KEY	 						= "threshold.key";
 	public static final String THRESHOLD_VALUE	 						= "threshold.value";
+	public static final String SELECTOR_QUALIFIER_KEY					= "selector.qualifier.key";
+	public static final String SELECTOR_CUMULATIVE_FLUSH_TIME			= "selector.cumulative.flush.time";
+	
+	// Allowable values for output.queue.type
+	public static final String SUBSCRIPTION_RECORD_QUEUE				= "SubscriptionRecordQueue";
+	public static final String UPDATING_SUBSCRIPTION_RECORD_QUEUE		= "UpdatingSubscriptionRecordQueue";
 	
 	// Allowable values for input.record.processor.method
 	public static final String MERGE_RECORDS 	= "merge";
@@ -32,9 +39,11 @@ public interface Constants {
 	public static final String IS_NOT_EQUAL 	= "isNotEqual";
 	
 	// Allowable values for input.record.selector
-	public static final String SEQUENTIAL_SELECTOR		= "sequential";
-	public static final String CUMULATIVE_SELECTOR		= "cumulative";
-	public static final String TIME_SELECTOR			= "time";
+	public static final String SEQUENTIAL_SELECTOR					= "sequential";
+	public static final String SEQUENTIAL_WITH_QUALIFIER_SELECTOR 	= "sequentialWithQualifier";
+	public static final String CUMULATIVE_SELECTOR					= "cumulative";
+	public static final String CUMULATIVE_WITH_QUALIFIER_SELECTOR 	= "cumulativeWithQualifier";
+	public static final String TIME_SELECTOR						= "time";
 	
 	// Allowable values for record.type
 	public static final String SYSTEM_CPU_RECORD 				= "SystemCpu";

@@ -9,6 +9,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.Iterator;
 
 import com.mapr.distiller.server.metricactions.MetricAction;
 import com.mapr.distiller.server.producers.raw.ProcRecordProducer;
@@ -26,12 +27,12 @@ public class Coordinator {
 	private boolean DEBUG_ENABLED=true;
 
 	private List<MetricConfig> metricConfigs;
-	private Map<String, MetricAction> metricActionsIdMap;
+	private static Map<String, MetricAction> metricActionsIdMap;
 
-	private ExecutorService executor = Executors.newFixedThreadPool(5);
+	private ExecutorService executor = Executors.newCachedThreadPool();
 
-	private Map<String, Boolean> metricActionsStateMap;
-	private Map<String, Future<MetricAction>> metricActionsIdFuturesMap;
+	private static Map<String, Boolean> metricActionsStateMap;
+	private static Map<String, Future<MetricAction>> metricActionsIdFuturesMap;
 
 	private static ProcRecordProducer procRecordProducer;
 	private static MfsGutsRecordProducer mfsGutsRecordProducer;
@@ -103,6 +104,9 @@ public class Coordinator {
 			long metricActionStatusRecordFrequency=-1;
 			long timeSelectorMinDelta = -1;
 			long timeSelectorMaxDelta = -1;
+			String selectorQualifierKey = null;
+			long cumulativeSelectorFlushTime = -1;
+			String outputQueueType = null;
 			
 			try {
 				id = metricConfig.getString(Constants.METRIC_NAME);
@@ -167,6 +171,24 @@ public class Coordinator {
 			try {
 				timeSelectorMinDelta = metricConfig.getLong(Constants.TIME_SELECTOR_MIN_DELTA);
 			} catch (Exception e) {}
+			try {
+				selectorQualifierKey = metricConfig.getString(Constants.SELECTOR_QUALIFIER_KEY);
+			} catch (Exception e) {}
+			try {
+				cumulativeSelectorFlushTime = metricConfig.getLong(Constants.SELECTOR_CUMULATIVE_FLUSH_TIME);
+			} catch (Exception e) {}
+			try {
+				outputQueueType = metricConfig.getString(Constants.OUTPUT_QUEUE_TYPE);
+			} catch (Exception e) {}
+			
+			if (outputQueueType!=null && outputQueueType.equals(Constants.UPDATING_SUBSCRIPTION_RECORD_QUEUE) && 
+				(selectorQualifierKey==null || selectorQualifierKey.equals("")))
+				throw new Exception("Use of " + Constants.OUTPUT_QUEUE_TYPE + "=" + Constants.UPDATING_SUBSCRIPTION_RECORD_QUEUE + 
+									" requires a value for " + Constants.SELECTOR_QUALIFIER_KEY);
+			
+			if (selector!=null && selector.equals(Constants.SEQUENTIAL_WITH_QUALIFIER_SELECTOR) && 
+				( selectorQualifierKey==null || selectorQualifierKey.equals("") ) )
+				throw new Exception(Constants.SELECTOR_QUALIFIER_KEY + " must be specified when " + Constants.INPUT_RECORD_SELECTOR + "=" + Constants.SEQUENTIAL_WITH_QUALIFIER_SELECTOR);
 			
 			if(id != null && !id.equals("")){
 				if(metricNames.contains(id))
@@ -181,7 +203,8 @@ public class Coordinator {
 						outputQueueTimeCapacity, outputQueueMaxProducers, periodicity, recordType, procRecordProducerMetricName, 
 						rawProducerMetricsEnabled, metricDescription, rawRecordProducerName, selector, processor, method,
 						metricActionStatusRecordsEnabled, metricActionStatusRecordFrequency, thresholdKey, thresholdValue,
-						timeSelectorMaxDelta, timeSelectorMinDelta);
+						timeSelectorMaxDelta, timeSelectorMinDelta, selectorQualifierKey, cumulativeSelectorFlushTime,
+						outputQueueType);
 			} catch (Exception e) {
 				throw new Exception("Coordinator-" + System.identityHashCode(this) + ": Failed to construct MetricConfigBuilder for config element " + metric, e);
 			}
@@ -249,7 +272,6 @@ public class Coordinator {
 			System.err.println("Coordinator-" + System.identityHashCode(this) + ": request to create metric actions");
 		
 		List<MetricConfig> metricConfigs = getMetricConfigs();
-		this.metricActionsIdMap = new HashMap<String, MetricAction>();
 		
 		int initializationSuccesses=0;
 		int consecutiveIterationsWithNoSuccesses=0;
@@ -302,7 +324,7 @@ public class Coordinator {
 							e.printStackTrace();
 						}
 						if(metricAction != null){
-							this.metricActionsIdMap.put(metricAction.getId(), metricAction);
+							metricActionsIdMap.put(metricAction.getId(), metricAction);
 							initializationSuccesses++;
 						}
 						break;
@@ -316,7 +338,7 @@ public class Coordinator {
 							e.printStackTrace();
 						}
 						if(metricAction != null){
-							this.metricActionsIdMap.put(metricAction.getId(), metricAction);
+							metricActionsIdMap.put(metricAction.getId(), metricAction);
 							initializationSuccesses++;
 						}
 						break;
@@ -330,7 +352,7 @@ public class Coordinator {
 							e.printStackTrace();
 						}
 						if(metricAction != null){
-							this.metricActionsIdMap.put(metricAction.getId(), metricAction);
+							metricActionsIdMap.put(metricAction.getId(), metricAction);
 							initializationSuccesses++;
 						}
 						break;
@@ -344,7 +366,7 @@ public class Coordinator {
 							e.printStackTrace();
 						}
 						if(metricAction != null){
-							this.metricActionsIdMap.put(metricAction.getId(), metricAction);
+							metricActionsIdMap.put(metricAction.getId(), metricAction);
 							initializationSuccesses++;
 						}
 						break;
@@ -358,7 +380,7 @@ public class Coordinator {
 							e.printStackTrace();
 						}
 						if(metricAction != null){
-							this.metricActionsIdMap.put(metricAction.getId(), metricAction);
+							metricActionsIdMap.put(metricAction.getId(), metricAction);
 							initializationSuccesses++;
 						}
 						break;
@@ -372,7 +394,7 @@ public class Coordinator {
 							e.printStackTrace();
 						}
 						if(metricAction != null){
-							this.metricActionsIdMap.put(metricAction.getId(), metricAction);
+							metricActionsIdMap.put(metricAction.getId(), metricAction);
 							initializationSuccesses++;
 						}
 						break;
@@ -386,7 +408,7 @@ public class Coordinator {
 							e.printStackTrace();
 						}
 						if(metricAction != null){
-							this.metricActionsIdMap.put(metricAction.getId(), metricAction);
+							metricActionsIdMap.put(metricAction.getId(), metricAction);
 							initializationSuccesses++;
 						}
 						break;
@@ -400,7 +422,7 @@ public class Coordinator {
 							e.printStackTrace();
 						}
 						if(metricAction != null){
-							this.metricActionsIdMap.put(metricAction.getId(), metricAction);
+							metricActionsIdMap.put(metricAction.getId(), metricAction);
 							initializationSuccesses++;
 						}
 						break;
@@ -414,7 +436,7 @@ public class Coordinator {
 							e.printStackTrace();
 						}
 						if(metricAction != null){
-							this.metricActionsIdMap.put(metricAction.getId(), metricAction);
+							metricActionsIdMap.put(metricAction.getId(), metricAction);
 							initializationSuccesses++;
 						}
 						break;
@@ -428,7 +450,7 @@ public class Coordinator {
 							e.printStackTrace();
 						}
 						if(metricAction != null){
-							this.metricActionsIdMap.put(metricAction.getId(), metricAction);
+							metricActionsIdMap.put(metricAction.getId(), metricAction);
 							initializationSuccesses++;
 						}
 						break;
@@ -446,8 +468,12 @@ public class Coordinator {
 					default:
 						throw new IllegalArgumentException("Unknown record type \"" + config.getRecordType() + "\" specified for metric \"" + config.getId() + "\"");
 					}
-					if(startingSuccesses < initializationSuccesses)
+					if(startingSuccesses < initializationSuccesses){
+						System.err.println("Marking initialized for " + config.getId());
 						config.setInitialized(true);
+					}
+				} else if(!config.isInitialized() && DEBUG_ENABLED){
+					System.err.println("Coordinator-" + System.identityHashCode(this) + ": Skipping metric \"" + config.getId() + "\" this iteration as input queue " + config.getInputQueue() + " is not yet available.");
 				}
 			}
 			if(ss == initializationSuccesses)
@@ -458,7 +484,7 @@ public class Coordinator {
 				initializationComplete=true;
 		} 
 		if(!initializationComplete)
-			throw new Exception("Failed to initialize " + (metricConfigs.size() - initializationSuccesses) + " metric(s)");
+			throw new Exception("Failed to initialize " + (metricConfigs.size() - initializationSuccesses) + " metric(s), initialized:" + initializationSuccesses + " size:" + metricConfigs.size());
 	}
 	
 	private boolean enableMfsGutsRecordProducer(MetricConfig config){
@@ -484,7 +510,7 @@ public class Coordinator {
 					)
 					||
 					( 
-						recordQueueManager.createQueue(config.getOutputQueue(), config.getOutputQueueRecordCapacity(), config.getOutputQueueTimeCapacity(), 1) &&
+						recordQueueManager.createQueue(config.getOutputQueue(), config.getOutputQueueRecordCapacity(), config.getOutputQueueTimeCapacity(), 1, null, null) &&
 						(createdQueue=true)
 					)
 				 )
@@ -541,7 +567,7 @@ public class Coordinator {
 				)
 				||
 				( 
-					recordQueueManager.createQueue(config.getOutputQueue(), config.getOutputQueueRecordCapacity(), config.getOutputQueueTimeCapacity(), 1) &&
+					recordQueueManager.createQueue(config.getOutputQueue(), config.getOutputQueueRecordCapacity(), config.getOutputQueueTimeCapacity(), 1, null, null) &&
 					(createdQueue=true)
 				)
 			 )
@@ -599,7 +625,7 @@ public class Coordinator {
 		if(	!(	recordQueueManager.queueExists(Constants.RAW_PRODUCER_STATS_QUEUE_NAME) || 
 				(	recordQueueManager.createQueue( Constants.RAW_PRODUCER_STATS_QUEUE_NAME, 
 													Constants.RAW_PRODUCER_STATS_QUEUE_RECORD_CAPACITY, 
-													Constants.RAW_PRODUCER_STATS_QUEUE_TIME_CAPACITY, 0) && 
+													Constants.RAW_PRODUCER_STATS_QUEUE_TIME_CAPACITY, 0, null, null) && 
 					(createdQueue=true)	
 				)
 			 )
@@ -683,6 +709,8 @@ public class Coordinator {
 		recordQueueManager = new RecordQueueManager();
 		procRecordProducer = new ProcRecordProducer(Constants.PROC_RECORD_PRODUCER_NAME);
 		procRecordProducer.start();
+		metricActionsIdMap = new HashMap<String, MetricAction>();
+		
 		
 		Config config = ConfigFactory.parseFile(new File(configLocation));
 		if (config == null) {
@@ -737,16 +765,29 @@ public class Coordinator {
 							System.err.println("\t\t" + s);
 						}
 					}
+					System.err.println("\tMetricAction details:");
+					Iterator<Map.Entry<String, Future<MetricAction>>> fI = metricActionsIdFuturesMap.entrySet().iterator();
+					while(fI.hasNext()){
+						Map.Entry<String, Future<MetricAction>> e = fI.next();
+						System.err.println("\t\t" + e.getKey() + " done:" + e.getValue().isDone());
+					}
+
+							
 					System.err.println("\tRecordQueue details:");
 					for(int x=0; x<queues.length; x++){
 						System.err.println("\t\tQueue " + queues[x].getQueueName() + " contains " + queues[x].queueSize() + " records with time capacity " + 
 								queues[x].getQueueTimeCapacity() + " and time usage " + (System.currentTimeMillis() - queues[x].getOldestRecordTimestamp()) + 
 								"ms and record capacity " + queues[x].getQueueRecordCapacity() + " (" + 
-								(((double)queues[x].queueSize())/((double)queues[x].getQueueRecordCapacity())*100d) + "%)");
-						if (queues[x].getQueueName().equals(Constants.RAW_PRODUCER_STATS_QUEUE_NAME) || 
-							queues[x].getQueueName().equals(Constants.METRIC_ACTION_STATS_QUEUE_NAME)){
+								(((double)queues[x].queueSize())/((double)queues[x].getQueueRecordCapacity())*100d) + "%)" + 
+								" cl:" + queues[x].listConsumers().length +
+								" pl:" + queues[x].listProducers().length);
+						if(queues[x].getQueueName().equals("DiffTcpConnections-60s")){
 							System.err.println(queues[x].printNewestRecords(null, 5));
 						}
+						//if (queues[x].getQueueName().equals(Constants.RAW_PRODUCER_STATS_QUEUE_NAME) || 
+						//	queues[x].getQueueName().equals(Constants.METRIC_ACTION_STATS_QUEUE_NAME)){
+						//	System.err.println(queues[x].printNewestRecords(null, 5));
+						//}
 					}
 				}
 			}

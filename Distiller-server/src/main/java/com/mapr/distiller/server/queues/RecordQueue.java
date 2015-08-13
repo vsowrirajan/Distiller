@@ -3,6 +3,12 @@ package com.mapr.distiller.server.queues;
 import com.mapr.distiller.server.recordtypes.Record;
 
 public interface RecordQueue {
+	//Return the type of the RecordQueue
+	public String getQueueType();
+	
+	//Return the qualifier key used by the RecordQueue
+	public String getQueueQualifierKey();
+	
 	//Return the name of the RecordQueue
 	public String getQueueName();
 	

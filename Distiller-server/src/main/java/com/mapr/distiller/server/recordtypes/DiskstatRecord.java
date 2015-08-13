@@ -350,5 +350,16 @@ public class DiskstatRecord extends Record {
 	public double getAverageWaitTime(){
 		return averageWaitTime;
 	}
+	
+	@Override
+	public String getValueForQualifier(String qualifier) throws Exception {
+		switch(qualifier){
+		case "device_name":
+			return device_name;
+		default:
+			throw new Exception("Qualifier " + qualifier + " is not valid for this record type");
+		}
+	}
+
 
 }

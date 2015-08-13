@@ -9,6 +9,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import com.mapr.distiller.server.recordtypes.Record;
+import com.mapr.distiller.server.utils.Constants;
 
 public class SubscriptionRecordQueue implements RecordQueue {
 	protected String id;
@@ -27,6 +28,14 @@ public class SubscriptionRecordQueue implements RecordQueue {
 		this.queueRecordCapacity = queueRecordCapacity;
 		this.queueTimeCapacity = queueTimeCapacity;
 		this.id = id;
+	}
+	
+	public String getQueueQualifierKey(){
+		return null;
+	}
+	
+	public String getQueueType(){
+		return Constants.SUBSCRIPTION_RECORD_QUEUE;
 	}
 	
 	public long getOldestRecordTimestamp(){
@@ -273,6 +282,8 @@ public class SubscriptionRecordQueue implements RecordQueue {
 		if(!producers.containsKey(producerName))
 			return false;
 		synchronized (lock) {
+			if(subscriptionRecordQueue.contains(record))
+				return true;
 			expireRecords();
 			//If the queue is at capacity and requires dropping an old record before adding a new one...
 			if (subscriptionRecordQueue.size() == queueRecordCapacity) {
@@ -288,14 +299,9 @@ public class SubscriptionRecordQueue implements RecordQueue {
 						Integer newPosition = new Integer(
 								((Integer) pair.getValue()).intValue() - 1);
 						consumers.put((String) pair.getKey(), newPosition);
-					} else {
-						System.err
-								.println(System.currentTimeMillis()
-										+ " DEBUG: "
-										+ id
-										+ " Subscriber "
-										+ (String) pair.getKey()
-										+ " missed a Record in this queue that was dropped when the queue became full and a subsequent put was performed");
+					//} else {
+					//	System.err.println(System.currentTimeMillis() + " DEBUG: " + id + " Subscriber " + (String) pair.getKey()
+					//	+ " missed a Record in this queue that was dropped when the queue became full and a subsequent put was performed");
 					}
 				}
 				subscriptionRecordQueue.remove(positionToRemove);
@@ -311,6 +317,47 @@ public class SubscriptionRecordQueue implements RecordQueue {
 		return true;
 	}
 
+	public boolean update(String producerName, Record record, String qualifierKey) throws Exception {
+		if(!producers.containsKey(producerName))
+			return false;
+		synchronized (lock) {
+			Iterator<Record> i = subscriptionRecordQueue.iterator();
+			Record existingRecord = null;
+			String newQualifierValue = record.getValueForQualifier(qualifierKey);
+			boolean foundRecordToUpdate=false;
+			int pos=0;
+			while(i.hasNext()){
+				existingRecord = i.next();
+				//This record is already in the queue, so just return true, nothing to do.
+				if(record == existingRecord)
+					return true;
+				if (existingRecord.getValueForQualifier(qualifierKey).equals(newQualifierValue) && 
+					existingRecord.getPreviousTimestamp() == record.getPreviousTimestamp()){
+					//Same qualifier value and same starting time.
+					//If the end time of the existing record is newer/same as the new record then just keep the existing one.
+					if(existingRecord.getTimestamp() >= record.getTimestamp()){
+						return true;
+					}
+					//Otherwise, we need to update the record
+					foundRecordToUpdate = true;
+					break;
+				}
+				pos++;
+			}
+			//If we don't have a record to update, then just add this one as new.
+			if(!foundRecordToUpdate){
+				return false;
+			} else {
+				subscriptionRecordQueue.remove(pos);
+				subscriptionRecordQueue.add(pos, record);
+				synchronized (valueAdded) {
+					valueAdded.notifyAll();
+				}
+			}
+		}
+		return true;
+	}
+	
 	public Record get() {
 		int waitTime=10;
 		while(true){

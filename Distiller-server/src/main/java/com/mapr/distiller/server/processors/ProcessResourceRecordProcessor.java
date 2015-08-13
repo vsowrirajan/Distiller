@@ -81,6 +81,14 @@ public class ProcessResourceRecordProcessor implements RecordProcessor<Record> {
 				return currentRecord.getCpuUtilPct() > Double
 						.parseDouble(thresholdValue);
 
+		case "iowaitUtilPct":
+			if (currentRecord.getIowaitUtilPct() == -1d)
+				throw new Exception(
+						"Can not compare raw ProcessResourceRecord to threshold");
+			else
+				return currentRecord.getIowaitUtilPct() > Double
+						.parseDouble(thresholdValue);
+
 		case "num_threads":
 			return currentRecord.get_num_threads() > Integer
 					.parseInt(thresholdValue);

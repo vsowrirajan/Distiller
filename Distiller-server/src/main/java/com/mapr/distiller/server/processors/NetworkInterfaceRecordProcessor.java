@@ -2,13 +2,14 @@ package com.mapr.distiller.server.processors;
 
 import com.mapr.distiller.server.recordtypes.NetworkInterfaceRecord;
 import com.mapr.distiller.server.recordtypes.Record;
+import com.mapr.distiller.server.utils.Constants;
 
 import java.math.BigInteger;
 
 public class NetworkInterfaceRecordProcessor implements RecordProcessor<Record> {
 
 	public String getName(){
-		return "NetworkInterfaceRecordProcessor";
+		return Constants.NETWORK_INTERFACE_RECORD_PROCESSOR;
 	}
 	
 	public boolean isNotEqual(Record record, String metric,

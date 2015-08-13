@@ -1,5 +1,6 @@
 package com.mapr.distiller.server.recordtypes;
 
+import java.math.BigInteger;
 import java.io.File;
 import java.io.FilenameFilter;
 import java.io.RandomAccessFile;
@@ -17,7 +18,8 @@ public class TcpConnectionStatRecord extends Record {
 	/**
 	 * RAW VALUES
 	 */
-	private long localIp, remoteIp, rxQ, txQ;
+	private long localIp, remoteIp;
+	private BigInteger rxQ, txQ;
 	private int localPort, remotePort, pid;
 	
 	/**
@@ -45,13 +47,41 @@ public class TcpConnectionStatRecord extends Record {
 			newRecord = rec1;
 		}
 		
+		//If at least one input record is a differential record
+		if(oldRecord.getPreviousTimestamp() != -1 || newRecord.getPreviousTimestamp() != -1){
+			//Don't accept an old record that is raw and a new that is differential
+			if(oldRecord.getPreviousTimestamp() == -1)
+				throw new Exception("Can not generate differential TcpConnectionStatRecord from an older raw record and a newer differential record.");
+			//If they are both differential records
+			if(oldRecord.getPreviousTimestamp() != -1 && newRecord.getPreviousTimestamp() != -1){
+				//Don't accept non-consecutive differential records as input
+				if(oldRecord.getTimestamp() != newRecord.getPreviousTimestamp())
+					throw new Exception("Can not generate differential TcpConnectionStatRecord for non-consecutive differential input records");
+				//We have consecutive, differential records as input.  Add the queue sizes
+				this.rxQ = newRecord.get_rxQ().add(oldRecord.get_rxQ());
+				this.txQ = newRecord.get_txQ().add(oldRecord.get_txQ());
+			} else {
+				//The older record is differential and newer record is raw, calculate rxQ and txQ byte-seconds for elapsed time from new record timetstamp to old record timestamp and add it to old record value
+				try {
+					oldRecord.get_rxQ().add(new BigInteger("1"));
+				} catch (Exception e) {
+					System.err.println("Bad oldRecord rxQ, record: " + oldRecord.toString());
+				}
+				oldRecord.get_rxQ().add(newRecord.get_rxQ().multiply(new BigInteger(Long.toString(newRecord.getTimestamp() - oldRecord.getTimestamp()))));
+				this.rxQ = oldRecord.get_rxQ().add(newRecord.get_rxQ().multiply(new BigInteger(Long.toString(newRecord.getTimestamp() - oldRecord.getTimestamp()))));
+				this.txQ = oldRecord.get_txQ().add(newRecord.get_txQ().multiply(new BigInteger(Long.toString(newRecord.getTimestamp() - oldRecord.getTimestamp()))));
+			}
+			this.setTimestamp(newRecord.getTimestamp());
+			this.setPreviousTimestamp(oldRecord.getPreviousTimestamp());
+		} else {
+			this.setTimestamp(newRecord.getTimestamp());
+			this.setPreviousTimestamp(oldRecord.getTimestamp());
+			this.rxQ = newRecord.get_rxQ().multiply(new BigInteger(Long.toString(this.getDurationms())));
+			this.txQ = newRecord.get_txQ().multiply(new BigInteger(Long.toString(this.getDurationms())));
+		}
 		//Copied values:
-		this.setTimestamp(newRecord.getTimestamp());
-		this.setPreviousTimestamp(oldRecord.getTimestamp());
 		this.localIp = newRecord.getLocalIp();
 		this.remoteIp = newRecord.getRemoteIp();
-		this.rxQ = newRecord.get_rxQ();
-		this.txQ = newRecord.get_txQ();
 		this.localPort = newRecord.getLocalPort();
 		this.remotePort = newRecord.getRemotePort();
 		this.pid = newRecord.get_pid();
@@ -62,8 +92,8 @@ public class TcpConnectionStatRecord extends Record {
 		this.localPort = Integer.parseInt(parts[1].split(":")[1], 16);
 		this.remoteIp = Long.parseLong(parts[2].split(":")[0], 16);
 		this.remotePort = Integer.parseInt(parts[2].split(":")[1], 16);
-		this.rxQ = Integer.parseInt(parts[4].split(":")[1], 16);
-		this.txQ = Integer.parseInt(parts[4].split(":")[0], 16);
+		this.rxQ = new BigInteger(parts[4].split(":")[1], 16);
+		this.txQ = new BigInteger(parts[4].split(":")[0], 16);
 		this.pid = pid;
 	}
 
@@ -164,8 +194,13 @@ public class TcpConnectionStatRecord extends Record {
 	 * OTHER METHODS
 	 */
 	public String toString(){
-		return super.toString() + " tcp.connection.stats " + longIpToString(localIp) + ":" + localPort + " " + longIpToString(remoteIp) + ":" + remotePort + 
-				" txQ:" + txQ + " rxQ:" + rxQ + " pid:" + pid;
+		if(getPreviousTimestamp()==-1)
+			return super.toString() + " tcp.connection.stats " + longIpToString(localIp) + ":" + localPort + " " + longIpToString(remoteIp) + ":" + remotePort + 
+					" txQ:" + txQ + " rxQ:" + rxQ + " pid:" + pid;
+		else
+			return super.toString() + " tcp.connection.stats " + longIpToString(localIp) + ":" + localPort + " " + longIpToString(remoteIp) + ":" + remotePort + 
+					" txQ:" + (txQ.doubleValue() / (double)getDurationms()) + " rxQ:" + (rxQ.doubleValue() / (double)getDurationms()) + " pid:" + pid;
+		
 	}
 	public static String longIpToString(long ip){
 		String ipStr = 	String.valueOf(ip % 256) + "." + 
@@ -180,10 +215,10 @@ public class TcpConnectionStatRecord extends Record {
 	public long getRemoteIp(){
 		return remoteIp;
 	}
-	public long get_rxQ(){
+	public BigInteger get_rxQ(){
 		return rxQ;
 	}
-	public long get_txQ(){
+	public BigInteger get_txQ(){
 		return txQ;
 	}
 	public int getLocalPort(){
@@ -195,4 +230,15 @@ public class TcpConnectionStatRecord extends Record {
 	public int get_pid(){
 		return pid;
 	}
+	
+	@Override
+	public String getValueForQualifier(String qualifier) throws Exception {
+		switch(qualifier){
+		case "tuple":
+			return localIp + ":" + localPort + ":" + remoteIp + ":" + remotePort + ":" + pid;
+		default:
+			throw new Exception("Qualifier " + qualifier + " is not valid for this record type");
+		}
+	}
+	
 }

@@ -1,5 +1,6 @@
 package com.mapr.distiller.server.processors;
 
+import java.math.BigInteger;
 import com.mapr.distiller.server.recordtypes.Record;
 import com.mapr.distiller.server.recordtypes.TcpConnectionStatRecord;
 
@@ -30,10 +31,10 @@ public class TcpConnectionStatRecordProcessor implements
 					.parseLong(thresholdValue);
 
 		case "rxQ":
-			return currentRecord.get_rxQ() == Long.parseLong(thresholdValue);
-
+			return currentRecord.get_rxQ().equals(new BigInteger(thresholdValue));
+			
 		case "txQ":
-			return currentRecord.get_txQ() == Long.parseLong(thresholdValue);
+			return currentRecord.get_txQ().equals(new BigInteger(thresholdValue));
 
 		case "localPort":
 			return currentRecord.getLocalPort() == Integer
@@ -60,10 +61,10 @@ public class TcpConnectionStatRecordProcessor implements
 
 		switch (metric) {
 		case "rxQ":
-			return currentRecord.get_rxQ() > Long.parseLong(thresholdValue);
+			return currentRecord.get_rxQ().compareTo(new BigInteger(thresholdValue)) == 1;
 
 		case "txQ":
-			return currentRecord.get_txQ() > Long.parseLong(thresholdValue);
+			return currentRecord.get_txQ().compareTo(new BigInteger(thresholdValue)) == 1;
 
 		default:
 			throw new Exception("Metric " + metric
@@ -79,10 +80,10 @@ public class TcpConnectionStatRecordProcessor implements
 
 		switch (metric) {
 		case "rxQ":
-			return currentRecord.get_rxQ() < Long.parseLong(thresholdValue);
+			return currentRecord.get_rxQ().compareTo(new BigInteger(thresholdValue)) == -1;
 
 		case "txQ":
-			return currentRecord.get_txQ() < Long.parseLong(thresholdValue);
+			return currentRecord.get_txQ().compareTo(new BigInteger(thresholdValue)) == -1;
 
 		default:
 			throw new Exception("Metric " + metric

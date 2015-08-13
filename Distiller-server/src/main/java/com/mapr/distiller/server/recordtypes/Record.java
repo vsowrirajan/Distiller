@@ -4,6 +4,10 @@ public class Record {
 
 	private long timestamp, previousTimestamp;
 	
+	public String getValueForQualifier(String qualifier) throws Exception {
+		throw new Exception("Qualifier " + qualifier + " is not valid for this record type");
+	}
+	
 	public Record() {
 		this.timestamp = -1l;
 		this.previousTimestamp = -1l;	

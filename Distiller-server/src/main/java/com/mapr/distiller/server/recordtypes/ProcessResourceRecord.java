@@ -385,4 +385,15 @@ public class ProcessResourceRecord extends Record {
 	public double getCancelledWriteIoByteRate(){
 		return cancelledWriteIoByteRate;
 	}
+	
+	@Override
+	public String getValueForQualifier(String qualifier) throws Exception {
+		switch(qualifier){
+		case "pid":
+			return Integer.toString(pid);
+		default:
+			throw new Exception("Qualifier " + qualifier + " is not valid for this record type");
+		}
+	}
+
 }
