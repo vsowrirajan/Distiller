@@ -299,9 +299,9 @@ public class MetricAction implements Runnable, MetricsSelectable {
 		{
 			if (recordQueueManager.queueExists(config.getOutputQueue()) && 
 				recordQueueManager.getQueueProducers(config.getOutputQueue()).length == recordQueueManager.getMaxQueueProducers(config.getOutputQueue()))
-				throw new Exception("Failed to obtain output queue \"" + config.getOutputQueue() + "\" as max producers has been reached.");
-			System.err.println(
-					"qe:" + recordQueueManager.queueExists(config.getOutputQueue()) + 
+				throw new Exception("Failed to obtain output queue \"" + config.getOutputQueue() + "\" as max producers has been reached.");		
+			throw new Exception("Failed to obtain output queue: " +
+					" qe:" + recordQueueManager.queueExists(config.getOutputQueue()) + 
 					" oq:" + config.getOutputQueue() + 
 					" oqrc:" + config.getOutputQueueRecordCapacity() + "/" + recordQueueManager.getQueueRecordCapacity(config.getOutputQueue()) + 
 					" oqtc:" + config.getOutputQueueTimeCapacity() + "/" + recordQueueManager.getQueueTimeCapacity(config.getOutputQueue()) + 
@@ -310,8 +310,6 @@ public class MetricAction implements Runnable, MetricsSelectable {
 					" sqk:" + config.getSelectorQualifierKey() + "/" + recordQueueManager.getQueueQualifierKey(config.getOutputQueue()) + 
 					" rp:" + recordQueueManager.getQueueProducers(config.getOutputQueue()).length
 					);
-
-			throw new Exception("Failed to obtain output queue: " + config.getOutputQueue());
 		}
 		if( !(	recordQueueManager.checkForQueueProducer(config.getOutputQueue(), config.getId()) ||
 				recordQueueManager.registerProducer(config.getOutputQueue(), config.getId())
