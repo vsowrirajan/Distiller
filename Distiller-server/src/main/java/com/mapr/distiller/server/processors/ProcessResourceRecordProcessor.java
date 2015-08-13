@@ -205,7 +205,7 @@ public class ProcessResourceRecordProcessor implements RecordProcessor<Record> {
 	}
 
 	@Override
-	public ProcessResourceRecord movingAverage(Record rec1, Record rec2)
+	public ProcessResourceRecord merge(Record rec1, Record rec2)
 			throws Exception {
 		return new ProcessResourceRecord((ProcessResourceRecord) rec1,
 				(ProcessResourceRecord) rec2);

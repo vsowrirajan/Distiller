@@ -75,7 +75,7 @@ public class SystemMemoryRecordProcessor implements RecordProcessor<Record> {
 	}
 
 	@Override
-	public SystemMemoryRecord movingAverage(Record rec1, Record rec2)
+	public SystemMemoryRecord merge(Record rec1, Record rec2)
 			throws Exception {
 		return new SystemMemoryRecord((SystemMemoryRecord) rec1,
 				(SystemMemoryRecord) rec2);

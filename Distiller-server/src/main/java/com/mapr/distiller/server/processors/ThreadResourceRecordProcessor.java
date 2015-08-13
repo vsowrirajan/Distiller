@@ -137,7 +137,7 @@ public class ThreadResourceRecordProcessor implements RecordProcessor<Record> {
 	}
 
 	@Override
-	public ThreadResourceRecord movingAverage(Record rec1, Record rec2)
+	public ThreadResourceRecord merge(Record rec1, Record rec2)
 			throws Exception {
 		return new ThreadResourceRecord((ThreadResourceRecord) rec1,
 				(ThreadResourceRecord) rec2);

@@ -3,12 +3,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.LinkedList;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 
 import com.mapr.distiller.server.metricactions.MetricAction;
 import com.mapr.distiller.server.producers.raw.ProcRecordProducer;
@@ -71,9 +71,10 @@ public class Coordinator {
 		Set<String> metrics = configObject.keySet();
 
 		// Create metricActions
+		LinkedList<String> metricNames = new LinkedList<String>();
 		for (String metric : metrics) {
 			if(DEBUG_ENABLED)
-				System.err.println("Coordinator-" + System.identityHashCode(this) + ": Creating a MetricAction for " + metric);
+				System.err.println("Coordinator-" + System.identityHashCode(this) + ": Creating a MetricAction for element " + metric);
 			MetricConfig configMetric;
 			MetricConfigBuilder configMetricBuilder;
 			Config distillerConfig = configObject.toConfig();
@@ -90,7 +91,6 @@ public class Coordinator {
 			int periodicity = -1;
 			String recordType = null;
 			String procRecordProducerMetricName = null;
-			boolean isAggregation = false;
 			boolean rawProducerMetricsEnabled = false;
 			String metricDescription = null;
 			String rawRecordProducerName = null;
@@ -101,94 +101,89 @@ public class Coordinator {
 			String thresholdValue = null;
 			boolean metricActionStatusRecordsEnabled=false;
 			long metricActionStatusRecordFrequency=-1;
+			long timeSelectorMinDelta = -1;
+			long timeSelectorMaxDelta = -1;
 			
 			try {
-				id = metricConfig.getString("metric.name");
+				id = metricConfig.getString(Constants.METRIC_NAME);
 			} catch (Exception e) {}
 			try {
-				inputQueue = metricConfig.getString("input.queue.name");
+				inputQueue = metricConfig.getString(Constants.INPUT_QUEUE_NAME);
 			} catch (Exception e) {}
 			try {
-				outputQueue = metricConfig.getString("output.queue.name");
+				outputQueue = metricConfig.getString(Constants.OUTPUT_QUEUE_NAME);
 			} catch (Exception e) {}
 			try {
-				outputQueueRecordCapacity = metricConfig.getInt("output.queue.capacity.records");
+				outputQueueRecordCapacity = metricConfig.getInt(Constants.OUTPUT_QUEUE_CAPACITY_RECORDS);
 			} catch (Exception e) {}
 			try {
-				outputQueueTimeCapacity = metricConfig.getInt("output.queue.capacity.seconds");
+				outputQueueTimeCapacity = metricConfig.getInt(Constants.OUTPUT_QUEUE_CAPACITY_SECONDS);
 			} catch (Exception e) {}
 			try {
-				outputQueueMaxProducers = metricConfig.getInt("output.queue.max.producers");
+				outputQueueMaxProducers = metricConfig.getInt(Constants.OUTPUT_QUEUE_MAX_PRODUCERS);
 			} catch (Exception e) {}
 			try {
-				periodicity = metricConfig.getInt("periodicity.ms");
+				periodicity = metricConfig.getInt(Constants.PERIODICITY_MS);
 			} catch (Exception e) {}
 			try {
-				procRecordProducerMetricName = metricConfig.getString("proc.record.producer.metric.name");
+				recordType = metricConfig.getString(Constants.RECORD_TYPE);
 			} catch (Exception e) {}
 			try {
-				isAggregation = metricConfig.hasPath("aggregation");
+				procRecordProducerMetricName = metricConfig.getString(Constants.PROC_RECORD_PRODUCER_METRIC_NAME);
 			} catch (Exception e) {}
 			try {
-				rawProducerMetricsEnabled = metricConfig.getBoolean("raw.producer.metrics.enabled");
+				rawProducerMetricsEnabled = metricConfig.getBoolean(Constants.RAW_PRODUCER_METRICS_ENABLED);
 			} catch (Exception e) {}
 			try {
-				metricDescription = metricConfig.getString("metric.description");
+				metricDescription = metricConfig.getString(Constants.METRIC_DESCRIPTION);
 			} catch (Exception e) {}
 			try {
-				rawRecordProducerName = metricConfig.getString("raw.record.producer.name");
+				rawRecordProducerName = metricConfig.getString(Constants.RAW_RECORD_PRODUCER_NAME);
 			} catch (Exception e) {}
 			try {
-				selector = metricConfig.getString("input.record.selector");
+				selector = metricConfig.getString(Constants.INPUT_RECORD_SELECTOR);
 			} catch (Exception e) {}
 			try {
-				processor = metricConfig.getString("input.record.processor.name");
+				processor = metricConfig.getString(Constants.INPUT_RECORD_PROCESSOR_NAME);
 			} catch (Exception e) {}
 			try {
-				method = metricConfig.getString("input.record.processor.method");
+				method = metricConfig.getString(Constants.INPUT_RECORD_PROCESSOR_METHOD);
 			} catch (Exception e) {}
 			try {
-				metricActionStatusRecordsEnabled = metricConfig.getBoolean("metric.action.status.records.enabled");
+				metricActionStatusRecordsEnabled = metricConfig.getBoolean(Constants.METRIC_ACTION_STATUS_RECORDS_ENABLED);
 			} catch (Exception e) {}
 			try {
-				metricActionStatusRecordFrequency = metricConfig.getLong("metric.action.status.record.frequency");
+				metricActionStatusRecordFrequency = metricConfig.getLong(Constants.METRIC_ACTION_STATUS_RECORD_FREQUENCY);
 			} catch (Exception e) {}
 			try {
-				thresholdKey = metricConfig.getString("threshold.key");
+				thresholdKey = metricConfig.getString(Constants.THRESHOLD_KEY);
 			} catch (Exception e) {}
 			try {
-				thresholdValue = metricConfig.getString("threshold.value");
+				thresholdValue = metricConfig.getString(Constants.THRESHOLD_VALUE);
+			} catch (Exception e) {}
+			try {
+				timeSelectorMaxDelta = metricConfig.getLong(Constants.TIME_SELECTOR_MAX_DELTA);
+			} catch (Exception e) {}
+			try {
+				timeSelectorMinDelta = metricConfig.getLong(Constants.TIME_SELECTOR_MIN_DELTA);
 			} catch (Exception e) {}
 			
+			if(id != null && !id.equals("")){
+				if(metricNames.contains(id))
+					throw new Exception("Parameter " + Constants.METRIC_NAME + " must be unique across all metrics. Found duplicate value: \"" + id + "\"");
+				metricNames.add(id);
+			}
 			if(DEBUG_ENABLED)
-				System.err.println("Coordinator-" + System.identityHashCode(this) + ": Building config for " + metric + " with parameters: " + 
-						" metric.name:" + ((id == null) ? "null" : id) + 
-						" input.queue.name:" + ((inputQueue == null) ? "null" : inputQueue) + 
-						" output.queue.name:" + ((outputQueue == null) ? "null" : outputQueue) + 
-						" output.queue.capacity.records:" + outputQueueRecordCapacity +
-						" output.queue.capacity.seconds:" + outputQueueTimeCapacity + 
-						" output.queue.max.producer:" + outputQueueMaxProducers +
-						" periodicity:" + periodicity + 
-						" proc.record.producer.metric.name:" + ((procRecordProducerMetricName == null) ? "null" : procRecordProducerMetricName) + 
-						" raw.producer.metrics.enabled:" + rawProducerMetricsEnabled + 
-						" raw.record.producer.name:" + ((rawRecordProducerName==null) ? "null" : rawRecordProducerName) + 
-						" input.record.selector:" + ((selector==null) ? "null" : selector) + 
-						" input.record.processor.name:" + ((processor==null) ? "null" : processor) + 
-						" input.record.processor.method:" + ((method==null) ? "null" : method) + 
-						" metric.action.status.records.enabled:" + metricActionStatusRecordsEnabled + 
-						" metric.action.status.record.frequency:" + metricActionStatusRecordFrequency + 
-						" threshold.key:" + ((thresholdKey==null) ? "null" : thresholdKey) + 
-						" threshold.value:" + ((thresholdValue==null) ? "null" : thresholdValue)
-						);
-			
+				System.err.println("Coordinator-" + System.identityHashCode(this) + ": Building config for element " + metric);
 			
 			try {
 				configMetricBuilder = new MetricConfigBuilder(id, inputQueue, outputQueue, outputQueueRecordCapacity, 
 						outputQueueTimeCapacity, outputQueueMaxProducers, periodicity, recordType, procRecordProducerMetricName, 
 						rawProducerMetricsEnabled, metricDescription, rawRecordProducerName, selector, processor, method,
-						metricActionStatusRecordsEnabled, metricActionStatusRecordFrequency, thresholdKey, thresholdValue);
+						metricActionStatusRecordsEnabled, metricActionStatusRecordFrequency, thresholdKey, thresholdValue,
+						timeSelectorMaxDelta, timeSelectorMinDelta);
 			} catch (Exception e) {
-				throw new Exception("Coordinator-" + System.identityHashCode(this) + ": Failed to construct MetricConfigBuilder", e);
+				throw new Exception("Coordinator-" + System.identityHashCode(this) + ": Failed to construct MetricConfigBuilder for config element " + metric, e);
 			}
 
 			configMetric = configMetricBuilder.build();
@@ -249,7 +244,7 @@ public class Coordinator {
 		}
 	}
 
-	public void createMetricActions() {
+	public void createMetricActions() throws Exception{
 		if(DEBUG_ENABLED)
 			System.err.println("Coordinator-" + System.identityHashCode(this) + ": request to create metric actions");
 		
@@ -257,13 +252,20 @@ public class Coordinator {
 		this.metricActionsIdMap = new HashMap<String, MetricAction>();
 		
 		int initializationSuccesses=0;
-		int initializationIterations=0;
+		int consecutiveIterationsWithNoSuccesses=0;
+		int maxIterationsWithNoSuccesses=2;
 		boolean initializationComplete=false;
-		while(!initializationComplete && initializationIterations<metricConfigs.size()){
-			initializationIterations++;
+		while(	!initializationComplete && 
+				consecutiveIterationsWithNoSuccesses<maxIterationsWithNoSuccesses )
+		{
+			int ss = initializationSuccesses;
 			for (MetricConfig config : metricConfigs) {
-				if(!config.isInitialized()){
-					System.err.println("Attempting initialization for config " + config.toString());
+				if (!config.isInitialized() &&
+					( config.getInputQueue()==null || 
+					  config.getInputQueue().equals("") ||
+					  recordQueueManager.queueExists(config.getInputQueue())
+					)
+				){
 					int startingSuccesses=initializationSuccesses;
 					if(DEBUG_ENABLED)
 						System.err.println("Coordinator-" + System.identityHashCode(this) + ": processing config: " + config.getId() + 
@@ -275,7 +277,8 @@ public class Coordinator {
 						if(!enableMfsGutsRecordProducer(config)){
 							System.err.println("Coordinator-" + System.identityHashCode(this) + ": Failed to enable MfsGutsRecordProducer");
 						} else {
-							System.err.println("Coordinator-" + System.identityHashCode(this) + ": Enabled MfsGutsRecordProducer");
+							if(DEBUG_ENABLED)
+								System.err.println("Coordinator-" + System.identityHashCode(this) + ": Enabled MfsGutsRecordProducer");
 							initializationSuccesses++;
 						}
 						break;
@@ -284,12 +287,27 @@ public class Coordinator {
 						if(!enableProcRecordProducerMetric(config)){
 							System.err.println("Coordinator-" + System.identityHashCode(this) + ": Failed to enable ProcRecordProducer metric " + config.getProcRecordProducerMetricName());
 						} else {
-							System.err.println("Coordinator-" + System.identityHashCode(this) + ": Enabled ProcRecordProducer metric " + config.getProcRecordProducerMetricName());
+							if(DEBUG_ENABLED)
+								System.err.println("Coordinator-" + System.identityHashCode(this) + ": Enabled ProcRecordProducer metric " + config.getProcRecordProducerMetricName());
 							initializationSuccesses++;
 						}
 						break;
 
 					case Constants.SYSTEM_MEMORY_RECORD:
+						metricAction = null;
+						try {
+							metricAction = MetricAction.getInstance(config, recordQueueManager);
+						} catch (Exception e) {
+							System.err.println("Failed to enable metric: " + config.toString());
+							e.printStackTrace();
+						}
+						if(metricAction != null){
+							this.metricActionsIdMap.put(metricAction.getId(), metricAction);
+							initializationSuccesses++;
+						}
+						break;
+
+					case Constants.SYSTEM_CPU_RECORD:
 						metricAction = null;
 						try {
 							metricAction = MetricAction.getInstance(config, recordQueueManager);
@@ -359,6 +377,34 @@ public class Coordinator {
 						}
 						break;
 
+					case Constants.SLIM_THREAD_RESOURCE_RECORD:
+						metricAction = null;
+						try {
+							metricAction = MetricAction.getInstance(config, recordQueueManager);
+						} catch (Exception e) {
+							System.err.println("Failed to enable metric: " + config.toString());
+							e.printStackTrace();
+						}
+						if(metricAction != null){
+							this.metricActionsIdMap.put(metricAction.getId(), metricAction);
+							initializationSuccesses++;
+						}
+						break;
+
+					case Constants.SLIM_PROCESS_RESOURCE_RECORD:
+						metricAction = null;
+						try {
+							metricAction = MetricAction.getInstance(config, recordQueueManager);
+						} catch (Exception e) {
+							System.err.println("Failed to enable metric: " + config.toString());
+							e.printStackTrace();
+						}
+						if(metricAction != null){
+							this.metricActionsIdMap.put(metricAction.getId(), metricAction);
+							initializationSuccesses++;
+						}
+						break;
+
 					case Constants.TCP_CONNECTION_RECORD:
 						metricAction = null;
 						try {
@@ -391,42 +437,38 @@ public class Coordinator {
 						if(!enableRawRecordProducerStats(config)){
 							System.err.println("Coordinator-" + System.identityHashCode(this) + ": Failed to enable stats for raw record producer " + config.getRawRecordProducerName());
 						} else {
-							System.err.println("Coordinator-" + System.identityHashCode(this) + ": Enabled stats for raw record producer " + config.getRawRecordProducerName());
+							if(DEBUG_ENABLED)
+								System.err.println("Coordinator-" + System.identityHashCode(this) + ": Enabled stats for raw record producer " + config.getRawRecordProducerName());
 							initializationSuccesses++;
 						}
 						break;
 
 					default:
-						if(DEBUG_ENABLED)
-							System.err.println("Coordinator-" + System.identityHashCode(this) + ": invalid record type " + 
-									config.getRecordType() + " specified in config " + config.getId());
-						throw new IllegalArgumentException(
-								"Not a supported recordType - "
-										+ config.getRecordType());
+						throw new IllegalArgumentException("Unknown record type \"" + config.getRecordType() + "\" specified for metric \"" + config.getId() + "\"");
 					}
-					if(startingSuccesses < initializationSuccesses){
-						System.err.println("Marking intialized for config " + config.toString());
+					if(startingSuccesses < initializationSuccesses)
 						config.setInitialized(true);
-					}
 				}
 			}
-			if(initializationSuccesses==metricConfigs.size()){
-				System.err.println("Completed initialization of " + metricConfigs.size() + " metrics");
+			if(ss == initializationSuccesses)
+				consecutiveIterationsWithNoSuccesses++;
+			else
+				consecutiveIterationsWithNoSuccesses=0;
+			if(initializationSuccesses==metricConfigs.size())
 				initializationComplete=true;
-			}
-		}
+		} 
+		if(!initializationComplete)
+			throw new Exception("Failed to initialize " + (metricConfigs.size() - initializationSuccesses) + " metric(s)");
 	}
 	
 	private boolean enableMfsGutsRecordProducer(MetricConfig config){
-		boolean createdQueue=false, registeredProducer=false;
+		boolean createdQueue=false;
 		if(mfsGutsRecordProducer != null) {
-			if(!mfsGutsRecordProducer.isAlive()){
+			if(!mfsGutsRecordProducer.isAlive())
 				System.err.println("Coordinator-" + System.identityHashCode(this) + ": MfsGutsRecordProducer was initialized but is no longer running.");
-				return false;
-			} else {
+			else if(DEBUG_ENABLED)
 				System.err.println("Coordinator-" + System.identityHashCode(this) + ": MfsGutsRecordProducer is already running.");
-				return false;
-			}
+			return false;
 		}
 		
 		if(	
@@ -455,10 +497,7 @@ public class Coordinator {
 			if(
 				!(
 					recordQueueManager.checkForQueueProducer(config.getOutputQueue(), Constants.MFS_GUTS_RECORD_PRODUCER_NAME) ||
-					(
-						recordQueueManager.registerProducer(config.getOutputQueue(), Constants.MFS_GUTS_RECORD_PRODUCER_NAME) &&
-						(registeredProducer=true)
-					)
+					recordQueueManager.registerProducer(config.getOutputQueue(), Constants.MFS_GUTS_RECORD_PRODUCER_NAME)
 				 )
 			  )
 			{
@@ -627,7 +666,7 @@ public class Coordinator {
 	public static void main(String[] args) throws IOException,
 			InterruptedException {
 		boolean shouldExit = false;
-		String configLocation = "/path/to/default/config";
+		String configLocation = "/opt/mapr/conf/distiller.conf";
 		if(args.length == 0){
 			System.err.println("Main: Using default configuration file location: " + configLocation);
 		} else {
@@ -640,24 +679,16 @@ public class Coordinator {
 			System.exit(1);
 		}
 		
-		recordQueueManager = new RecordQueueManager();
-		System.err.println("Main: Created RecordQueueManager-" + System.identityHashCode(recordQueueManager));
-		
-		procRecordProducer = new ProcRecordProducer(Constants.PROC_RECORD_PRODUCER_NAME);
-		System.err.println("Main: Created ProcRecordProducer-" + System.identityHashCode(procRecordProducer));
-		
-		procRecordProducer.start();
-		System.err.println("Main: Started ProcRecordProducer-" + System.identityHashCode(procRecordProducer));
-		
 		Coordinator coordinator = new Coordinator();
-		System.err.println("Main: Created Coordinator-" + System.identityHashCode(coordinator));
+		recordQueueManager = new RecordQueueManager();
+		procRecordProducer = new ProcRecordProducer(Constants.PROC_RECORD_PRODUCER_NAME);
+		procRecordProducer.start();
 		
 		Config config = ConfigFactory.parseFile(new File(configLocation));
 		if (config == null) {
 			System.err.println("Main: Failed to parse config file from " + configLocation);
 			System.exit(1);
 		}
-		System.err.println("Main: Parsed config file into config-" + System.identityHashCode(config));
 		
 		try {
 			coordinator.createMetricConfigs(config);
@@ -666,16 +697,21 @@ public class Coordinator {
 			e.printStackTrace();
 			System.exit(1);
 		}
-		System.err.println("Main: Created metric configs for Coordinator-" + System.identityHashCode(coordinator));
-
-		coordinator.createMetricActions();
-		System.err.println("Main: Created metric actions for Coordinator-" + System.identityHashCode(coordinator));
+		
+		try {
+			coordinator.createMetricActions();
+		} catch (Exception e){
+			System.err.println("Main: Failed to create metric actions due to exception:");
+			e.printStackTrace();
+			System.exit(1);
+		}
 		
 		coordinator.start();
-		System.err.println("Main: Started Coordinator-" + System.identityHashCode(coordinator));
-
-		System.err.println("Main: Sleeping until shutdown.");
 		
+		/**
+		 * This next block of code just prints some status stuff out to stderr.
+		 * We should remove this once the RPC/client interface is ready.
+		 */
 		long statusInterval = 10000l;
 		long lastStatus = System.currentTimeMillis();
 		while(!shouldExit){

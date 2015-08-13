@@ -181,8 +181,6 @@ public class DiskstatRecord extends Record {
 		//If we fail to generate even one record for one device then this method will immediately return false.
 		RandomAccessFile proc_diskstats = null;
 		
-		boolean returnCode = true;
-		
 		//Open the "/proc/diskstats" file for reading
 		try {
 			proc_diskstats = new RandomAccessFile("/proc/diskstats", "r");

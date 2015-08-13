@@ -416,7 +416,7 @@ public class MfsGutsRecordProcessor implements RecordProcessor<Record> {
 	}
 
 	@Override
-	public MfsGutsRecord movingAverage(Record rec1, Record rec2)
+	public MfsGutsRecord merge(Record rec1, Record rec2)
 			throws Exception {
 		return new MfsGutsRecord((MfsGutsRecord) rec1, (MfsGutsRecord) rec2);
 	}

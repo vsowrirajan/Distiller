@@ -232,7 +232,7 @@ public class NetworkInterfaceRecordProcessor implements RecordProcessor<Record> 
 	}
 
 	@Override
-	public NetworkInterfaceRecord movingAverage(Record rec1, Record rec2)
+	public NetworkInterfaceRecord merge(Record rec1, Record rec2)
 			throws Exception {
 		return new NetworkInterfaceRecord((NetworkInterfaceRecord) rec1,
 				(NetworkInterfaceRecord) rec2);

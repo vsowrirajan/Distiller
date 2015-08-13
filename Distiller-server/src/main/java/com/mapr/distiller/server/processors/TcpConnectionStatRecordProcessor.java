@@ -91,7 +91,7 @@ public class TcpConnectionStatRecordProcessor implements
 	}
 
 	@Override
-	public TcpConnectionStatRecord movingAverage(Record rec1, Record rec2)
+	public TcpConnectionStatRecord merge(Record rec1, Record rec2)
 			throws Exception {
 		return new TcpConnectionStatRecord((TcpConnectionStatRecord) rec1,
 				(TcpConnectionStatRecord) rec2);

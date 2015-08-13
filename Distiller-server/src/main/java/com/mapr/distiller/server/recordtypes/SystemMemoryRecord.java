@@ -41,7 +41,6 @@ public class SystemMemoryRecord extends Record {
 		String[] parts;
 		String line;
 		RandomAccessFile proc_meminfo = null, proc_vmstat = null;
-		SystemMemoryRecord record = null;
 		try{
 			proc_meminfo = new RandomAccessFile("/proc/meminfo", "r");
 			proc_vmstat = new RandomAccessFile("/proc/vmstat", "r");

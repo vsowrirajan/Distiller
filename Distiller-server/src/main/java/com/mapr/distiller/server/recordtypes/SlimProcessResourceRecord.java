@@ -243,40 +243,40 @@ public class SlimProcessResourceRecord extends Record {
 	public double getReadIoByteRate(){
 		return readIoByteRate;
 	}
-	public double getwriteIoByteRate(){
+	public double getWriteIoByteRate(){
 		return writeIoByteRate;
 	}
 	public String getCommandName(){
 		return commandName;
 	}
-	private int getPid(){
+	public int getPid(){
 		return pid;
 	}
-	private int getPpid(){
+	public int getPpid(){
 		return ppid;
 	}
-	private int getClockTick(){
+	public int getClockTick(){
 		return clockTick;
 	}
-	private long getStartTime(){
+	public long getStartTime(){
 		return startTime;
 	}
-	private BigInteger getIowaitTicks(){
+	public BigInteger getIowaitTicks(){
 		return iowaitTicks;
 	}
-	private BigInteger getCpuUsageTicks(){
+	public BigInteger getCpuUsageTicks(){
 		return cpuUsageTicks;
 	}
-	private BigInteger getRss(){
+	public BigInteger getRss(){
 		return rss;
 	}
-	private BigInteger getIoCalls(){
+	public BigInteger getIoCalls(){
 		return ioCalls;
 	}
-	private BigInteger getIoBytesRead(){
+	public BigInteger getIoBytesRead(){
 		return ioBytesRead;
 	}
-	private BigInteger getIoBytesWritten(){
+	public BigInteger getIoBytesWritten(){
 		return ioBytesWritten;
 	}
 }

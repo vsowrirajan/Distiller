@@ -101,7 +101,7 @@ public class SystemCpuRecordProcessor implements RecordProcessor<Record> {
 	}
 
 	@Override
-	public SystemCpuRecord movingAverage(Record rec1, Record rec2)
+	public SystemCpuRecord merge(Record rec1, Record rec2)
 			throws Exception {
 		return new SystemCpuRecord((SystemCpuRecord) rec1,
 				(SystemCpuRecord) rec2);

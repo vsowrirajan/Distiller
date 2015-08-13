@@ -1,6 +1,5 @@
 package com.mapr.distiller.server.utils;
 
-import java.util.Map;
 import com.mapr.distiller.server.producers.raw.ProcRecordProducer;
 
 
@@ -26,9 +25,10 @@ public class MetricConfig {
 	private boolean initialized;
 	private boolean metricActionStatusRecordsEnabled;
 	private long metricActionStatusRecordFrequency;
+	private long timeSelectorMaxDelta;
+	private long timeSelectorMinDelta;
 	
 	private MetricConfig(MetricConfigBuilder metricConfigBuilder) {
-		// This can be randomly generated using java uuid()
 		this.id = metricConfigBuilder.id;
 		this.inputQueue = metricConfigBuilder.inputQueue;
 		this.outputQueue = metricConfigBuilder.outputQueue;
@@ -48,6 +48,8 @@ public class MetricConfig {
 		this.thresholdValue = metricConfigBuilder.thresholdValue;
 		this.metricActionStatusRecordsEnabled = metricConfigBuilder.metricActionStatusRecordsEnabled;
 		this.metricActionStatusRecordFrequency = metricConfigBuilder.metricActionStatusRecordFrequency;
+		this.timeSelectorMaxDelta = metricConfigBuilder.timeSelectorMaxDelta;
+		this.timeSelectorMinDelta = metricConfigBuilder.timeSelectorMinDelta;
 		this.initialized = false;
 	}
 	
@@ -71,8 +73,18 @@ public class MetricConfig {
 				" metricActionStatusRecordsEnabled:" + metricActionStatusRecordsEnabled + 
 				" metricActionStatusRecordFrequency:" + metricActionStatusRecordFrequency + 
 				((thresholdKey==null || thresholdKey.equals("")) ? "" : (" thresholdKey:" + thresholdKey)) + 
-				((thresholdValue==null || thresholdValue.equals("")) ? "" : (" thresholdValue:" + thresholdValue));
+				((thresholdValue==null || thresholdValue.equals("")) ? "" : (" thresholdValue:" + thresholdValue) + 
+				" timeSelectorMinDelta:" + timeSelectorMinDelta + 
+				" timeSelectorMaxDelta:" + timeSelectorMaxDelta );
 
+	}
+	
+	public long getTimeSelectorMinDelta(){
+		return timeSelectorMinDelta;
+	}
+
+	public long getTimeSelectorMaxDelta(){
+		return timeSelectorMaxDelta;
 	}
 
 	public String getId() {
@@ -131,6 +143,8 @@ public class MetricConfig {
 		private final String thresholdValue;
 		private boolean metricActionStatusRecordsEnabled;
 		private long metricActionStatusRecordFrequency;
+		private long timeSelectorMinDelta;
+		private long timeSelectorMaxDelta;
 		
 
 		
@@ -139,43 +153,56 @@ public class MetricConfig {
 				String procRecordProducerMetricName, boolean rawProducerMetricsEnabled, String metricDescription,
 				String rawRecordProducerName, String selector, String processor, String method, 
 				boolean metricActionStatusRecordsEnabled, long metricActionStatusRecordFrequency,
-				String thresholdKey, String thresholdValue) throws Exception{
+				String thresholdKey, String thresholdValue, long timeSelectorMaxDelta, long timeSelectorMinDelta) throws Exception{
 			
 			//Everything needs an id (e.g. "metric.name")
 			if(id == null || id.equals(""))
-				throw new IllegalArgumentException("Can not build a metric config using a null/empty metric.name");
+				throw new IllegalArgumentException("Can not build a metric config using a null/empty " + Constants.METRIC_NAME);
 			
 			//Everything except the record producer stats needs a fully specified output queue
 			if (!recordType.equals(Constants.RAW_RECORD_PRODUCER_STAT_RECORD)){
 				if(outputQueue == null || outputQueue.equals(""))
-					throw new IllegalArgumentException("Can not build a metric config using a null/empty output.queue.name");
+					throw new IllegalArgumentException("Can not build a metric config for " + id + " using a null/empty " + Constants.OUTPUT_QUEUE_NAME);
 				if (outputQueueRecordCapacity < 1)
-					throw new IllegalArgumentException("Can not build a ProcRecordProducerMetric using output.queue.record.capacity < 1");
+					throw new IllegalArgumentException(	"Can not build a metric config for " + id + " using " + Constants.OUTPUT_QUEUE_CAPACITY_RECORDS + 
+														" < 1, value: " + outputQueueRecordCapacity);
 				if (outputQueueTimeCapacity < 1)
-					throw new IllegalArgumentException("Can not build a ProcRecordProducerMetric using output.queue.time.capacity < 1");
+					throw new IllegalArgumentException( "Can not build a metric config for " + id + " using " + Constants.OUTPUT_QUEUE_CAPACITY_SECONDS + 
+														" < 1, value: " + outputQueueTimeCapacity);
 			}
+			
+			//Everything needs a recordType
+			if(recordType == null || recordType.equals(""))
+				throw new IllegalArgumentException("Can not build a metric config for " + id + " using a null/empty " + Constants.RECORD_TYPE);
 			
 			//ProcRecordProducer metrics have specific requirements:
 			if (recordType.equals(Constants.PROC_RECORD_PRODUCER_RECORD)) {
 				if (procRecordProducerMetricName == null || !ProcRecordProducer.isValidMetricName(procRecordProducerMetricName))
-					throw new IllegalArgumentException("Can not build a ProcRecordProducerMetric using a null/invalid proc.record.producer.metric.name");
+					throw new IllegalArgumentException("Can not build a ProcRecordProducerMetric for " + id + " using a null/invalid " + Constants.PROC_RECORD_PRODUCER_METRIC_NAME);
 				else if (periodicity < 1000) 
-					throw new IllegalArgumentException("Can not build a ProcRecordProducerMetric using a periodicity < 1000");
+					throw new IllegalArgumentException("Can not build a ProcRecordProducerMetric for " + id + " using " + Constants.PERIODICITY_MS + " < 1000, value: " + periodicity);
 			}
 			//If it is not a raw RecordProducer metric (e.g. ProcRecordProducer or MfsGutsRecordProducer), then it must have an inputQueue, selector, processor and method
 			else if (!recordType.equals(Constants.MFS_GUTS_RECORD_PRODUCER_RECORD) &&
 					 !recordType.equals(Constants.RAW_RECORD_PRODUCER_STAT_RECORD))
 			{
 				if(inputQueue == null || inputQueue.equals(""))
-					throw new IllegalArgumentException("Can not build a non-raw metric config using a null/empty input.queue.name");
+					throw new IllegalArgumentException("Can not build a non-raw metric config for " + id + " using a null/empty " + Constants.INPUT_QUEUE_NAME);
 				else if (selector == null || selector.equals(""))
-					throw new IllegalArgumentException("Can not build a non-raw metric config using a null/empty input.record.selector");
+					throw new IllegalArgumentException("Can not build a non-raw metric config for " + id + " using a null/empty " + Constants.INPUT_RECORD_SELECTOR);
 				else if (processor == null || processor.equals(""))
-					throw new IllegalArgumentException("Can not build a non-raw metric config using a null/empty input.record.processor.name");
+					throw new IllegalArgumentException("Can not build a non-raw metric config for " + id + " using a null/empty " + Constants.INPUT_RECORD_PROCESSOR_NAME);
 				else if (method == null || method.equals(""))
-					throw new IllegalArgumentException("Can not build a non-raw metric config using a null/empty input.record.processor.method");
+					throw new IllegalArgumentException("Can not build a non-raw metric config for " + id + " using a null/empty " + Constants.INPUT_RECORD_PROCESSOR_METHOD);
 			}
-				
+			else if (selector!=null && selector.equals(Constants.TIME_SELECTOR)){
+				if(timeSelectorMinDelta < 1000)
+					throw new Exception("Use of " + Constants.INPUT_RECORD_SELECTOR + "=" + Constants.TIME_SELECTOR + 
+										" requires " + Constants.TIME_SELECTOR_MIN_DELTA + " >= 1000, provided value: " + 
+										timeSelectorMinDelta);
+				if(timeSelectorMaxDelta != -1 && timeSelectorMaxDelta < timeSelectorMinDelta)
+					throw new Exception(Constants.TIME_SELECTOR_MAX_DELTA + " can not be less than " + Constants.TIME_SELECTOR_MIN_DELTA);
+			}
 			
 			this.id = id;
 			this.inputQueue = inputQueue;
@@ -196,6 +223,8 @@ public class MetricConfig {
 			this.thresholdValue = thresholdValue;
 			this.metricActionStatusRecordFrequency = metricActionStatusRecordFrequency;
 			this.metricActionStatusRecordsEnabled = metricActionStatusRecordsEnabled;
+			this.timeSelectorMaxDelta = timeSelectorMaxDelta;
+			this.timeSelectorMinDelta = timeSelectorMinDelta;
 		}
 
 		public MetricConfig build() {

@@ -295,7 +295,7 @@ public class DiskstatRecordProcessor implements RecordProcessor<Record> {
 	}
 
 	@Override
-	public DiskstatRecord movingAverage(Record rec1, Record rec2)
+	public DiskstatRecord merge(Record rec1, Record rec2)
 			throws Exception {
 		return new DiskstatRecord((DiskstatRecord) rec1, (DiskstatRecord) rec2);
 	}

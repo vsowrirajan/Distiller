@@ -26,7 +26,10 @@ public class MetricActionStatusRecord extends Record {
 
 	@Override
 	public String toString(){
-		return super.toString() + ":RPSRec:" + producerId + "\truntime:" + runningTimems +
+		return super.toString() + 
+				":RPSRec:" + producerId + 
+				"\truntime:" + runningTimems +
+				"\truntime%: " + ((double)runningTimems / (double)(System.currentTimeMillis() - startTime)) + 
 				"\tinRec:" + inputRecords +  
 				"\toutRec:" + outputRecords + 
 				"\tpFail:" +  processingFailures + 

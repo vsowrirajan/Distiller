@@ -78,10 +78,8 @@ public class TcpConnectionStatRecord extends Record {
 		int[] ret = new int[] {0, 0, 0, 0};
 		try {
 			RandomAccessFile proc_net_tcp = null;
-			long startTime = System.currentTimeMillis();
 			String line = null;
 			String socketId;
-			int processesChecked=0, fdChecked=0, recordsGenerated=0;
 			HashMap<String,String[]> recordMap = new HashMap<String,String[]>(32000);
 			try{
 				proc_net_tcp = new RandomAccessFile("/proc/net/tcp", "r");
@@ -116,8 +114,6 @@ public class TcpConnectionStatRecord extends Record {
 			File ppFile = new File("/proc");
 			File[] pPaths = ppFile.listFiles(fnFilter);
 			if(pPaths == null) return new int[] {2, 0, 0, 0};
-			processesChecked = pPaths.length;
-			long timestamp = System.currentTimeMillis();
 			
 			//For each process in /proc
 			for (int pn = 0; pn<pPaths.length; pn++){
@@ -127,7 +123,6 @@ public class TcpConnectionStatRecord extends Record {
 				File[] fdPaths = fdFile.listFiles(fnFilter);
 				if(fdPaths != null) {
 					//For each file descriptor in /proc/[pid]/fd
-					fdChecked += fdPaths.length;
 					for (int x=0; x<fdPaths.length; x++){
 						try{
 							String linkTarget = Files.readSymbolicLink(Paths.get(fdPaths[x].toString())).toString();
