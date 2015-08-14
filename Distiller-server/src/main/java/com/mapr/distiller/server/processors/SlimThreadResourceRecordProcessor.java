@@ -18,7 +18,6 @@ public class SlimThreadResourceRecordProcessor implements RecordProcessor<Record
 
 	public boolean isEqual(Record record, String metric, String thresholdValue)
 			throws Exception {
-
 		SlimThreadResourceRecord currentRecord = (SlimThreadResourceRecord) record;
 
 		switch (metric) {
@@ -55,6 +54,12 @@ public class SlimThreadResourceRecordProcessor implements RecordProcessor<Record
 		SlimThreadResourceRecord currentRecord = (SlimThreadResourceRecord) record;
 
 		switch (metric) {
+		case "idlePct":
+			if(currentRecord.getCpuUtilPct() == -1d || currentRecord.getIowaitUtilPct() == -1d)
+				throw new Exception("Can not compare raw SlimThreadResourceRecord to threshold");
+			else
+				return 1d - currentRecord.getCpuUtilPct() - currentRecord.getIowaitUtilPct() > Double.parseDouble(thresholdValue);
+				
 		case "cpuUtilPct":
 			if(currentRecord.getCpuUtilPct() == -1d)
 				throw new Exception("Can not compare raw SlimThreadResourceRecord to threshold");
@@ -113,6 +118,12 @@ public class SlimThreadResourceRecordProcessor implements RecordProcessor<Record
 		SlimThreadResourceRecord currentRecord = (SlimThreadResourceRecord) record;
 
 		switch (metric) {
+		case "idlePct":
+			if(currentRecord.getCpuUtilPct() == -1d || currentRecord.getIowaitUtilPct() == -1d)
+				throw new Exception("Can not compare raw SlimThreadResourceRecord to threshold");
+			else
+				return 1d - currentRecord.getCpuUtilPct() - currentRecord.getIowaitUtilPct() < Double.parseDouble(thresholdValue);
+				
 		case "cpuUtilPct":
 			if(currentRecord.getCpuUtilPct() == -1d)
 				throw new Exception("Can not compare raw SlimThreadResourceRecord to threshold");

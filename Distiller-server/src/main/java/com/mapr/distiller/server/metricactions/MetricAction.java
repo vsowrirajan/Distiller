@@ -237,7 +237,8 @@ public class MetricAction implements Runnable, MetricsSelectable {
 		if (selector.equals(Constants.SEQUENTIAL_SELECTOR) ||
 			selector.equals(Constants.CUMULATIVE_SELECTOR) ||
 			selector.equals(Constants.SEQUENTIAL_WITH_QUALIFIER_SELECTOR) ||
-			selector.equals(Constants.CUMULATIVE_WITH_QUALIFIER_SELECTOR)
+			selector.equals(Constants.CUMULATIVE_WITH_QUALIFIER_SELECTOR) ||
+			selector.equals(Constants.TIME_SELECTOR)
 		) 
 			return true;
 		return false;

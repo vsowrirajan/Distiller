@@ -125,7 +125,7 @@ public class SlimThreadResourceRecord extends Record {
 				throw new Exception("Failed to produce a SlimThreadResourceRecord due to unexpected format of stat file, found " + parts.length + " fields");
 			}
 			this.pid = Integer.parseInt(line.split("\\s+", 2)[0]);
-			this.commandName = "(" + line.split("\\(", 2)[1].split("\\)", 2)[0] + ")";
+			this.commandName = line.split("\\(", 2)[1].split("\\)", 2)[0];
 			this.cpuUsageTicks = new BigInteger(parts[11]).add(new BigInteger(parts[12]));
 			this.startTime = Integer.parseInt(parts[19]);
 			this.iowaitTicks = new BigInteger(parts[39]);

@@ -148,7 +148,7 @@ public class SlimProcessResourceRecord extends Record {
 				//If the file could be read, parse the values
 				String tempStr = new String(b.array());
 				this.pid = Integer.parseInt(tempStr.split("\\s+", 2)[0]);
-				this.commandName = "(" + tempStr.split("\\(", 2)[1].split("\\)", 2)[0] + ")";
+				this.commandName = tempStr.split("\\(", 2)[1].split("\\)", 2)[0];
 				parts = tempStr.split("\\)", 2)[1].trim().split("\\s+");
 				//Expect 44 values in /proc/[pid]/stat based on Linux kernel version used for this dev.
 				//Note that 42 is used in below check because 

@@ -186,9 +186,15 @@ public class Coordinator {
 				throw new Exception("Use of " + Constants.OUTPUT_QUEUE_TYPE + "=" + Constants.UPDATING_SUBSCRIPTION_RECORD_QUEUE + 
 									" requires a value for " + Constants.SELECTOR_QUALIFIER_KEY);
 			
-			if (selector!=null && selector.equals(Constants.SEQUENTIAL_WITH_QUALIFIER_SELECTOR) && 
-				( selectorQualifierKey==null || selectorQualifierKey.equals("") ) )
-				throw new Exception(Constants.SELECTOR_QUALIFIER_KEY + " must be specified when " + Constants.INPUT_RECORD_SELECTOR + "=" + Constants.SEQUENTIAL_WITH_QUALIFIER_SELECTOR);
+			if (selector!=null){
+				if (selector.equals(Constants.SEQUENTIAL_WITH_QUALIFIER_SELECTOR) && 
+					( selectorQualifierKey==null || selectorQualifierKey.equals("") ) ){
+					throw new Exception(Constants.SELECTOR_QUALIFIER_KEY + " must be specified when " + Constants.INPUT_RECORD_SELECTOR + "=" + Constants.SEQUENTIAL_WITH_QUALIFIER_SELECTOR);
+				} else if ( selector.equals(Constants.TIME_SELECTOR) &&
+							timeSelectorMinDelta < 1000 ) {
+					throw new Exception(Constants.TIME_SELECTOR_MIN_DELTA + " must be >=1000 when " + Constants.INPUT_RECORD_SELECTOR + "=" + Constants.TIME_SELECTOR);
+				}
+			}
 			
 			if(id != null && !id.equals("")){
 				if(metricNames.contains(id))
@@ -781,9 +787,9 @@ public class Coordinator {
 								(((double)queues[x].queueSize())/((double)queues[x].getQueueRecordCapacity())*100d) + "%)" + 
 								" cl:" + queues[x].listConsumers().length +
 								" pl:" + queues[x].listProducers().length);
-						if(queues[x].getQueueName().equals("DiffTcpConnections-60s")){
-							System.err.println(queues[x].printNewestRecords(null, 5));
-						}
+						//if(queues[x].getQueueName().equals("HighMfsThreadCpu-1s")){
+						//	System.err.println(queues[x].printNewestRecords(null, 5));
+						//}
 						//if (queues[x].getQueueName().equals(Constants.RAW_PRODUCER_STATS_QUEUE_NAME) || 
 						//	queues[x].getQueueName().equals(Constants.METRIC_ACTION_STATS_QUEUE_NAME)){
 						//	System.err.println(queues[x].printNewestRecords(null, 5));

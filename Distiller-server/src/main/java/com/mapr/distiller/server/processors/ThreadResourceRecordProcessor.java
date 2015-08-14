@@ -53,6 +53,12 @@ public class ThreadResourceRecordProcessor implements RecordProcessor<Record> {
 		ThreadResourceRecord currentRecord = (ThreadResourceRecord) record;
 
 		switch (metric) {
+		case "idlePct":
+			if(currentRecord.getCpuUtilPct() == -1d || currentRecord.getIowaitUtilPct() == -1d)
+				throw new Exception("Can not compare raw ThreadResourceRecord to threshold");
+			else
+				return 1d - currentRecord.getCpuUtilPct() - currentRecord.getIowaitUtilPct() > Double.parseDouble(thresholdValue);
+				
 		case "cpuUtilPct":
 			if (currentRecord.getCpuUtilPct() == -1d)
 				throw new Exception(
@@ -98,6 +104,12 @@ public class ThreadResourceRecordProcessor implements RecordProcessor<Record> {
 		ThreadResourceRecord currentRecord = (ThreadResourceRecord) record;
 
 		switch (metric) {
+		case "idlePct":
+			if(currentRecord.getCpuUtilPct() == -1d || currentRecord.getIowaitUtilPct() == -1d)
+				throw new Exception("Can not compare raw SlimThreadResourceRecord to threshold");
+			else
+				return 1d - currentRecord.getCpuUtilPct() - currentRecord.getIowaitUtilPct() < Double.parseDouble(thresholdValue);
+				
 		case "cpuUtilPct":
 			if (currentRecord.getCpuUtilPct() == -1d)
 				throw new Exception(

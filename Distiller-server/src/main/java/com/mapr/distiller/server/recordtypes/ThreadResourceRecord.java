@@ -129,7 +129,7 @@ public class ThreadResourceRecord extends Record {
 				throw new Exception("Failed to produce a ThreadResourceRecord due to unexpected format of stat file, found " + parts.length + " fields");
 			}
 			this.pid = Integer.parseInt(line.split("\\s+", 2)[0]);
-			this.comm = "(" + line.split("\\(", 2)[1].split("\\)", 2)[0] + ")";
+			this.comm = line.split("\\(", 2)[1].split("\\)", 2)[0];
 			this.state = parts[0].charAt(0);
 			this.minflt = new BigInteger(parts[7]);
 			this.majflt = new BigInteger(parts[9]);
