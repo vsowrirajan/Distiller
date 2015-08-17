@@ -1,5 +1,6 @@
 package com.mapr.distiller.server.scheduler;
 
+import java.util.Iterator;
 import java.util.TreeSet;
 import com.mapr.distiller.server.metricactions.MetricAction;
 import com.mapr.distiller.server.scheduler.MetricActionScheduleComparator;
@@ -8,6 +9,10 @@ public class MetricActionScheduler{
 	//This holds the list of MetricActions to gather sorted by the time returned by MetricAction.nextScheduledTime(
 	private TreeSet<MetricAction> metricSchedule;
 	long window;
+	
+	public boolean contains(MetricAction a){
+		return metricSchedule.contains(a);
+	}
 	
 	public MetricActionScheduler(long window) throws Exception{
 		if(window<0)
@@ -20,8 +25,12 @@ public class MetricActionScheduler{
 		if(event==null)
 			throw new Exception("Can not schedule a null MetricAction");
 		synchronized(metricSchedule){
-			metricSchedule.add(event);
-			metricSchedule.notify();
+			if(metricSchedule.add(event)){
+				System.err.println("Added MetricAction " + event.getId() + " to metric schedule");
+				metricSchedule.notify();
+			} else {
+				throw new Exception("Failed to add MetricAction " + event.getId() + " to metric schedule, exists:" + metricSchedule.contains(event));
+			}
 		}
 	}
 	
