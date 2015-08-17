@@ -469,8 +469,9 @@ public class Coordinator {
 					}
 					if(config.isInitialized()){
 						initializationSuccesses++;
-						if(newAction!=null && newAction.isGatherMetric())
+						if(newAction!=null && newAction.isGatherMetric()){
 							metricActionScheduler.schedule(newAction);
+						}
 					}
 				}
 			}
@@ -966,7 +967,14 @@ public class Coordinator {
 		long statusInterval = 3000l;
 		long lastStatus = System.currentTimeMillis();
 		while(!shouldExit){
-			MetricAction nextAction = metricActionScheduler.getNextScheduledMetricAction(true);
+			MetricAction nextAction = null;
+			try {
+				nextAction = metricActionScheduler.getNextScheduledMetricAction(true);
+			} catch (Exception e) {
+				System.err.println("Main: FATAL: Failed to retrieve net scheduled metric action");
+				e.printStackTrace();
+				System.exit(1);
+			}
 			Future<?> future = metricActionsIdFuturesMap.get(nextAction.getId());
 			if(future!=null && !future.isDone()){
 				System.err.println("Main: CRITICAL: Metric " + nextAction.getId() + " is scheduled to run now but previous run is not done");
@@ -1017,7 +1025,7 @@ public class Coordinator {
 					Iterator<Map.Entry<String, MetricAction>> i = metricActionsIdMap.entrySet().iterator();
 					while(i.hasNext()){
 						Map.Entry<String, MetricAction> e = i.next();
-						System.err.println("\t\tID:" + e.getKey() + " enabled:" + e.getValue().isGatherMetric() + " sched:" + e.getValue().printSchedule());
+						System.err.println("\t\tID:" + e.getKey() + " enabled:" + e.getValue().isGatherMetric() + " inSched:" + metricActionScheduler.contains(e.getValue()) + " sched:" + e.getValue().printSchedule());
 					}
 				}
 			}

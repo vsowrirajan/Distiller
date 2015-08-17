@@ -26,7 +26,6 @@ public class MetricActionScheduler{
 			throw new Exception("Can not schedule a null MetricAction");
 		synchronized(metricSchedule){
 			if(metricSchedule.add(event)){
-				System.err.println("Added MetricAction " + event.getId() + " to metric schedule");
 				metricSchedule.notify();
 			} else {
 				throw new Exception("Failed to add MetricAction " + event.getId() + " to metric schedule, exists:" + metricSchedule.contains(event));
@@ -63,14 +62,15 @@ public class MetricActionScheduler{
 		}
 	}
 	
-	public MetricAction getNextScheduledMetricAction(boolean blocking){
+	public MetricAction getNextScheduledMetricAction(boolean blocking) throws Exception{
 		MetricAction retVal = null;
 		if(!blocking){
 			synchronized(metricSchedule){
 				retVal = nonBlockingGetNextAction();
 				try {
 					if(retVal!=null && retVal.getNextScheduleTime() <= System.currentTimeMillis()){
-						metricSchedule.remove(retVal);
+						if(!metricSchedule.remove(retVal))
+							throw new Exception("Failed to remove " + retVal.getId() + " from metric schedule");
 						return retVal;
 					}
 				} catch (Exception e) {}
@@ -89,7 +89,8 @@ public class MetricActionScheduler{
 					if(haveSleepTime){
 						if(sleepTime<=0){
 							retVal = nonBlockingGetNextAction();
-							metricSchedule.remove(retVal);
+							if(!metricSchedule.remove(retVal))
+								throw new Exception("Failed to remove " + retVal.getId() + " from metric schedule");
 							return retVal;
 						} else {
 							try {

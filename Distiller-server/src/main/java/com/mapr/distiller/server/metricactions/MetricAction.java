@@ -512,7 +512,6 @@ public class MetricAction implements Runnable, MetricsSelectable {
 				System.exit(1);
 			}
 		}
-		
 		if(DEBUG_ENABLED)
 			System.err.println("MetricAction-" + System.identityHashCode(this) + ": Completed metric action " + id);
 	}
@@ -553,7 +552,11 @@ public class MetricAction implements Runnable, MetricsSelectable {
 					}
 					if(config.getRelatedSelectorEnabled())
 						try {
-							relatedRecordSelector.selectRelatedRecords(outputRec);
+							long[] ret = relatedRecordSelector.selectRelatedRecords(outputRec);
+							inRecCntr += ret[0];
+							outRecCntr += ret[1];
+							putFailureCntr += ret[2];
+							otherFailureCntr += ret[3];
 						} catch (Exception e) {
 							throw new Exception("Failed to process related records", e);
 						}
@@ -581,7 +584,11 @@ public class MetricAction implements Runnable, MetricsSelectable {
 						}
 						if(config.getRelatedSelectorEnabled())
 							try {
-								relatedRecordSelector.selectRelatedRecords(newRec);
+								long[] ret = relatedRecordSelector.selectRelatedRecords(newRec);
+								inRecCntr += ret[0];
+								outRecCntr += ret[1];
+								putFailureCntr += ret[2];
+								otherFailureCntr += ret[3];
 							} catch (Exception e) {
 								throw new Exception("Failed to process related records", e);
 							}
@@ -609,7 +616,11 @@ public class MetricAction implements Runnable, MetricsSelectable {
 						}
 						if(config.getRelatedSelectorEnabled())
 							try {
-								relatedRecordSelector.selectRelatedRecords(newRec);
+								long[] ret = relatedRecordSelector.selectRelatedRecords(newRec);
+								inRecCntr += ret[0];
+								outRecCntr += ret[1];
+								putFailureCntr += ret[2];
+								otherFailureCntr += ret[3];
 							} catch (Exception e) {
 								throw new Exception("Failed to process related records", e);
 							}
@@ -637,7 +648,11 @@ public class MetricAction implements Runnable, MetricsSelectable {
 						}
 						if(config.getRelatedSelectorEnabled())
 							try {
-								relatedRecordSelector.selectRelatedRecords(newRec);
+								long[] ret = relatedRecordSelector.selectRelatedRecords(newRec);
+								inRecCntr += ret[0];
+								outRecCntr += ret[1];
+								putFailureCntr += ret[2];
+								otherFailureCntr += ret[3];
 							} catch (Exception e) {
 								throw new Exception("Failed to process related records", e);
 							}
@@ -665,7 +680,11 @@ public class MetricAction implements Runnable, MetricsSelectable {
 						}
 						if(config.getRelatedSelectorEnabled())
 							try {
-								relatedRecordSelector.selectRelatedRecords(newRec);
+								long[] ret = relatedRecordSelector.selectRelatedRecords(newRec);
+								inRecCntr += ret[0];
+								outRecCntr += ret[1];
+								putFailureCntr += ret[2];
+								otherFailureCntr += ret[3];
 							} catch (Exception e) {
 								throw new Exception("Failed to process related records", e);
 							}
@@ -710,7 +729,11 @@ public class MetricAction implements Runnable, MetricsSelectable {
 				}
 				if(config.getRelatedSelectorEnabled())
 					try {
-						relatedRecordSelector.selectRelatedRecords(oldRec);
+						long[] ret = relatedRecordSelector.selectRelatedRecords(oldRec);
+						inRecCntr += ret[0];
+						outRecCntr += ret[1];
+						putFailureCntr += ret[2];
+						otherFailureCntr += ret[3];
 					} catch (Exception e) {
 						throw new Exception("Failed to process related records", e);
 					}
@@ -737,7 +760,11 @@ public class MetricAction implements Runnable, MetricsSelectable {
 					}
 					if(config.getRelatedSelectorEnabled())
 						try {
-							relatedRecordSelector.selectRelatedRecords(oldRec);
+							long[] ret = relatedRecordSelector.selectRelatedRecords(oldRec);
+							inRecCntr += ret[0];
+							outRecCntr += ret[1];
+							putFailureCntr += ret[2];
+							otherFailureCntr += ret[3];
 						} catch (Exception e) {
 							throw new Exception("Failed to process related records", e);
 						}
@@ -779,7 +806,11 @@ public class MetricAction implements Runnable, MetricsSelectable {
 							outRecCntr++;
 							if(config.getRelatedSelectorEnabled())
 								try {
-									relatedRecordSelector.selectRelatedRecords(outputRec);
+									long[] ret = relatedRecordSelector.selectRelatedRecords(outputRec);
+									inRecCntr += ret[0];
+									outRecCntr += ret[1];
+									putFailureCntr += ret[2];
+									otherFailureCntr += ret[3];
 								} catch (Exception e) {
 									throw new Exception("Failed to process related records", e);
 								}
@@ -788,7 +819,11 @@ public class MetricAction implements Runnable, MetricsSelectable {
 							outRecCntr++;
 							if(config.getRelatedSelectorEnabled())
 								try {
-									relatedRecordSelector.selectRelatedRecords(outputRec);
+									long[] ret = relatedRecordSelector.selectRelatedRecords(outputRec);
+									inRecCntr += ret[0];
+									outRecCntr += ret[1];
+									putFailureCntr += ret[2];
+									otherFailureCntr += ret[3];
 								} catch (Exception e) {
 									throw new Exception("Failed to process related records", e);
 								}
@@ -864,7 +899,11 @@ public class MetricAction implements Runnable, MetricsSelectable {
 					}
 					if(config.getRelatedSelectorEnabled())
 						try {
-							relatedRecordSelector.selectRelatedRecords(outputRec);
+							long[] ret = relatedRecordSelector.selectRelatedRecords(outputRec);
+							inRecCntr += ret[0];
+							outRecCntr += ret[1];
+							putFailureCntr += ret[2];
+							otherFailureCntr += ret[3];
 						} catch (Exception e) {
 							throw new Exception("Failed to process related records", e);
 						}
@@ -903,7 +942,11 @@ public class MetricAction implements Runnable, MetricsSelectable {
 					}
 					if(config.getRelatedSelectorEnabled())
 						try {
-							relatedRecordSelector.selectRelatedRecords(outputRec);
+							long[] ret = relatedRecordSelector.selectRelatedRecords(outputRec);
+							inRecCntr += ret[0];
+							outRecCntr += ret[1];
+							putFailureCntr += ret[2];
+							otherFailureCntr += ret[3];
 						} catch (Exception e) {
 							throw new Exception("Failed to process related records", e);
 						}

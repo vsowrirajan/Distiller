@@ -10,6 +10,11 @@ public class MetricActionScheduleComparator implements Comparator<MetricAction>{
 			else  if (e1.getNextScheduleTime() > e2.getNextScheduleTime())
 				return 1;
 		} catch (Exception e){}
-		return ((e1.hashCode()<e2.hashCode()) ? -1 : 1);
+		if(e1.hashCode()<e2.hashCode()) 
+			return -1;
+		else if (e1.hashCode() == e2.hashCode())
+			return 0;
+		else
+			return 1;
 	}
 }
