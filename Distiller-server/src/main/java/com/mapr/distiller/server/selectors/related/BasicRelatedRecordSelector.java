@@ -50,6 +50,7 @@ public class BasicRelatedRecordSelector implements RelatedRecordSelector<Record,
 	
 	public long[] selectRelatedRecords(Record inputRecord) throws Exception
 	{
+		//System.err.println(System.currentTimeMillis() + " " + id + " starting for record " + inputRecord.toString());
 		Record relatedRecord;
 		if(relationMethod.equals(Constants.TIME_BASED_WINDOW)){
 			//Update the list of TimePeriods we are interested in based on the timestamps in the new input record
@@ -66,51 +67,55 @@ public class BasicRelatedRecordSelector implements RelatedRecordSelector<Record,
 					relatedTimePeriods.removeLast();
 					relatedTimePeriods.addFirst(p);
 				} else {
-					p.start = inputRecord.getPreviousTimestamp();
-					if(p.start==-1)
+					if(inputRecord.getPreviousTimestamp()==-1)
 						throw new Exception("Can not perform duration based window selection for raw input records.");
-					p.end = inputRecord.getTimestamp();
+					p.start = inputRecord.getPreviousTimestamp() - window;
+					p.end = inputRecord.getTimestamp() + window;
 					relatedTimePeriods.add(p);
 				}
 			} else {
 				throw new Exception("Unknown key " + relationKey + " for method " + Constants.TIME_BASED_WINDOW);
 			}
 			//Check the related queue against the new list of related TimePeriods to see if there are matching records to output
+						
 			while((relatedRecord = relatedQueue.peek(id, false)) != null){
-				if (relatedRecord.getPreviousTimestamp()!=-1){
-					if(relatedRecord.getPreviousTimestamp() > relatedTimePeriods.getLast().end){
+				if (relatedRecord.getPreviousTimestamp()!=-1 && 
+					relatedRecord.getPreviousTimestamp() > relatedTimePeriods.getLast().end){
 						//The start timestamp of the oldest record in the related queue is newer than the end timestamp of the newest related TimePeriod, leave the Records in the related queue.
-						return new long[]{inRecCntr, outRecCntr, putFailureCntr, otherFailureCntr};
-					}
-					if (relatedRecord.getPreviousTimestamp() <= relatedTimePeriods.getLast().end &&
-						relatedRecord.getPreviousTimestamp() >= relatedTimePeriods.getFirst().start){
-						boolean matchesWindow=false;
-						Iterator<TimePeriod> i = relatedTimePeriods.iterator();
-						while(i.hasNext()){
-							TimePeriod p = i.next();
-							if (relatedRecord.getPreviousTimestamp() <= p.end &&
-								relatedRecord.getPreviousTimestamp() >= p.start ){
-								matchesWindow=true;
-								break;
-							}
+					break;
+				} else if (relatedRecord.getPreviousTimestamp() != -1 &&
+							relatedRecord.getPreviousTimestamp() <= relatedTimePeriods.getLast().end &&
+							relatedRecord.getPreviousTimestamp() >= relatedTimePeriods.getFirst().start){
+					boolean matchesWindow=false;
+					Iterator<TimePeriod> i = relatedTimePeriods.iterator();
+					while(i.hasNext()){
+						TimePeriod p = i.next();
+						if (relatedRecord.getPreviousTimestamp() <= p.end &&
+							relatedRecord.getPreviousTimestamp() >= p.start ){
+							matchesWindow=true;
+							break;
 						}
+					}
+					try {
+						relatedRecord = relatedQueue.get(id);
+						inRecCntr++;
 						if(matchesWindow){
 							try {
-								relatedRecord = relatedQueue.get(id);
-								inRecCntr++;
-								try {
-									outputQueue.put(id, relatedRecord);
-									outRecCntr++;
-								} catch (Exception e) {
-									putFailureCntr++;
-								}
+								outputQueue.put(id, relatedRecord);
+								System.err.println("Related records: " + inputRecord.toString() + " ||||| " + relatedRecord.toString());
+								outRecCntr++;
 							} catch (Exception e) {
-								otherFailureCntr++;
+								putFailureCntr++;
 							}
 						}
+					} catch (Exception e) {
+						otherFailureCntr++;
+						break;
 					}
+				} else if (relatedRecord.getTimestamp() > relatedTimePeriods.getLast().end){
+					break;
 				} else if (relatedRecord.getTimestamp() <= relatedTimePeriods.getLast().end &&
-					relatedRecord.getTimestamp() >= relatedTimePeriods.getFirst().start ){
+							relatedRecord.getTimestamp() >= relatedTimePeriods.getFirst().start ){
 					boolean matchesWindow = false;
 					Iterator<TimePeriod> i = relatedTimePeriods.iterator();
 					while(i.hasNext()){
@@ -121,19 +126,27 @@ public class BasicRelatedRecordSelector implements RelatedRecordSelector<Record,
 							break;
 						}
 					}
-					if(matchesWindow){
-						try {
-							relatedRecord = relatedQueue.get(id);
-							inRecCntr++;
+					try {
+						relatedRecord = relatedQueue.get(id);
+						inRecCntr++;
+						if(matchesWindow){
 							try {
 								outputQueue.put(id, relatedRecord);
 								outRecCntr++;
 							} catch (Exception e) {
 								putFailureCntr++;
 							}
-						} catch (Exception e) {
-							otherFailureCntr++;
 						}
+					} catch (Exception e) {
+						otherFailureCntr++;
+						break;
+					}
+				} else {
+					try {
+						relatedRecord = relatedQueue.get(id);
+					} catch (Exception e){
+						otherFailureCntr++;
+						break;
 					}
 				}
 			}

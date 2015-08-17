@@ -64,6 +64,10 @@ public class MetricAction implements Runnable, MetricsSelectable {
 	private long lastStatus = -1l;
 	private long iterationCount = 0l;
 
+	public String printSchedule(){
+		return schedule.toString();
+	}
+	
 	public MetricAction(MetricConfig config, RecordQueueManager queueManager, MetricActionScheduler metricActionScheduler) throws Exception{
 		this.metricActionScheduler = metricActionScheduler;
 		this.recordList = new LinkedList<Record>();
@@ -508,6 +512,7 @@ public class MetricAction implements Runnable, MetricsSelectable {
 				System.exit(1);
 			}
 		}
+		
 		if(DEBUG_ENABLED)
 			System.err.println("MetricAction-" + System.identityHashCode(this) + ": Completed metric action " + id);
 	}
@@ -548,7 +553,9 @@ public class MetricAction implements Runnable, MetricsSelectable {
 					}
 					if(config.getRelatedSelectorEnabled())
 						try {
+							long st2 = System.currentTimeMillis();
 							relatedRecordSelector.selectRelatedRecords(outputRec);
+							System.out.println("Related selection took " + (System.currentTimeMillis() - st2));
 						} catch (Exception e) {
 							throw new Exception("Failed to process related records", e);
 						}

@@ -2,9 +2,15 @@ package com.mapr.distiller.server.scheduler;
 
 public class Schedule {
 	long lastScheduledStartTime, lastStartTime, lastEndTime, periodicity;
-	double maxDurationPct = 0.2d;
-	double minWaitPct = 0.5d;
+	double maxDurationPct;
+	double minWaitPct;
 	
+	
+	public String toString(){
+		return "lsst:" + lastScheduledStartTime + " lst:" + lastStartTime + " let:" + lastEndTime + 
+				" per:" + periodicity + " mdp:" + maxDurationPct + " mwp:" + minWaitPct + 
+				" delay:" + (lastStartTime + periodicity - lastScheduledStartTime);
+	}
 	public void setTimestamps(long lastStartTime, long lastEndTime){
 		this.lastStartTime = lastStartTime;
 		this.lastEndTime = lastEndTime;
@@ -26,6 +32,8 @@ public class Schedule {
 		this.lastStartTime = -1l;
 		this.lastEndTime = -1l;
 		this.periodicity = periodicity;
+		this.maxDurationPct = maxDurationPct;
+		this.minWaitPct = minWaitPct;
 	}
 	public long getNextTime() throws Exception{
 		if(lastScheduledStartTime==-1)

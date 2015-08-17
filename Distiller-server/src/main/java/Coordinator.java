@@ -2,6 +2,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.LinkedList;
 import java.util.Map;
@@ -349,7 +350,6 @@ public class Coordinator {
 						" when " + Constants.RELATED_SELECTOR_ENABLED + "=true", e);
 		}
 		try {
-			System.err.println("Retrieving value for " + Constants.RELATED_OUTPUT_QUEUE_CAPACITY_RECORDS);
 			relatedOutputQueueRecordCapacity = configBlock.getInt(Constants.RELATED_OUTPUT_QUEUE_CAPACITY_RECORDS);
 			if(relatedOutputQueueRecordCapacity < 1) 
 				throw new Exception("A value > 0 must be specified for " + Constants.RELATED_OUTPUT_QUEUE_CAPACITY_RECORDS + 
@@ -969,7 +969,7 @@ public class Coordinator {
 			MetricAction nextAction = metricActionScheduler.getNextScheduledMetricAction(true);
 			Future<?> future = metricActionsIdFuturesMap.get(nextAction.getId());
 			if(future!=null && !future.isDone()){
-				System.err.println("Main: Metric " + nextAction.getId() + " is scheduled to run now but previous run is not done");
+				System.err.println("Main: CRITICAL: Metric " + nextAction.getId() + " is scheduled to run now but previous run is not done");
 			} else {
 				future = executor.submit(nextAction);
 				metricActionsIdFuturesMap.put(nextAction.getId(), ((Future<MetricAction>) future));
@@ -977,7 +977,7 @@ public class Coordinator {
 			
 		//This is where the while loop should end when there is an RPC interface to query for status
 		//}
-			
+
 			if(System.currentTimeMillis() >= lastStatus + statusInterval){
 				lastStatus = System.currentTimeMillis();
 				System.err.println("Main: Printing status at " + lastStatus);
@@ -1013,11 +1013,15 @@ public class Coordinator {
 						//	System.err.println(queues[x].printNewestRecords(null, 5));
 						//}
 					}
+					System.err.println("\tMetricAction details:");
+					Iterator<Map.Entry<String, MetricAction>> i = metricActionsIdMap.entrySet().iterator();
+					while(i.hasNext()){
+						Map.Entry<String, MetricAction> e = i.next();
+						System.err.println("\t\tID:" + e.getKey() + " enabled:" + e.getValue().isGatherMetric() + " sched:" + e.getValue().printSchedule());
+					}
 				}
 			}
-			
-			
-			
+
 		}
 
 		System.err.println("Main: Shutting down.");
