@@ -1,8 +1,5 @@
 package com.mapr.distiller.server.utils;
 
-import com.mapr.distiller.server.producers.raw.ProcRecordProducer;
-
-
 public class MetricConfig {
 
 	private final String id;
@@ -11,6 +8,9 @@ public class MetricConfig {
 	private final int outputQueueRecordCapacity;
 	private final int outputQueueTimeCapacity;
 	private final int outputQueueMaxProducers;
+	private final int relatedOutputQueueRecordCapacity;
+	private final int relatedOutputQueueTimeCapacity;
+	private final int relatedOutputQueueMaxProducers;
 	private final int periodicity;
 	private final String recordType;
 	private final String procRecordProducerMetricName;
@@ -30,6 +30,14 @@ public class MetricConfig {
 	private String selectorQualifierKey;
 	private long cumulativeSelectorFlushTime;
 	private String outputQueueType;
+	private String selectorQualifierValue = null;
+	private String relatedInputQueueName = null;
+	private String relatedOutputQueueName = null;
+	private String relatedSelectorName = null;
+	private String relatedSelectorMethod = null;
+	private String updatingSubscriptionQueueKey = null;
+	private boolean relatedSelectorEnabled;
+
 	
 	private MetricConfig(MetricConfigBuilder metricConfigBuilder) {
 		this.id = metricConfigBuilder.id;
@@ -38,6 +46,9 @@ public class MetricConfig {
 		this.outputQueueRecordCapacity = metricConfigBuilder.outputQueueRecordCapacity;
 		this.outputQueueTimeCapacity = metricConfigBuilder.outputQueueTimeCapacity;
 		this.outputQueueMaxProducers = metricConfigBuilder.outputQueueMaxProducers;
+		this.relatedOutputQueueRecordCapacity = metricConfigBuilder.relatedOutputQueueRecordCapacity;
+		this.relatedOutputQueueTimeCapacity = metricConfigBuilder.relatedOutputQueueTimeCapacity;
+		this.relatedOutputQueueMaxProducers = metricConfigBuilder.relatedOutputQueueMaxProducers;
 		this.periodicity = metricConfigBuilder.periodicity;
 		this.recordType = metricConfigBuilder.recordType;
 		this.procRecordProducerMetricName = metricConfigBuilder.procRecordProducerMetricName;
@@ -56,6 +67,13 @@ public class MetricConfig {
 		this.selectorQualifierKey = metricConfigBuilder.selectorQualifierKey;
 		this.cumulativeSelectorFlushTime = metricConfigBuilder.cumulativeSelectorFlushTime;
 		this.outputQueueType = metricConfigBuilder.outputQueueType;
+		this.selectorQualifierValue = metricConfigBuilder.selectorQualifierValue;
+		this.relatedInputQueueName = metricConfigBuilder.relatedInputQueueName;
+		this.relatedOutputQueueName = metricConfigBuilder.relatedOutputQueueName;
+		this.relatedSelectorName = metricConfigBuilder.relatedSelectorName;
+		this.relatedSelectorMethod = metricConfigBuilder.relatedSelectorMethod;
+		this.updatingSubscriptionQueueKey = metricConfigBuilder.updatingSubscriptionQueueKey;
+		this.relatedSelectorEnabled = metricConfigBuilder.relatedSelectorEnabled;
 		this.initialized = false;
 	}
 	
@@ -67,6 +85,9 @@ public class MetricConfig {
 				" outputQueueRecordCapacity:" + outputQueueRecordCapacity + 
 				" outputQueueTimeCapacity:" + outputQueueTimeCapacity + 
 				" outputQueueMaxProducers:" + outputQueueMaxProducers + 
+				" relatedOutputQueueRecordCapacity:" + relatedOutputQueueRecordCapacity + 
+				" relatedOutputQueueTimeCapacity:" + relatedOutputQueueTimeCapacity + 
+				" relatedOutputQueueMaxProducers:" + relatedOutputQueueMaxProducers + 
 				" periodicity:" + periodicity + 
 				((recordType==null || recordType.equals("")) ? "" : (" recordType:" + recordType)) + 
 				((procRecordProducerMetricName==null || procRecordProducerMetricName.equals("")) ? "" : (" procRecordProducerMetricName:" + procRecordProducerMetricName)) + 
@@ -84,9 +105,42 @@ public class MetricConfig {
 				" timeSelectorMinDelta:" + timeSelectorMinDelta + 
 				" timeSelectorMaxDelta:" + timeSelectorMaxDelta +
 				" selectorQualifierKey:" + ((selectorQualifierKey==null) ? "null" : selectorQualifierKey) + 
-				" outputQueueType:" + ((outputQueueType==null) ? "null" : outputQueueType)
+				" outputQueueType:" + ((outputQueueType==null) ? "null" : outputQueueType) + 
+				" selectorQualifierValue:" + ((selectorQualifierValue==null) ? "null" : selectorQualifierValue) + 
+				" relatedInputQueueName:" + ((relatedInputQueueName==null) ? "null" : relatedInputQueueName) + 
+				" relatedOutputQueueName:" + ((relatedOutputQueueName==null) ? "null" : relatedOutputQueueName) + 
+				" relatedSelectorName:" + ((relatedSelectorName==null) ? "null" : relatedSelectorName) + 
+				" relatedSelectorMethod:" + ((relatedSelectorMethod==null) ? "null" : relatedSelectorMethod) + 
+				" updatingSubscriptionQueueKey:" + ((updatingSubscriptionQueueKey==null) ? "null" : updatingSubscriptionQueueKey) +
+				" relatedSelectorEnabled:" + relatedSelectorEnabled
 				);
-
+	}
+	
+	public boolean getRelatedSelectorEnabled() {
+		return relatedSelectorEnabled;
+	}
+	
+	public String getUpdatingSubscriptionQueueKey(){
+		return updatingSubscriptionQueueKey;
+	}
+	public String getSelectorQualifierValue() {
+		return selectorQualifierValue;
+	}
+	
+	public String getRelatedInputQueueName() {
+		return relatedInputQueueName;
+	}
+	
+	public String getRelatedOutputQueueName() {
+		return relatedOutputQueueName;
+	}
+	
+	public String getRelatedSelectorName() {
+		return relatedSelectorName;
+	}
+	
+	public String getRelatedSelectorMethod() {
+		return relatedSelectorMethod;
 	}
 	
 	public String getOutputQueueType(){
@@ -136,6 +190,18 @@ public class MetricConfig {
 		return outputQueueTimeCapacity;
 	}
 
+	public int getRelatedOutputQueueMaxProducers() {
+		return relatedOutputQueueMaxProducers;
+	}
+
+	public int getRelatedOutputQueueRecordCapacity() {
+		return relatedOutputQueueRecordCapacity;
+	}
+
+	public int getRelatedOutputQueueTimeCapacity() {
+		return relatedOutputQueueTimeCapacity;
+	}
+
 	public String getRecordType() {
 		return recordType;
 	}
@@ -152,6 +218,9 @@ public class MetricConfig {
 		private final int outputQueueRecordCapacity;
 		private final int outputQueueTimeCapacity;
 		private final int outputQueueMaxProducers;
+		private final int relatedOutputQueueRecordCapacity;
+		private final int relatedOutputQueueTimeCapacity;
+		private final int relatedOutputQueueMaxProducers;
 		private final int periodicity;
 		private final String recordType;
 		private final String procRecordProducerMetricName;
@@ -170,6 +239,14 @@ public class MetricConfig {
 		private String selectorQualifierKey;
 		private long cumulativeSelectorFlushTime;
 		private String outputQueueType;
+		private String selectorQualifierValue = null;
+		private String relatedInputQueueName = null;
+		private String relatedOutputQueueName = null;
+		private String relatedSelectorName = null;
+		private String relatedSelectorMethod = null;
+		private String updatingSubscriptionQueueKey = null;
+		private boolean relatedSelectorEnabled = false;
+
 		
 
 		
@@ -179,56 +256,12 @@ public class MetricConfig {
 				String rawRecordProducerName, String selector, String processor, String method, 
 				boolean metricActionStatusRecordsEnabled, long metricActionStatusRecordFrequency,
 				String thresholdKey, String thresholdValue, long timeSelectorMaxDelta, long timeSelectorMinDelta,
-				String selectorQualifierKey, long cumulativeSelectorFlushTime, String outputQueueType) throws Exception{
-			
-			//Everything needs an id (e.g. "metric.name")
-			if(id == null || id.equals(""))
-				throw new IllegalArgumentException("Can not build a metric config using a null/empty " + Constants.METRIC_NAME);
-			
-			//Everything except the record producer stats needs a fully specified output queue
-			if (!recordType.equals(Constants.RAW_RECORD_PRODUCER_STAT_RECORD)){
-				if(outputQueue == null || outputQueue.equals(""))
-					throw new IllegalArgumentException("Can not build a metric config for " + id + " using a null/empty " + Constants.OUTPUT_QUEUE_NAME);
-				if (outputQueueRecordCapacity < 1)
-					throw new IllegalArgumentException(	"Can not build a metric config for " + id + " using " + Constants.OUTPUT_QUEUE_CAPACITY_RECORDS + 
-														" < 1, value: " + outputQueueRecordCapacity);
-				if (outputQueueTimeCapacity < 1)
-					throw new IllegalArgumentException( "Can not build a metric config for " + id + " using " + Constants.OUTPUT_QUEUE_CAPACITY_SECONDS + 
-														" < 1, value: " + outputQueueTimeCapacity);
-			}
-			
-			//Everything needs a recordType
-			if(recordType == null || recordType.equals(""))
-				throw new IllegalArgumentException("Can not build a metric config for " + id + " using a null/empty " + Constants.RECORD_TYPE);
-			
-			//ProcRecordProducer metrics have specific requirements:
-			if (recordType.equals(Constants.PROC_RECORD_PRODUCER_RECORD)) {
-				if (procRecordProducerMetricName == null || !ProcRecordProducer.isValidMetricName(procRecordProducerMetricName))
-					throw new IllegalArgumentException("Can not build a ProcRecordProducerMetric for " + id + " using a null/invalid " + Constants.PROC_RECORD_PRODUCER_METRIC_NAME);
-				else if (periodicity < 1000) 
-					throw new IllegalArgumentException("Can not build a ProcRecordProducerMetric for " + id + " using " + Constants.PERIODICITY_MS + " < 1000, value: " + periodicity);
-			}
-			//If it is not a raw RecordProducer metric (e.g. ProcRecordProducer or MfsGutsRecordProducer), then it must have an inputQueue, selector, processor and method
-			else if (!recordType.equals(Constants.MFS_GUTS_RECORD_PRODUCER_RECORD) &&
-					 !recordType.equals(Constants.RAW_RECORD_PRODUCER_STAT_RECORD))
-			{
-				if(inputQueue == null || inputQueue.equals(""))
-					throw new IllegalArgumentException("Can not build a non-raw metric config for " + id + " using a null/empty " + Constants.INPUT_QUEUE_NAME);
-				else if (selector == null || selector.equals(""))
-					throw new IllegalArgumentException("Can not build a non-raw metric config for " + id + " using a null/empty " + Constants.INPUT_RECORD_SELECTOR);
-				else if (processor == null || processor.equals(""))
-					throw new IllegalArgumentException("Can not build a non-raw metric config for " + id + " using a null/empty " + Constants.INPUT_RECORD_PROCESSOR_NAME);
-				else if (method == null || method.equals(""))
-					throw new IllegalArgumentException("Can not build a non-raw metric config for " + id + " using a null/empty " + Constants.INPUT_RECORD_PROCESSOR_METHOD);
-			}
-			else if (selector!=null && selector.equals(Constants.TIME_SELECTOR)){
-				if(timeSelectorMinDelta < 1000)
-					throw new Exception("Use of " + Constants.INPUT_RECORD_SELECTOR + "=" + Constants.TIME_SELECTOR + 
-										" requires " + Constants.TIME_SELECTOR_MIN_DELTA + " >= 1000, provided value: " + 
-										timeSelectorMinDelta);
-				if(timeSelectorMaxDelta != -1 && timeSelectorMaxDelta < timeSelectorMinDelta)
-					throw new Exception(Constants.TIME_SELECTOR_MAX_DELTA + " can not be less than " + Constants.TIME_SELECTOR_MIN_DELTA);
-			}
+				String selectorQualifierKey, long cumulativeSelectorFlushTime, String outputQueueType,
+				String selectorQualifierValue, String relatedInputQueueName,
+				String relatedSelectorName, String relatedSelectorMethod,
+				String updatingSubscriptionQueueKey, String relatedOutputQueueName, 
+				int relatedOutputQueueRecordCapacity, int relatedOutputQueueTimeCapacity, 
+				int relatedOutputQueueMaxProducers, boolean relatedSelectorEnabled) throws Exception{
 			
 			this.id = id;
 			this.inputQueue = inputQueue;
@@ -236,6 +269,9 @@ public class MetricConfig {
 			this.outputQueueRecordCapacity = outputQueueRecordCapacity;
 			this.outputQueueTimeCapacity = outputQueueTimeCapacity;
 			this.outputQueueMaxProducers = outputQueueMaxProducers;
+			this.relatedOutputQueueRecordCapacity = relatedOutputQueueRecordCapacity;
+			this.relatedOutputQueueTimeCapacity = relatedOutputQueueTimeCapacity;
+			this.relatedOutputQueueMaxProducers = relatedOutputQueueMaxProducers;
 			this.periodicity = periodicity;
 			this.recordType = recordType;
 			this.procRecordProducerMetricName = procRecordProducerMetricName;
@@ -254,13 +290,20 @@ public class MetricConfig {
 			this.selectorQualifierKey = selectorQualifierKey;
 			this.cumulativeSelectorFlushTime = cumulativeSelectorFlushTime;
 			this.outputQueueType = outputQueueType;
+			this.selectorQualifierValue = selectorQualifierValue;
+			this.relatedInputQueueName = relatedInputQueueName;
+			this.relatedOutputQueueName = relatedOutputQueueName;
+			this.relatedSelectorName = relatedSelectorName;
+			this.relatedSelectorMethod = relatedSelectorMethod;
+			this.updatingSubscriptionQueueKey = updatingSubscriptionQueueKey;
+			this.relatedSelectorEnabled = relatedSelectorEnabled;
 		}
 
 		public MetricConfig build() {
 			return new MetricConfig(this);
 		}
 	}
-	
+		
 	public boolean getMetricActionStatusRecordsEnabled() {
 		return metricActionStatusRecordsEnabled;
 	}

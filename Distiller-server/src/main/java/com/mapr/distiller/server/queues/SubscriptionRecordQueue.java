@@ -496,6 +496,63 @@ public class SubscriptionRecordQueue implements RecordQueue {
 		return record;
 	}
 	
+	public Record peek(String subscriberName) {
+		boolean needToWaitForRecord = false;
+		int waitTime = 10;
+		if(subscriberName==null || subscriberName.equals("")){
+			return get();
+		}
+		while (true) {
+			// Synchronize on lock for reading/writing SubscriberQueue contents.
+			synchronized (lock) {
+				expireRecords();
+				int positionToRead = consumers.get(subscriberName).intValue();
+				// Check if we can read a value based on queue size and
+				// subscriber position.
+				if (positionToRead == queueRecordCapacity
+						|| positionToRead == subscriptionRecordQueue.size()) {
+					needToWaitForRecord = true;
+					// If we have a value we can read, then read it and adjust
+					// the positions.
+				} else {
+					return subscriptionRecordQueue.get(positionToRead);
+				}
+			}
+			if (needToWaitForRecord) {
+				try {
+					synchronized (valueAdded) {
+						valueAdded.wait(waitTime);
+						if (waitTime < 1000) {
+							waitTime *= 10;
+						}
+					}
+				} catch (Exception e) {}
+			}
+		}
+	}
+	
+	public Record peek(String subscriberName, boolean blocking) {
+		if(blocking) return peek(subscriberName);
+		if(subscriberName==null || subscriberName.equals("")){
+			if(subscriptionRecordQueue.size()>0) return subscriptionRecordQueue.get(0);
+			else return null;
+		}
+		// Synchronize on lock for reading/writing SubscriberQueue contents.
+		synchronized (lock) {
+			expireRecords();
+			int positionToRead = consumers.get(subscriberName).intValue();
+			// Check if we can read a value based on queue size and subscriber position.
+			if (positionToRead == queueRecordCapacity
+					|| positionToRead == subscriptionRecordQueue.size()) {
+				return null;
+				// If we have a value we can read, then read it and adjust
+				// the positions.
+			} else {
+				return subscriptionRecordQueue.get(positionToRead);
+			}
+		}
+	}
+	
 	private void expireRecords(){
 		synchronized(lock){
 			//Drop expired records from the queue

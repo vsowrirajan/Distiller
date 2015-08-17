@@ -30,6 +30,9 @@ public interface RecordQueue {
 	//Perform a get for the next sequential Record for the specific consumer, either blocking or non blocking as specified, return null for non-blocking requests where no records are available
 	public Record get(String subscriber, boolean blocking);
 	
+	//Perform a peek at the next sequential Record for the specific consumer, either blocking or non blocking as specified, return null for non-blocking requests where no records are available
+	public Record peek(String subscriber, boolean blocking);
+	
 	//Return a String array where each element represents the name of a registered Producer
 	public String[] listProducers();
 

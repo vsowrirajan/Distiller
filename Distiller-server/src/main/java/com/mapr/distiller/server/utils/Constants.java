@@ -22,10 +22,26 @@ public interface Constants {
 	public static final String RAW_PRODUCER_METRICS_ENABLED	 			= "raw.producer.metrics.enabled";
 	public static final String RAW_RECORD_PRODUCER_NAME	 				= "raw.record.producer.name";
 	public static final String RECORD_TYPE	 							= "record.type";
+	public static final String RELATED_OUTPUT_QUEUE_CAPACITY_RECORDS	= "related.output.queue.record.capacity";
+	public static final String RELATED_OUTPUT_QUEUE_CAPACITY_SECONDS	= "related.output.queue.second.capacity";
+	public static final String RELATED_OUTPUT_QUEUE_MAX_PRODUCERS		= "related.output.queue.max.producers";
+	public static final String RELATED_SELECTOR_ENABLED					= "related.selector.enabled";
 	public static final String THRESHOLD_KEY	 						= "threshold.key";
 	public static final String THRESHOLD_VALUE	 						= "threshold.value";
 	public static final String SELECTOR_QUALIFIER_KEY					= "selector.qualifier.key";
+	public static final String SELECTOR_QUALIFIER_VALUE					= "selector.qualifier.value";
+	public static final String SELECTOR_RELATED_INPUT_QUEUE_NAME		= "selector.related.input.queue.name";
+	public static final String SELECTOR_RELATED_OUTPUT_QUEUE_NAME		= "selector.related.output.queue.name";
+	public static final String SELECTOR_RELATED_NAME					= "selector.related.name";
+	public static final String SELECTOR_RELATED_METHOD					= "selector.related.method";
 	public static final String SELECTOR_CUMULATIVE_FLUSH_TIME			= "selector.cumulative.flush.time";
+	public static final String UPDATING_SUBSCRIPTION_QUEUE_KEY			= "updating.subscription.queue.key";
+	
+	// Allowable values for selector.related.method
+	public static final String TIME_BASED_WINDOW						= "timeBasedWindow";
+	
+	// Allowable values for selector.related.name
+	public static final String BASIC_RELATED_RECORD_SELECTOR			= "BasicRelatedRecordSelector";
 	
 	// Allowable values for output.queue.type
 	public static final String SUBSCRIPTION_RECORD_QUEUE				= "SubscriptionRecordQueue";

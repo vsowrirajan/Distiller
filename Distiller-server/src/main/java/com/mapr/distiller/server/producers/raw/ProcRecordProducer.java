@@ -195,7 +195,7 @@ public class ProcRecordProducer extends Thread {
 		//Keep trying to generate requested metrics until explicitly requested to exit
 		while(!shouldExit){
 			//Report self metrics
-			if( ((System.currentTimeMillis() - mystatus.getTimestamp()) / 1000l) >= statusIntervalSeconds ){
+			if(!shouldExit && ((System.currentTimeMillis() - mystatus.getTimestamp()) / 1000l) >= statusIntervalSeconds ){
 				RawRecordProducerStatusRecord newRecord = null;
 				try {
 					newRecord = new RawRecordProducerStatusRecord(mystatus);
@@ -359,7 +359,7 @@ public class ProcRecordProducer extends Thread {
 			
 			//We need to check what's in metricSchedule, so synchronize on it since other threads might be modifying it at the same time
 			boolean waitingForMetrics=true;
-			while(waitingForMetrics){
+			while(waitingForMetrics && !shouldExit){
 				synchronized(metricSchedule){
 					//Read the next scheduled event from the schedule;
 					try {
@@ -374,7 +374,7 @@ public class ProcRecordProducer extends Thread {
 					} catch (Exception e) {}
 				}
 			}
-			
+			if(shouldExit) break;
 			//If the time until the event should be executed is greater than 1 second from now, then sleep for a second and check again
 			//This is useful when new metrics need to be gathered.  A new metric that needs to be gathered will have it's first sample
 			//gathered with a delay of 1 second at most.
@@ -899,5 +899,9 @@ public class ProcRecordProducer extends Thread {
 			System.err.println("Failed to run \"getconf CLK_TCK\"");
 			System.exit(1);
 		}
+	}
+	
+	public void requestExit(){
+		shouldExit=true;
 	}
 }

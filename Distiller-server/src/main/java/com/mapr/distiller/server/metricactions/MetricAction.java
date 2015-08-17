@@ -13,18 +13,27 @@ import com.mapr.distiller.server.queues.RecordQueueManager;
 import com.mapr.distiller.server.utils.MetricConfig;
 import com.mapr.distiller.server.processors.*;
 import com.mapr.distiller.server.recordtypes.MetricActionStatusRecord;
+import com.mapr.distiller.server.scheduler.Schedule;
+import com.mapr.distiller.server.scheduler.MetricActionScheduler;
+import com.mapr.distiller.server.selectors.related.RelatedRecordSelector;
+import com.mapr.distiller.server.selectors.related.BasicRelatedRecordSelector;
 
 public class MetricAction implements Runnable, MetricsSelectable {
-	private boolean DEBUG_ENABLED=true;
+	private boolean DEBUG_ENABLED=false;
 	Object object = new Object();
+	private Schedule schedule;
+	private MetricActionScheduler metricActionScheduler;
 	
 	protected String id;
 	protected volatile boolean gatherMetric;
 	protected RecordQueue inputQueue;
 	protected RecordQueue outputQueue;
+	protected RecordQueue relatedInputQueue;
+	protected RecordQueue relatedOutputQueue;
 	protected String recordType;
 
 	protected RecordProcessor<Record> recordProcessor;
+	protected RelatedRecordSelector<Record, Record> relatedRecordSelector;
 
 	protected String selector;
 	protected String processor;
@@ -52,11 +61,11 @@ public class MetricAction implements Runnable, MetricsSelectable {
 	private long timeSelectorMaxDelta;
 	private String selectorQualifierKey;
 	private long cumulativeSelectorFlushTime;
-	private String outputQueueType;
+	private long lastStatus = -1l;
+	private long iterationCount = 0l;
 
-	//private boolean shouldPersist;
-
-	public MetricAction(MetricConfig config, RecordQueueManager queueManager) throws Exception{
+	public MetricAction(MetricConfig config, RecordQueueManager queueManager, MetricActionScheduler metricActionScheduler) throws Exception{
+		this.metricActionScheduler = metricActionScheduler;
 		this.recordList = new LinkedList<Record>();
 		this.recordMap = new HashMap<String, Record>();
 		this.lastSeenIterationMap = new HashMap<String, Long>();
@@ -85,22 +94,12 @@ public class MetricAction implements Runnable, MetricsSelectable {
 		this.timeSelectorMaxDelta = config.getTimeSelectorMaxDelta();
 		this.selectorQualifierKey = config.getSelectorQualifierKey();
 		this.cumulativeSelectorFlushTime = config.getCumulativeSelectorFlushTime();
-		if (config.getOutputQueueType() != null){
-			if(!isValidQueueType(config.getOutputQueueType()))
-					throw new Exception("Unknown queue type \"" + config.getOutputQueueType() + "\" for config: " + config.toString());
-			else
-				this.outputQueueType = config.getOutputQueueType();
-		} else
-			this.outputQueueType = Constants.SUBSCRIPTION_RECORD_QUEUE;
 		
-		if(DEBUG_ENABLED)
-			System.err.println("MetricAction-" + System.identityHashCode(this) + ": Request to initialize metric action from config: " + config.toString()); 
-		if(!isValidSelector(config.getSelector()))
-			throw new Exception("Failed to construct MetricAction due to unknown selector type: " + config.getSelector());
-		if(!isValidMethod(config.getMethod()))
-			throw new Exception("Failed to construct MetricAction due to unknown method type: " + config.getMethod());
-		if(config.getPeriodicity()<1000)
-			throw new Exception("Failed to construct MetricAction due to periodicity < 1000: " + config.getPeriodicity());
+		this.schedule = new Schedule(this.periodicity,
+									 1d,	//Hard coding here to disable adaptive scheduling (not sure if design is good yet))
+									 0d );	//Hard coding here to disable adaptive scheduling
+
+		
 		synchronized(queueManager){
 			try{
 				setupInputQueue(config, queueManager);
@@ -109,15 +108,54 @@ public class MetricAction implements Runnable, MetricsSelectable {
 				throw new Exception("Failed to setup input queue for config: " + config.toString(), e);
 			}
 			try{
+				setupRelatedInputQueue(config, queueManager);
+			} catch (Exception e) {
+				cleanupRelatedInputQueue(config, queueManager);
+				cleanupInputQueue(config, queueManager);
+				throw new Exception("Failed to setup related queue for config: " + config.toString(), e);
+			}
+			try{
+				setupRelatedOutputQueue(config, queueManager);
+			} catch (Exception e) {
+				cleanupRelatedOutputQueue(config, queueManager);
+				cleanupRelatedInputQueue(config, queueManager);
+				cleanupInputQueue(config, queueManager);
+				throw new Exception("Failed to setup related queue for config: " + config.toString(), e);
+			}
+			try{
 				setupOutputQueue(config, queueManager);
 			} catch (Exception e) {
 				cleanupOutputQueue(config, queueManager);
+				cleanupRelatedOutputQueue(config, queueManager);
+				cleanupRelatedInputQueue(config, queueManager);
 				cleanupInputQueue(config, queueManager);
 				throw new Exception("Failed to setup output queue for config: " + config.toString(), e);
 			}
 			this.inputQueue = queueManager.getQueue(config.getInputQueue());
 			this.outputQueue = queueManager.getQueue(config.getOutputQueue());
+			if(config.getRelatedSelectorEnabled()){
+				this.relatedInputQueue = queueManager.getQueue(config.getRelatedInputQueueName());
+				this.relatedOutputQueue = queueManager.getQueue(config.getRelatedOutputQueueName());
+			}
 		}
+		
+		if(config.getRelatedSelectorEnabled()){
+			switch(config.getRelatedSelectorName()){
+			case Constants.BASIC_RELATED_RECORD_SELECTOR:
+				this.relatedRecordSelector = new BasicRelatedRecordSelector(id, 
+																			relatedInputQueue,
+																			relatedOutputQueue, 
+																			config.getRelatedSelectorMethod(),
+																			config.getSelectorQualifierKey(),
+																			config.getSelectorQualifierValue());
+				break;
+				
+			default:
+				throw new Exception("Unknown value for " + Constants.SELECTOR_RELATED_NAME + " - value: " + 
+									config.getRelatedSelectorName());
+			}
+		}
+
 		
 		switch(config.getProcessor()) {
 			case Constants.DISKSTAT_RECORD_PROCESSOR:
@@ -165,9 +203,6 @@ public class MetricAction implements Runnable, MetricsSelectable {
 		}
 		
 		if(config.getMetricActionStatusRecordsEnabled()){	
-			if(config.getMetricActionStatusRecordFrequency() < 1000){
-				throw new Exception("Failed to construct MetricAction due to " + Constants.METRIC_ACTION_STATUS_RECORD_FREQUENCY + " < 1000: " + config.getMetricActionStatusRecordFrequency());
-			}
 			this.metricActionStatusRecordsEnabled = true;
 			this.metricActionStatusRecordFrequency = config.getMetricActionStatusRecordFrequency();
 			synchronized(queueManager){
@@ -181,7 +216,8 @@ public class MetricAction implements Runnable, MetricsSelectable {
 		} else {
 			this.metricActionStatusRecordsEnabled = false;
 		}
-		setGathericMetric(true);
+		setGatherMetric(true);
+		
 	}
 	
 	private void cleanupMetricActionStatusRecordQueue(RecordQueueManager recordQueueManager){
@@ -220,41 +256,9 @@ public class MetricAction implements Runnable, MetricsSelectable {
 	}
 	
 	public static MetricAction getInstance(
-			MetricConfig metricConfig, RecordQueueManager queueManager) throws Exception {
-		return new MetricAction(metricConfig, queueManager);
+			MetricConfig metricConfig, RecordQueueManager queueManager, MetricActionScheduler metricActionScheduler) throws Exception {
+		return new MetricAction(metricConfig, queueManager, metricActionScheduler);
 	}
-	
-	public boolean isValidQueueType(String queueType){
-		if (queueType==null) return false;
-		if (queueType.equals(Constants.SUBSCRIPTION_RECORD_QUEUE) ||
-			queueType.equals(Constants.UPDATING_SUBSCRIPTION_RECORD_QUEUE)
-		   )
-			return true;
-		return false;
-	}
-	public boolean isValidSelector(String selector){
-		if (selector==null) return false;
-		if (selector.equals(Constants.SEQUENTIAL_SELECTOR) ||
-			selector.equals(Constants.CUMULATIVE_SELECTOR) ||
-			selector.equals(Constants.SEQUENTIAL_WITH_QUALIFIER_SELECTOR) ||
-			selector.equals(Constants.CUMULATIVE_WITH_QUALIFIER_SELECTOR) ||
-			selector.equals(Constants.TIME_SELECTOR)
-		) 
-			return true;
-		return false;
-	}
-	
-	public boolean isValidMethod(String method){
-		if (method==null) return false;
-		if (method.equals(Constants.IS_ABOVE) 		||
-			method.equals(Constants.IS_BELOW) 		||
-			method.equals(Constants.IS_EQUAL) 		||
-			method.equals(Constants.IS_NOT_EQUAL)	||
-			method.equals(Constants.MERGE_RECORDS)
-		) 
-			return true;
-		return false;
-	}	
 
 	private void setupOutputQueue(MetricConfig config, RecordQueueManager recordQueueManager) throws Exception{
 		if(	
@@ -274,11 +278,7 @@ public class MetricAction implements Runnable, MetricsSelectable {
 						  ||
 						  ( recordQueueManager.getQueueType(config.getOutputQueue()).equals(config.getOutputQueueType()) &&
 							( !recordQueueManager.getQueueType(config.getOutputQueue()).equals(Constants.UPDATING_SUBSCRIPTION_RECORD_QUEUE) ||
-							  ( !(recordQueueManager.getQueueQualifierKey(config.getOutputQueue())==null) &&
-							    !(config.getSelectorQualifierKey()==null) &&
-							    !config.getSelectorQualifierKey().equals("") &&
-							    recordQueueManager.getQueueQualifierKey(config.getOutputQueue()).equals(config.getSelectorQualifierKey())
-							  )
+							  recordQueueManager.getQueueQualifierKey(config.getOutputQueue()).equals(config.getUpdatingSubscriptionQueueKey())
 							)
 					      )
 						)
@@ -292,7 +292,7 @@ public class MetricAction implements Runnable, MetricsSelectable {
 														config.getOutputQueueTimeCapacity(), 
 														config.getOutputQueueMaxProducers(),
 														config.getOutputQueueType(),
-														config.getSelectorQualifierKey()) 
+														config.getUpdatingSubscriptionQueueKey()) 
 					)
 
 				 )
@@ -329,10 +329,73 @@ public class MetricAction implements Runnable, MetricsSelectable {
 			 )
 		  )
 		{
-			throw new Exception("Failed to register consumer " + config.getId() + " with queue " + config.getOutputQueue());
+			throw new Exception("Failed to register consumer " + config.getId() + " with queue " + config.getInputQueue());
 		}
 	}
-	
+
+	private void setupRelatedInputQueue(MetricConfig config, RecordQueueManager recordQueueManager) throws Exception{
+		if(!config.getRelatedSelectorEnabled())
+			return;
+		if(!recordQueueManager.queueExists(config.getRelatedInputQueueName()))
+			throw new Exception("Related queue does not exist: " + config.getRelatedInputQueueName());
+		if( !(	recordQueueManager.checkForQueueConsumer(config.getRelatedInputQueueName(), config.getId()) ||
+				recordQueueManager.registerConsumer(config.getRelatedInputQueueName(), config.getId())
+			 )
+		  )
+		{
+			throw new Exception("Failed to register consumer " + config.getId() + " with queue " + config.getRelatedInputQueueName());
+		}
+	}
+
+	private void setupRelatedOutputQueue(MetricConfig config, RecordQueueManager recordQueueManager) throws Exception{
+		if(!config.getRelatedSelectorEnabled())
+			return;
+		if(	
+				!(
+					(	
+						recordQueueManager.queueExists(config.getRelatedOutputQueueName()) &&
+						recordQueueManager.getQueueRecordCapacity(config.getRelatedOutputQueueName()) == config.getRelatedOutputQueueRecordCapacity() &&
+						recordQueueManager.getQueueTimeCapacity(config.getRelatedOutputQueueName()) == config.getRelatedOutputQueueTimeCapacity() &&
+						recordQueueManager.getMaxQueueProducers(config.getRelatedOutputQueueName()) == config.getRelatedOutputQueueMaxProducers() && 
+						recordQueueManager.getQueueProducers(config.getRelatedOutputQueueName()).length < config.getRelatedOutputQueueMaxProducers() &&
+						recordQueueManager.getQueueType(config.getRelatedOutputQueueName()).equals(Constants.SUBSCRIPTION_RECORD_QUEUE)
+					)
+					||
+					(
+						!recordQueueManager.queueExists(config.getRelatedOutputQueueName()) &&
+						recordQueueManager.createQueue(	config.getRelatedOutputQueueName(), 
+														config.getRelatedOutputQueueRecordCapacity(), 
+														config.getRelatedOutputQueueTimeCapacity(), 
+														config.getRelatedOutputQueueMaxProducers(),
+														Constants.SUBSCRIPTION_RECORD_QUEUE,
+														null) 
+					)
+
+				 )
+		  )	
+		{
+			if (recordQueueManager.queueExists(config.getRelatedOutputQueueName()) && 
+				recordQueueManager.getQueueProducers(config.getRelatedOutputQueueName()).length == recordQueueManager.getMaxQueueProducers(config.getRelatedOutputQueueName()))
+				throw new Exception("Failed to obtain output queue \"" + config.getRelatedOutputQueueName() + "\" as max producers has been reached.");		
+			throw new Exception("Failed to obtain output queue: " +
+					" qe:" + recordQueueManager.queueExists(config.getRelatedOutputQueueName()) + 
+					" oq:" + config.getRelatedOutputQueueName() + 
+					" oqrc:" + config.getRelatedOutputQueueRecordCapacity() + "/" + recordQueueManager.getQueueRecordCapacity(config.getRelatedOutputQueueName()) + 
+					" oqtc:" + config.getRelatedOutputQueueTimeCapacity() + "/" + recordQueueManager.getQueueTimeCapacity(config.getRelatedOutputQueueName()) + 
+					" oqmp:" + config.getRelatedOutputQueueMaxProducers() + "/" + recordQueueManager.getMaxQueueProducers(config.getRelatedOutputQueueName()) +  
+					" oqt:" + Constants.SUBSCRIPTION_RECORD_QUEUE + "/" + recordQueueManager.getQueueType(config.getRelatedOutputQueueName()) + 
+					" sqk:" + config.getSelectorQualifierKey() + "/" + recordQueueManager.getQueueQualifierKey(config.getRelatedOutputQueueName()) + 
+					" rp:" + recordQueueManager.getQueueProducers(config.getRelatedOutputQueueName()).length
+					);
+		}
+		if( !(	recordQueueManager.checkForQueueProducer(config.getRelatedOutputQueueName(), config.getId()) ||
+				recordQueueManager.registerProducer(config.getRelatedOutputQueueName(), config.getId())
+			 )
+		  )
+		{
+			throw new Exception("Failed to register producer " + config.getId() + " with queue " + config.getRelatedOutputQueueName());
+		}
+	}
 	public void cleanupOutputQueue(MetricConfig config, RecordQueueManager recordQueueManager){
 		recordQueueManager.unregisterProducer(config.getOutputQueue(), config.getId());
 		recordQueueManager.deleteQueue(config.getOutputQueue());
@@ -343,122 +406,123 @@ public class MetricAction implements Runnable, MetricsSelectable {
 		recordQueueManager.deleteQueue(config.getInputQueue());
 	}
 	
+	public void cleanupRelatedInputQueue(MetricConfig config, RecordQueueManager recordQueueManager){
+		if(config.getRelatedSelectorEnabled()){
+			recordQueueManager.unregisterConsumer(config.getRelatedInputQueueName(), config.getId());
+			recordQueueManager.deleteQueue(config.getRelatedInputQueueName());
+		}
+	}
+
+	public void cleanupRelatedOutputQueue(MetricConfig config, RecordQueueManager recordQueueManager){
+		if(config.getRelatedSelectorEnabled()){
+			recordQueueManager.unregisterProducer(config.getRelatedOutputQueueName(), config.getId());
+			recordQueueManager.deleteQueue(config.getRelatedOutputQueueName());
+		}
+	}
+
 	@Override
 	public void run() {
-		startTime = System.currentTimeMillis();
-		long lastStatus = startTime;
-		long iterationCount = 0l;
-		if(DEBUG_ENABLED)
-			System.err.println("MetricAction-" + System.identityHashCode(this) + ": Started metric action " + this.id);
-		while (!Thread.interrupted()) {
-			if (isGathericMetric()) {
-				try {
-					if(selector.equals(Constants.SEQUENTIAL_SELECTOR)){
-						try {
-							selectSequentialRecords();
-						} catch (Exception e) {
-							System.err.println("MetricAction-" + System.identityHashCode(this) + ": Caught an exception while running sequential record selection for " + this.id);
-							e.printStackTrace();
-							throw e;
-						}
-					} else if(selector.equals(Constants.CUMULATIVE_SELECTOR)){
-						try {
-							selectCumulativeRecords();
-						} catch (Exception e) {
-							System.err.println("MetricAction-" + System.identityHashCode(this) + ": Caught an exception while running cumulative record selection for " + this.id);
-							e.printStackTrace();
-							throw e;
-						}
-					} else if(selector.equals(Constants.TIME_SELECTOR)){
-						try {
-							selectTimeSeparatedRecords();
-						} catch (Exception e) {
-							System.err.println("MetricAction-" + System.identityHashCode(this) + ": Caught an exception while running time separated record selection for " + this.id);
-							throw e;
-						}
-					} else if(selector.equals(Constants.SEQUENTIAL_WITH_QUALIFIER_SELECTOR)){
-						try {
-							selectSequentialRecordsWithQualifier();
-						} catch (Exception e) {
-							System.err.println("MetricAction-" + System.identityHashCode(this) + ": Caught an exception while running sequential record selection with qualifier for " + this.id);
-							e.printStackTrace();
-							throw e;
-						}
-						iterationCount++;
-						if(iterationCount == 10){
-							cleanRecordMap();
-							iterationCount=0;
-						}
-					} else if(selector.equals(Constants.CUMULATIVE_WITH_QUALIFIER_SELECTOR)){
-						try {
-							selectCumulativeRecordsWithQualifier();
-						} catch (Exception e) {
-							System.err.println("MetricAction-" + System.identityHashCode(this) + ": Caught an exception while running cumulative record selection with qualifier for " + this.id);
-							e.printStackTrace();
-							throw e;
-						}
-						
-						iterationCount++;
-						if(iterationCount == 10){
-							cleanRecordMap();
-							iterationCount=0;
-						}
-						
-					} else {
-						System.err.println("MetricAction-" + System.identityHashCode(this) + ": Unknown selector: " + selector);
-						throw new Exception();
+		long start = System.currentTimeMillis();
+		if(startTime==-1){
+			startTime = System.currentTimeMillis();
+			lastStatus = startTime;
+		}
+		if(!isGatherMetric()) {
+			System.err.println("MetricAction-" + System.identityHashCode(this) + ": Received request to run metric while it is disabled");
+		} else {
+			if(DEBUG_ENABLED)
+				System.err.println("MetricAction-" + System.identityHashCode(this) + ": Started metric action " + this.id);
+			try {
+				if(selector.equals(Constants.SEQUENTIAL_SELECTOR)){
+					try {
+						selectSequentialRecords();
+					} catch (Exception e) {
+						System.err.println("MetricAction-" + System.identityHashCode(this) + ": Caught an exception while running sequential record selection for " + this.id);
+						throw e;
 					}
-				} catch (Exception e) {
-					System.err.println("MetricAction-" + System.identityHashCode(this) + ": Exiting due to exception while processing records:");
-					e.printStackTrace();
-					cleanupOutputQueue(config, queueManager);
-					cleanupInputQueue(config, queueManager);
-					return;
-				}
-				if (metricActionStatusRecordsEnabled &&
-					System.currentTimeMillis() >= lastStatus + metricActionStatusRecordFrequency)
-				{
-					lastStatus = System.currentTimeMillis();
-					metricActionStatusRecordQueue.put(id, new MetricActionStatusRecord(id, inRecCntr, outRecCntr, processingFailureCntr, putFailureCntr, otherFailureCntr, runningTimems, startTime));
-				}
-				try {
-					Thread.sleep(this.periodicity);
-				} catch (InterruptedException e) {
-					System.out.println("Thread got interrupted - Going down");
-					break;
-				}
-			}
+				} else if(selector.equals(Constants.CUMULATIVE_SELECTOR)){
+					try {
+						selectCumulativeRecords();
+					} catch (Exception e) {
+						System.err.println("MetricAction-" + System.identityHashCode(this) + ": Caught an exception while running cumulative record selection for " + this.id);
+						throw e;
+					}
+				} else if(selector.equals(Constants.TIME_SELECTOR)){
+					try {
+						selectTimeSeparatedRecords();
+					} catch (Exception e) {
+						System.err.println("MetricAction-" + System.identityHashCode(this) + ": Caught an exception while running time separated record selection for " + this.id);
+						throw e;
+					}
+				} else if(selector.equals(Constants.SEQUENTIAL_WITH_QUALIFIER_SELECTOR)){
+					try {
+						selectSequentialRecordsWithQualifier();
+					} catch (Exception e) {
+						System.err.println("MetricAction-" + System.identityHashCode(this) + ": Caught an exception while running sequential record selection with qualifier for " + this.id);
+						throw e;
+					}
+					//This is not a suitable way to implement cleaning.  Just doing this for right now.
+					//TODO: Fix this.
+					iterationCount++;
+					if(iterationCount == 10){
+						cleanRecordMap();
+						iterationCount=0;
+					}
+				} else if(selector.equals(Constants.CUMULATIVE_WITH_QUALIFIER_SELECTOR)){
+					try {
+						selectCumulativeRecordsWithQualifier();
+					} catch (Exception e) {
+						System.err.println("MetricAction-" + System.identityHashCode(this) + ": Caught an exception while running cumulative record selection with qualifier for " + this.id);
+						throw e;
+					}
+					//TODO: Fix this
+					iterationCount++;
+					if(iterationCount == 10){
+						cleanRecordMap();
+						iterationCount=0;
+					}
 
-			else {
-				if(DEBUG_ENABLED)
-					System.err.println("MetricAction-" + System.identityHashCode(this) + ": Sleeping until metric gathering is enabled");
-				try {
-					synchronized (object) {
-						object.wait();
-					}
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
+				} else {
+					System.err.println("MetricAction-" + System.identityHashCode(this) + ": Unknown selector: " + selector);
+					throw new Exception();
 				}
+			} catch (Exception e) {
+				System.err.println("MetricAction-" + System.identityHashCode(this) + ": Exiting due to exception while processing records:");
+				e.printStackTrace();
+				return;
+			}
+			if (metricActionStatusRecordsEnabled &&
+				System.currentTimeMillis() >= lastStatus + metricActionStatusRecordFrequency)
+			{
+				lastStatus = System.currentTimeMillis();
+				metricActionStatusRecordQueue.put(id, new MetricActionStatusRecord(id, inRecCntr, outRecCntr, processingFailureCntr, putFailureCntr, otherFailureCntr, runningTimems, startTime));
+			}
+			schedule.setTimestamps(start, System.currentTimeMillis());
+			try{
+				schedule.advanceSchedule();
+			 	metricActionScheduler.schedule(this);
+			} catch (Exception e) {
+				//We should never be here};
+				System.err.println("Unknown exception:");
+				e.printStackTrace();
+				System.exit(1);
 			}
 		}
 		if(DEBUG_ENABLED)
-			System.err.println("MetricAction-" + System.identityHashCode(this) + ": Shutting down.");
+			System.err.println("MetricAction-" + System.identityHashCode(this) + ": Completed metric action " + id);
+	}
+	
+	public void disable(){
+		gatherMetric=false;
 		cleanupOutputQueue(config, queueManager);
+		cleanupRelatedOutputQueue(config, queueManager);
+		cleanupRelatedInputQueue(config, queueManager);
 		cleanupInputQueue(config, queueManager);
+		cleanupMetricActionStatusRecordQueue(queueManager);
 	}
 
 	@Override
 	public void selectSequentialRecords() throws Exception{
-		if( !(	method.equals(Constants.MERGE_RECORDS) ||
-				method.equals(Constants.IS_ABOVE) ||
-				method.equals(Constants.IS_BELOW) ||
-				method.equals(Constants.IS_EQUAL) ||
-				method.equals(Constants.IS_NOT_EQUAL)
-			 )
-		)
-			throw new Exception("Sequential record selection can not be performed using " + Constants.INPUT_RECORD_PROCESSOR_METHOD + "=" + method);
-
 		long st = System.currentTimeMillis();
 		
 		while((newRec = inputQueue.get(id, false)) != null){
@@ -482,6 +546,12 @@ public class MetricAction implements Runnable, MetricsSelectable {
 						}
 						putFailureCntr++;
 					}
+					if(config.getRelatedSelectorEnabled())
+						try {
+							relatedRecordSelector.selectRelatedRecords(outputRec);
+						} catch (Exception e) {
+							throw new Exception("Failed to process related records", e);
+						}
 				} catch (Exception e) {
 					if(DEBUG_ENABLED){
 						System.err.println("MetricAction-" + System.identityHashCode(this) + ": Record processing failure:");
@@ -504,6 +574,12 @@ public class MetricAction implements Runnable, MetricsSelectable {
 							}
 							putFailureCntr++;
 						}
+						if(config.getRelatedSelectorEnabled())
+							try {
+								relatedRecordSelector.selectRelatedRecords(newRec);
+							} catch (Exception e) {
+								throw new Exception("Failed to process related records", e);
+							}
 					}
 				} catch (Exception e) {
 					if(DEBUG_ENABLED){
@@ -526,6 +602,12 @@ public class MetricAction implements Runnable, MetricsSelectable {
 							}
 							putFailureCntr++;
 						}
+						if(config.getRelatedSelectorEnabled())
+							try {
+								relatedRecordSelector.selectRelatedRecords(newRec);
+							} catch (Exception e) {
+								throw new Exception("Failed to process related records", e);
+							}
 					}
 				} catch (Exception e) {
 					if(DEBUG_ENABLED){
@@ -548,6 +630,12 @@ public class MetricAction implements Runnable, MetricsSelectable {
 							}
 							putFailureCntr++;
 						}
+						if(config.getRelatedSelectorEnabled())
+							try {
+								relatedRecordSelector.selectRelatedRecords(newRec);
+							} catch (Exception e) {
+								throw new Exception("Failed to process related records", e);
+							}
 					}
 				} catch (Exception e) {
 					if(DEBUG_ENABLED){
@@ -570,6 +658,12 @@ public class MetricAction implements Runnable, MetricsSelectable {
 							}
 							putFailureCntr++;
 						}
+						if(config.getRelatedSelectorEnabled())
+							try {
+								relatedRecordSelector.selectRelatedRecords(newRec);
+							} catch (Exception e) {
+								throw new Exception("Failed to process related records", e);
+							}
 					}
 				} catch (Exception e) {
 					if(DEBUG_ENABLED){
@@ -588,8 +682,6 @@ public class MetricAction implements Runnable, MetricsSelectable {
 
 	@Override
 	public void selectCumulativeRecords() throws Exception{
-		if(!method.equals(Constants.MERGE_RECORDS))
-			throw new Exception("Cumulative record selection can only be performed using " + Constants.INPUT_RECORD_PROCESSOR_METHOD + "=" + Constants.MERGE_RECORDS);
 		long st = System.currentTimeMillis();
 		long lastRecordPut=0;
 		
@@ -611,6 +703,12 @@ public class MetricAction implements Runnable, MetricsSelectable {
 					}
 					putFailureCntr++;
 				}
+				if(config.getRelatedSelectorEnabled())
+					try {
+						relatedRecordSelector.selectRelatedRecords(oldRec);
+					} catch (Exception e) {
+						throw new Exception("Failed to process related records", e);
+					}
 				break;
 			} 
 			else if(method.equals(Constants.MERGE_RECORDS)){
@@ -632,6 +730,12 @@ public class MetricAction implements Runnable, MetricsSelectable {
 						}
 						putFailureCntr++;
 					}
+					if(config.getRelatedSelectorEnabled())
+						try {
+							relatedRecordSelector.selectRelatedRecords(oldRec);
+						} catch (Exception e) {
+							throw new Exception("Failed to process related records", e);
+						}
 				} catch (Exception e) {
 					if(DEBUG_ENABLED){
 						System.err.println("MetricAction-" + System.identityHashCode(this) + ": Record processing failure:");
@@ -649,9 +753,6 @@ public class MetricAction implements Runnable, MetricsSelectable {
 
 	@Override
 	public void selectCumulativeRecordsWithQualifier() throws Exception{
-		if(!method.equals(Constants.MERGE_RECORDS))
-			throw new Exception("Cumulative record selection with qualifier can only be performed using " + Constants.INPUT_RECORD_PROCESSOR_METHOD + "=" + Constants.MERGE_RECORDS);
-
 		long st = System.currentTimeMillis();
 		while((newRec = inputQueue.get(id, false)) != null){
 			inRecCntr++;
@@ -671,9 +772,21 @@ public class MetricAction implements Runnable, MetricsSelectable {
 							outputQueue.put(id, outputRec);
 							lastPutTimeMap.put(outputRec.getValueForQualifier(selectorQualifierKey), new Long(outputRec.getTimestamp()));
 							outRecCntr++;
+							if(config.getRelatedSelectorEnabled())
+								try {
+									relatedRecordSelector.selectRelatedRecords(outputRec);
+								} catch (Exception e) {
+									throw new Exception("Failed to process related records", e);
+								}
 						} else if (cumulativeSelectorFlushTime == -1){
 							outputQueue.put(id, outputRec);
 							outRecCntr++;
+							if(config.getRelatedSelectorEnabled())
+								try {
+									relatedRecordSelector.selectRelatedRecords(outputRec);
+								} catch (Exception e) {
+									throw new Exception("Failed to process related records", e);
+								}
 						}
 					} catch (Exception e) {
 						putFailureCntr++;
@@ -719,9 +832,6 @@ public class MetricAction implements Runnable, MetricsSelectable {
 	
 	@Override
 	public void selectTimeSeparatedRecords() throws Exception {
-		if(!method.equals(Constants.MERGE_RECORDS))
-			throw new Exception("Time separated record selection can only be performed using " + Constants.INPUT_RECORD_PROCESSOR_METHOD + "=" + Constants.MERGE_RECORDS);
-
 		long st = System.currentTimeMillis();
 		while((newRec = inputQueue.get(id, false)) != null){
 			inRecCntr++;
@@ -747,6 +857,12 @@ public class MetricAction implements Runnable, MetricsSelectable {
 							e.printStackTrace();
 						}
 					}
+					if(config.getRelatedSelectorEnabled())
+						try {
+							relatedRecordSelector.selectRelatedRecords(outputRec);
+						} catch (Exception e) {
+							throw new Exception("Failed to process related records", e);
+						}
 				} catch (Exception e) {
 					if(DEBUG_ENABLED){
 						System.err.println("MetricAction-" + System.identityHashCode(this) + ": Record processing failure:");
@@ -762,9 +878,6 @@ public class MetricAction implements Runnable, MetricsSelectable {
 	
 	@Override
 	public void selectSequentialRecordsWithQualifier() throws Exception {
-		if(!method.equals(Constants.MERGE_RECORDS))
-			throw new Exception("Sequential record selection with qualifier can only be performed using " + Constants.INPUT_RECORD_PROCESSOR_METHOD + "=" + Constants.MERGE_RECORDS);
-
 		long st = System.currentTimeMillis();
 		while((newRec = inputQueue.get(id, false)) != null){
 			inRecCntr++;
@@ -783,6 +896,12 @@ public class MetricAction implements Runnable, MetricsSelectable {
 							e.printStackTrace();
 						}
 					}
+					if(config.getRelatedSelectorEnabled())
+						try {
+							relatedRecordSelector.selectRelatedRecords(outputRec);
+						} catch (Exception e) {
+							throw new Exception("Failed to process related records", e);
+						}
 				} catch (Exception e) {
 					if(DEBUG_ENABLED){
 						System.err.println("MetricAction-" + System.identityHashCode(this) + ": Record processing failure:");
@@ -796,7 +915,7 @@ public class MetricAction implements Runnable, MetricsSelectable {
 		}
 		runningTimems += System.currentTimeMillis() - st;
 	}
-
+	
 	public void cleanRecordMap() {
 		Iterator<Map.Entry<String, Long>> i = lastSeenIterationMap.entrySet().iterator();
 		LinkedList<String> elementsToRemove = new LinkedList<String>();
@@ -813,50 +932,27 @@ public class MetricAction implements Runnable, MetricsSelectable {
 		}
 	}
 
-	public void suspend() throws InterruptedException {
-		System.out.println("Stopping metric with id = " + id);
-		if (gatherMetric) {
-			gatherMetric = false;
-		}
-
-		else {
-			System.out.println("Already suspended metric " + id);
-		}
-	}
-
-	public void resume() {
-		synchronized (object) {
-			if (!gatherMetric) {
-				System.out.println("Resuming metric with id = " + id);
-				gatherMetric = true;
-				object.notifyAll();
-			}
-
-			else {
-				System.out.println("Already running Metric " + id);
-			}
-		}
-	}
-
-	public void kill() {
-		System.out.println("Kill metric with id = " + id);
-		gatherMetric = false;
-	}
-
-	public boolean isGathericMetric() {
+	public boolean isGatherMetric() {
 		return gatherMetric;
 	}
 
-	public void setGathericMetric(boolean isGathericMetric) {
-		this.gatherMetric = isGathericMetric;
+	public void setGatherMetric(boolean isGatherMetric) {
+		this.gatherMetric = isGatherMetric;
 	}
 
 	public MetricAction(String id) {
 		this.id = id;
 	}
 
+	public long getNextScheduleTime() throws Exception{
+		return schedule.getNextTime();
+	}
 	public String getId() {
 		return id;
+	}
+	
+	public int getPeriodicity(){
+		return periodicity;
 	}
 
 }
