@@ -50,7 +50,6 @@ public class BasicRelatedRecordSelector implements RelatedRecordSelector<Record,
 	
 	public long[] selectRelatedRecords(Record inputRecord) throws Exception
 	{
-		//System.err.println(System.currentTimeMillis() + " " + id + " starting for record " + inputRecord.toString());
 		Record relatedRecord;
 		if(relationMethod.equals(Constants.TIME_BASED_WINDOW)){
 			//Update the list of TimePeriods we are interested in based on the timestamps in the new input record

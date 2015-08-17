@@ -553,9 +553,7 @@ public class MetricAction implements Runnable, MetricsSelectable {
 					}
 					if(config.getRelatedSelectorEnabled())
 						try {
-							long st2 = System.currentTimeMillis();
 							relatedRecordSelector.selectRelatedRecords(outputRec);
-							System.out.println("Related selection took " + (System.currentTimeMillis() - st2));
 						} catch (Exception e) {
 							throw new Exception("Failed to process related records", e);
 						}
