@@ -466,7 +466,7 @@ public class Coordinator {
 							config.setMetricActionCreated(true);
 							if(DEBUG_ENABLED)
 								System.err.println("Coordinator-" + System.identityHashCode(this) + ": MetricAction created for " + newAction.getId());
-						} else if(isRawRecordType(config.getRecordType()) || config.getRecordType().equals(Constants.RAW_RECORD_PRODUCER_STAT_RECORD)){
+						} else if(isRawRecordType(config.getRecordType()) || (config.isInitialized() && config.getRecordType().equals(Constants.RAW_RECORD_PRODUCER_STAT_RECORD))){
 							config.setMetricActionCreated(true);
 							System.err.println("Marking success for " + config.getId());
 							initializationSuccesses++;
@@ -503,7 +503,7 @@ public class Coordinator {
 						System.err.println("Coordinator-" + System.identityHashCode(this) + 
 								": Failed to create MetricAction for MetricConfig " + config.getId() + 
 								" inputQueue:" + config.getInputQueue() + 
-								" inputQExists:" + recordQueueManager.queueExists(config.getInputQueue()) + 
+								" inputQExists:" + ((config.getInputQueue()==null) ? "null" : recordQueueManager.queueExists(config.getInputQueue())) + 
 								( (config.getRelatedSelectorEnabled()) ? (" relatedQueue:" + config.getRelatedInputQueueName() + 
 																		  " relatedQExists:" + recordQueueManager.queueExists(config.getRelatedInputQueueName())
 																		 ) 
@@ -521,7 +521,7 @@ public class Coordinator {
 		MetricAction metricAction = null;
 		boolean initialized=false;
 		
-		if(config.isInitialized())
+		if(config.isInitialized() && !config.getRecordType().equals(Constants.RAW_RECORD_PRODUCER_STAT_RECORD))
 			throw new Exception("MetricConfig " + config.getId() + " is already initialized.");
 		if(config.getMetricEnabled()){
 			if( config.getInputQueue()!=null &&
@@ -700,7 +700,20 @@ public class Coordinator {
 			
 		case Constants.RAW_RECORD_PRODUCER_STAT_RECORD:
 			if(!enableRawRecordProducerStats(config)){
-				throw new Exception("Coordinator: Failed to enable stats for raw record producer " + config.getRawRecordProducerName());
+				if
+				( ( config.getRawRecordProducerName().equals(Constants.PROC_RECORD_PRODUCER_NAME) 
+					&& 
+					procRecordProducer!=null
+				  )
+				  ||
+				  ( config.getRawRecordProducerName().equals(Constants.MFS_GUTS_RECORD_PRODUCER_NAME) 
+					&&
+					mfsGutsRecordProducer!=null
+				  )
+				)	
+				{
+					throw new Exception("Coordinator: Failed to enable stats for raw record producer " + config.getRawRecordProducerName());
+				}
 			} else {
 				if(DEBUG_ENABLED)
 					System.err.println("Coordinator: Enabled stats for raw record producer " + config.getRawRecordProducerName());
