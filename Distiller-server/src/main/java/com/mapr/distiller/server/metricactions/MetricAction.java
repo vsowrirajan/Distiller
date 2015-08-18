@@ -25,7 +25,7 @@ public class MetricAction implements Runnable, MetricsSelectable {
 	private MetricActionScheduler metricActionScheduler;
 	
 	protected String id;
-	protected volatile boolean gatherMetric;
+	protected volatile boolean metricEnabled;
 	protected RecordQueue inputQueue;
 	protected RecordQueue outputQueue;
 	protected RecordQueue relatedInputQueue;
@@ -98,51 +98,11 @@ public class MetricAction implements Runnable, MetricsSelectable {
 		this.timeSelectorMaxDelta = config.getTimeSelectorMaxDelta();
 		this.selectorQualifierKey = config.getSelectorQualifierKey();
 		this.cumulativeSelectorFlushTime = config.getCumulativeSelectorFlushTime();
-		
+		this.metricEnabled=false; //Ignore whats in the config because this gets set to true by calling to enableMetric() which does the necessary setup work.
 		this.schedule = new Schedule(this.periodicity,
 									 1d,	//Hard coding here to disable adaptive scheduling (not sure if design is good yet))
 									 0d );	//Hard coding here to disable adaptive scheduling
 
-		
-		synchronized(queueManager){
-			try{
-				setupInputQueue(config, queueManager);
-			} catch (Exception e) {
-				cleanupInputQueue(config, queueManager);
-				throw new Exception("Failed to setup input queue for config: " + config.toString(), e);
-			}
-			try{
-				setupRelatedInputQueue(config, queueManager);
-			} catch (Exception e) {
-				cleanupRelatedInputQueue(config, queueManager);
-				cleanupInputQueue(config, queueManager);
-				throw new Exception("Failed to setup related queue for config: " + config.toString(), e);
-			}
-			try{
-				setupRelatedOutputQueue(config, queueManager);
-			} catch (Exception e) {
-				cleanupRelatedOutputQueue(config, queueManager);
-				cleanupRelatedInputQueue(config, queueManager);
-				cleanupInputQueue(config, queueManager);
-				throw new Exception("Failed to setup related queue for config: " + config.toString(), e);
-			}
-			try{
-				setupOutputQueue(config, queueManager);
-			} catch (Exception e) {
-				cleanupOutputQueue(config, queueManager);
-				cleanupRelatedOutputQueue(config, queueManager);
-				cleanupRelatedInputQueue(config, queueManager);
-				cleanupInputQueue(config, queueManager);
-				throw new Exception("Failed to setup output queue for config: " + config.toString(), e);
-			}
-			this.inputQueue = queueManager.getQueue(config.getInputQueue());
-			this.outputQueue = queueManager.getQueue(config.getOutputQueue());
-			if(config.getRelatedSelectorEnabled()){
-				this.relatedInputQueue = queueManager.getQueue(config.getRelatedInputQueueName());
-				this.relatedOutputQueue = queueManager.getQueue(config.getRelatedOutputQueueName());
-			}
-		}
-		
 		if(config.getRelatedSelectorEnabled()){
 			switch(config.getRelatedSelectorName()){
 			case Constants.BASIC_RELATED_RECORD_SELECTOR:
@@ -209,19 +169,9 @@ public class MetricAction implements Runnable, MetricsSelectable {
 		if(config.getMetricActionStatusRecordsEnabled()){	
 			this.metricActionStatusRecordsEnabled = true;
 			this.metricActionStatusRecordFrequency = config.getMetricActionStatusRecordFrequency();
-			synchronized(queueManager){
-				try{
-					setupMetricActionStatusRecordQueue(queueManager);
-				} catch (Exception e) {
-					cleanupMetricActionStatusRecordQueue(queueManager);
-					throw new Exception("Failed to setup metric action status record queue", e);
-				}
-			}
 		} else {
 			this.metricActionStatusRecordsEnabled = false;
 		}
-		setGatherMetric(true);
-		
 	}
 	
 	private void cleanupMetricActionStatusRecordQueue(RecordQueueManager recordQueueManager){
@@ -431,7 +381,7 @@ public class MetricAction implements Runnable, MetricsSelectable {
 			startTime = System.currentTimeMillis();
 			lastStatus = startTime;
 		}
-		if(!isGatherMetric()) {
+		if(!metricEnabled) {
 			System.err.println("MetricAction-" + System.identityHashCode(this) + ": Received request to run metric while it is disabled");
 		} else {
 			if(DEBUG_ENABLED)
@@ -516,8 +466,8 @@ public class MetricAction implements Runnable, MetricsSelectable {
 			System.err.println("MetricAction-" + System.identityHashCode(this) + ": Completed metric action " + id);
 	}
 	
-	public void disable(){
-		gatherMetric=false;
+	public void disableMetric(){
+		metricEnabled=false;
 		cleanupOutputQueue(config, queueManager);
 		cleanupRelatedOutputQueue(config, queueManager);
 		cleanupRelatedInputQueue(config, queueManager);
@@ -980,12 +930,60 @@ public class MetricAction implements Runnable, MetricsSelectable {
 		}
 	}
 
-	public boolean isGatherMetric() {
-		return gatherMetric;
+	public boolean getMetricEnabled() {
+		return metricEnabled;
 	}
 
-	public void setGatherMetric(boolean isGatherMetric) {
-		this.gatherMetric = isGatherMetric;
+	public void enableMetric() throws Exception{
+		this.metricEnabled = true;
+		synchronized(queueManager){
+			try{
+				setupInputQueue(config, queueManager);
+			} catch (Exception e) {
+				cleanupInputQueue(config, queueManager);
+				throw new Exception("Failed to setup input queue for config: " + config.toString(), e);
+			}
+			try{
+				setupRelatedInputQueue(config, queueManager);
+			} catch (Exception e) {
+				cleanupRelatedInputQueue(config, queueManager);
+				cleanupInputQueue(config, queueManager);
+				throw new Exception("Failed to setup related queue for config: " + config.toString(), e);
+			}
+			try{
+				setupRelatedOutputQueue(config, queueManager);
+			} catch (Exception e) {
+				cleanupRelatedOutputQueue(config, queueManager);
+				cleanupRelatedInputQueue(config, queueManager);
+				cleanupInputQueue(config, queueManager);
+				throw new Exception("Failed to setup related queue for config: " + config.toString(), e);
+			}
+			try{
+				setupOutputQueue(config, queueManager);
+			} catch (Exception e) {
+				cleanupOutputQueue(config, queueManager);
+				cleanupRelatedOutputQueue(config, queueManager);
+				cleanupRelatedInputQueue(config, queueManager);
+				cleanupInputQueue(config, queueManager);
+				throw new Exception("Failed to setup output queue for config: " + config.toString(), e);
+			}
+			try{
+				setupMetricActionStatusRecordQueue(queueManager);
+			} catch (Exception e) {
+				cleanupMetricActionStatusRecordQueue(queueManager);
+				cleanupOutputQueue(config, queueManager);
+				cleanupRelatedOutputQueue(config, queueManager);
+				cleanupRelatedInputQueue(config, queueManager);
+				cleanupInputQueue(config, queueManager);
+				throw new Exception("Failed to setup metric action status record queue", e);
+			}
+			this.inputQueue = queueManager.getQueue(config.getInputQueue());
+			this.outputQueue = queueManager.getQueue(config.getOutputQueue());
+			if(config.getRelatedSelectorEnabled()){
+				this.relatedInputQueue = queueManager.getQueue(config.getRelatedInputQueueName());
+				this.relatedOutputQueue = queueManager.getQueue(config.getRelatedOutputQueueName());
+			}
+		}
 	}
 
 	public MetricAction(String id) {

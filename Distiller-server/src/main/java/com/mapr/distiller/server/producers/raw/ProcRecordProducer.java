@@ -584,9 +584,9 @@ public class ProcRecordProducer extends Thread {
 		if(outputQueue == null){
 			throw new Exception("outputQueue is null");
 		}
-		
+		GatherMetricEvent event = null;
 		if(!enabledMetricManager.containsDescriptor(metricName, periodicity)){
-			GatherMetricEvent event = new GatherMetricEvent(0l, 0l, metricName, outputQueue, periodicity);
+			event = new GatherMetricEvent(0l, 0l, metricName, outputQueue, periodicity);
 			synchronized(metricSchedule){
 				metricSchedule.add(event);
 			}

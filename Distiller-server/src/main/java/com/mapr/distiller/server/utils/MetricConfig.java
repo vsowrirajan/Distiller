@@ -24,6 +24,7 @@ public class MetricConfig {
 	private final String thresholdValue;
 	private boolean initialized;
 	private boolean metricActionStatusRecordsEnabled;
+	private boolean metricEnabled;
 	private long metricActionStatusRecordFrequency;
 	private long timeSelectorMaxDelta;
 	private long timeSelectorMinDelta;
@@ -37,8 +38,14 @@ public class MetricConfig {
 	private String relatedSelectorMethod = null;
 	private String updatingSubscriptionQueueKey = null;
 	private boolean relatedSelectorEnabled;
+	private boolean metricActionCreated=false;
 
-	
+	public boolean getMetricActionCreated(){
+		return metricActionCreated;
+	}
+	public void setMetricActionCreated(boolean b){
+		metricActionCreated=b;
+	}
 	private MetricConfig(MetricConfigBuilder metricConfigBuilder) {
 		this.id = metricConfigBuilder.id;
 		this.inputQueue = metricConfigBuilder.inputQueue;
@@ -74,6 +81,7 @@ public class MetricConfig {
 		this.relatedSelectorMethod = metricConfigBuilder.relatedSelectorMethod;
 		this.updatingSubscriptionQueueKey = metricConfigBuilder.updatingSubscriptionQueueKey;
 		this.relatedSelectorEnabled = metricConfigBuilder.relatedSelectorEnabled;
+		this.metricEnabled = metricConfigBuilder.metricEnabled;
 		this.initialized = false;
 	}
 	
@@ -112,8 +120,13 @@ public class MetricConfig {
 				" relatedSelectorName:" + ((relatedSelectorName==null) ? "null" : relatedSelectorName) + 
 				" relatedSelectorMethod:" + ((relatedSelectorMethod==null) ? "null" : relatedSelectorMethod) + 
 				" updatingSubscriptionQueueKey:" + ((updatingSubscriptionQueueKey==null) ? "null" : updatingSubscriptionQueueKey) +
-				" relatedSelectorEnabled:" + relatedSelectorEnabled
+				" relatedSelectorEnabled:" + relatedSelectorEnabled + 
+				" metricEnabled:" + metricEnabled
 				);
+	}
+	
+	public boolean getMetricEnabled(){
+		return metricEnabled;
 	}
 	
 	public boolean getRelatedSelectorEnabled() {
@@ -246,6 +259,7 @@ public class MetricConfig {
 		private String relatedSelectorMethod = null;
 		private String updatingSubscriptionQueueKey = null;
 		private boolean relatedSelectorEnabled = false;
+		private boolean metricEnabled = false;
 
 		
 
@@ -261,7 +275,8 @@ public class MetricConfig {
 				String relatedSelectorName, String relatedSelectorMethod,
 				String updatingSubscriptionQueueKey, String relatedOutputQueueName, 
 				int relatedOutputQueueRecordCapacity, int relatedOutputQueueTimeCapacity, 
-				int relatedOutputQueueMaxProducers, boolean relatedSelectorEnabled) throws Exception{
+				int relatedOutputQueueMaxProducers, boolean relatedSelectorEnabled,
+				boolean metricEnabled) throws Exception{
 			
 			this.id = id;
 			this.inputQueue = inputQueue;
@@ -297,6 +312,7 @@ public class MetricConfig {
 			this.relatedSelectorMethod = relatedSelectorMethod;
 			this.updatingSubscriptionQueueKey = updatingSubscriptionQueueKey;
 			this.relatedSelectorEnabled = relatedSelectorEnabled;
+			this.metricEnabled = metricEnabled;
 		}
 
 		public MetricConfig build() {

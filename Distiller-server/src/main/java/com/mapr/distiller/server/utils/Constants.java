@@ -12,6 +12,7 @@ public interface Constants {
 	public static final String METRIC_ACTION_STATUS_RECORDS_ENABLED	 	= "metric.action.status.records.enabled";
 	public static final String METRIC_DESCRIPTION	 					= "metric.description";
 	public static final String METRIC_NAME	 							= "metric.name";
+	public static final String METRIC_ENABLED 							= "metric.enabled";
 	public static final String OUTPUT_QUEUE_CAPACITY_RECORDS	 		= "output.queue.capacity.records";
 	public static final String OUTPUT_QUEUE_CAPACITY_SECONDS	 		= "output.queue.capacity.seconds";
 	public static final String OUTPUT_QUEUE_MAX_PRODUCERS	 			= "output.queue.max.producers";

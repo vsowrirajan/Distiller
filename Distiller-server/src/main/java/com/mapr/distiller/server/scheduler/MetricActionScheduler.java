@@ -1,6 +1,5 @@
 package com.mapr.distiller.server.scheduler;
 
-import java.util.Iterator;
 import java.util.TreeSet;
 import com.mapr.distiller.server.metricactions.MetricAction;
 import com.mapr.distiller.server.scheduler.MetricActionScheduleComparator;
