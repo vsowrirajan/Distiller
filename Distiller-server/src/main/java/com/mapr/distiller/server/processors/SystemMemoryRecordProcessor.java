@@ -1,12 +1,18 @@
 package com.mapr.distiller.server.processors;
 
+import com.mapr.distiller.server.recordtypes.DifferentialValueRecord;
 import com.mapr.distiller.server.recordtypes.Record;
 import com.mapr.distiller.server.recordtypes.SystemMemoryRecord;
 import com.mapr.distiller.server.utils.Constants;
+
 import java.math.BigInteger;
 
 public class SystemMemoryRecordProcessor implements RecordProcessor<Record> {
 
+	public DifferentialValueRecord diff(Record rec1, Record rec2, String metric) throws Exception {
+		throw new Exception("Not implemented");
+	}
+	
 	public String getName(){
 		return Constants.SYSTEM_MEMORY_RECORD_PROCESSOR;
 	}

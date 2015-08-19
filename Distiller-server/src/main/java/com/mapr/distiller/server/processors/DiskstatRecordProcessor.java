@@ -1,10 +1,15 @@
 package com.mapr.distiller.server.processors;
 
 import com.mapr.distiller.server.recordtypes.DiskstatRecord;
+import com.mapr.distiller.server.recordtypes.DifferentialValueRecord;
 import com.mapr.distiller.server.recordtypes.Record;
 
 public class DiskstatRecordProcessor implements RecordProcessor<Record> {
 
+	public DifferentialValueRecord diff(Record rec1, Record rec2, String metric) throws Exception {
+		throw new Exception("Not implemented");
+	}
+	
 	public String getName(){
 		return "DiskstatRecordProcessor";
 	}

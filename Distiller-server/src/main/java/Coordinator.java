@@ -1,6 +1,7 @@
 import java.io.File;
 import java.io.IOException;
-import java.util.HashMap;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
@@ -22,16 +23,15 @@ import com.typesafe.config.ConfigFactory;
 import com.typesafe.config.ConfigObject;
 
 public class Coordinator {
-	private static Config testBlock;
 	private static Object coordinatorLock;
 	private static boolean DEBUG_ENABLED=true;
 
-	private static Map<String, MetricConfig> metricConfigMap;
-	private static Map<String, MetricAction> metricActionsIdMap;
-	private static Map<String, Boolean> metricActionsEnableMap;
+	private static SortedMap<String, MetricConfig> metricConfigMap;
+	private static SortedMap<String, MetricAction> metricActionsIdMap;
+	private static SortedMap<String, Boolean> metricActionsEnableMap;
 	private static ExecutorService executor = Executors.newFixedThreadPool(5);
 
-	private static Map<String, Future<MetricAction>> metricActionsIdFuturesMap;
+	private static SortedMap<String, Future<MetricAction>> metricActionsIdFuturesMap;
 
 	private static ProcRecordProducer procRecordProducer;
 	private static MfsGutsRecordProducer mfsGutsRecordProducer;
@@ -74,8 +74,6 @@ public class Coordinator {
 				} catch (Exception e) {
 					throw new Exception("Failed to process configuration block \"" + metric + "\"", e);
 				}
-				if(metricConfig.getId().equals("CumulativeSystemMemory-1sI"))
-					testBlock = configBlock;
 			}
 		}
 	}
@@ -266,7 +264,7 @@ public class Coordinator {
 			thresholdKey = configBlock.getString(Constants.THRESHOLD_KEY);
 			if(thresholdKey.equals("")) throw new Exception();
 		} catch (Exception e) {
-			if(isThresholdableProcessorMethod(method))
+			if(processorMethodRequiresThresholdKey(method))
 				throw new Exception("A value must be provided for " + Constants.THRESHOLD_KEY + 
 									" when " + Constants.INPUT_RECORD_PROCESSOR_METHOD +
 									"=" + method, e);
@@ -275,7 +273,7 @@ public class Coordinator {
 			thresholdValue = configBlock.getString(Constants.THRESHOLD_VALUE);
 			if(thresholdKey.equals("")) throw new Exception();
 		} catch (Exception e) {
-			if(isThresholdableProcessorMethod(method))
+			if(processorMethodRequiresThresholdValue(method))
 				throw new Exception("A value must be provided for " + Constants.THRESHOLD_VALUE + 
 									" when " + Constants.INPUT_RECORD_PROCESSOR_METHOD +
 									"=" + method, e);
@@ -468,7 +466,6 @@ public class Coordinator {
 								System.err.println("Coordinator-" + System.identityHashCode(this) + ": MetricAction created for " + newAction.getId());
 						} else if(isRawRecordType(config.getRecordType()) || (config.isInitialized() && config.getRecordType().equals(Constants.RAW_RECORD_PRODUCER_STAT_RECORD))){
 							config.setMetricActionCreated(true);
-							System.err.println("Marking success for " + config.getId());
 							initializationSuccesses++;
 							if(DEBUG_ENABLED)
 								System.err.println("Coordinator-" + System.identityHashCode(this) + ": Raw metric enabled for " + config.getRecordType() + " " + config.getProcRecordProducerMetricName());
@@ -684,6 +681,20 @@ public class Coordinator {
 			}
 			break;
 
+		case Constants.DIFFERENTIAL_VALUE_RECORD:
+			metricAction = null;
+			try {
+				metricAction = MetricAction.getInstance(config, recordQueueManager, metricActionScheduler);
+			} catch (Exception e) {
+				System.err.println("Failed to enable metric: " + config.toString());
+				e.printStackTrace();
+			}
+			if(metricAction != null){
+				metricActionsIdMap.put(metricAction.getId(), metricAction);
+				initialized=true;
+			}
+			break;
+
 		case Constants.MFS_GUTS_RECORD:
 			metricAction = null;
 			try {
@@ -837,7 +848,6 @@ public class Coordinator {
 			metricAction.enableMetric();
 			metricActionsEnableMap.put(metricAction.getId(), new Boolean(true));
 			metricActionScheduler.schedule(metricAction);
-			System.err.println("Scheduled " + metricAction.getId() + " with schedule " + metricAction.printSchedule());
 		}
 	}
 	//Call this method to enable MfsGutsRecordProducer
@@ -1217,10 +1227,10 @@ public class Coordinator {
 		recordQueueManager = new RecordQueueManager();
 		procRecordProducer = new ProcRecordProducer(Constants.PROC_RECORD_PRODUCER_NAME);
 		procRecordProducer.start();
-		metricActionsIdMap = new HashMap<String, MetricAction>();
-		metricActionsIdFuturesMap = new HashMap<String, Future<MetricAction>>();
-		metricActionsEnableMap = new HashMap<String, Boolean>();
-		metricConfigMap = new HashMap<String, MetricConfig>();
+		metricActionsIdMap = new TreeMap<String, MetricAction>();
+		metricActionsIdFuturesMap = new TreeMap<String, Future<MetricAction>>();
+		metricActionsEnableMap = new TreeMap<String, Boolean>();
+		metricConfigMap = new TreeMap<String, MetricConfig>();
 		
 		//Hard coding a fuzzy window size of 20ms
 		//This means that a metric may be triggered up to 20ms before it is actually supposed to be gathered per schedule.
@@ -1351,7 +1361,18 @@ public class Coordinator {
 			return true;
 		return false;
 	}
-	public static boolean isThresholdableProcessorMethod(String name){
+	public static boolean processorMethodRequiresThresholdKey(String name){
+		if(name==null) return false;
+		if (name.equals(Constants.IS_ABOVE) ||
+			name.equals(Constants.IS_BELOW) ||
+			name.equals(Constants.IS_EQUAL) ||
+			name.equals(Constants.IS_NOT_EQUAL) ||
+			name.equals(Constants.DIFFERENTIAL)
+		)
+			return true;
+		return false;
+	}
+	public static boolean processorMethodRequiresThresholdValue(String name){
 		if(name==null) return false;
 		if (name.equals(Constants.IS_ABOVE) ||
 			name.equals(Constants.IS_BELOW) ||
@@ -1369,6 +1390,12 @@ public class Coordinator {
 			return true;
 		return false;
 	}
+	public static boolean methodRequiresQualifierKey(String name){
+		if(name==null) return false;
+		if(name.equals(Constants.DIFFERENTIAL))
+			return true;
+		return false;
+	}
 	public static boolean selectorRequiresQualifierValue(String name){
 		return false;
 	}
@@ -1378,7 +1405,8 @@ public class Coordinator {
 			name.equals(Constants.IS_BELOW) ||
 			name.equals(Constants.IS_EQUAL) ||
 			name.equals(Constants.IS_NOT_EQUAL) ||
-			name.equals(Constants.MERGE_RECORDS)
+			name.equals(Constants.MERGE_RECORDS) ||
+			name.equals(Constants.DIFFERENTIAL)
 		)
 			return true;
 		return false;
@@ -1394,7 +1422,8 @@ public class Coordinator {
 			name.equals(Constants.TCP_CONNECTION_STAT_RECORD_PROCESSOR) ||
 			name.equals(Constants.THREAD_RESOURCE_RECORD_PROCESSOR) ||
 			name.equals(Constants.SLIM_PROCESS_RESOURCE_RECORD_PROCESSOR) ||
-			name.equals(Constants.SLIM_THREAD_RESOURCE_RECORD_PROCESSOR)
+			name.equals(Constants.SLIM_THREAD_RESOURCE_RECORD_PROCESSOR) ||
+			name.equals(Constants.DIFFERENTIAL_VALUE_RECORD_PROCESSOR)
 		)
 			return true;
 		return false;
@@ -1424,7 +1453,8 @@ public class Coordinator {
 			name.equals(Constants.MFS_GUTS_RECORD) ||
 			name.equals(Constants.PROC_RECORD_PRODUCER_RECORD) ||
 			name.equals(Constants.MFS_GUTS_RECORD_PRODUCER_RECORD) ||
-			name.equals(Constants.RAW_RECORD_PRODUCER_STAT_RECORD)
+			name.equals(Constants.RAW_RECORD_PRODUCER_STAT_RECORD) ||
+			name.equals(Constants.DIFFERENTIAL_VALUE_RECORD)
 		)
 			return true;
 		return false;
@@ -1451,24 +1481,29 @@ public class Coordinator {
 				method.equals(Constants.IS_BELOW) ||
 				method.equals(Constants.IS_EQUAL) ||
 				method.equals(Constants.IS_NOT_EQUAL) ||
-				method.equals(Constants.MERGE_RECORDS)
+				method.equals(Constants.MERGE_RECORDS) ||
+				method.equals(Constants.DIFFERENTIAL)
 			){
 				return true;
 			}
 		} else if(selector.equals(Constants.SEQUENTIAL_WITH_QUALIFIER_SELECTOR)){
-			if(method.equals(Constants.MERGE_RECORDS)){
+			if (method.equals(Constants.MERGE_RECORDS) ||
+				method.equals(Constants.DIFFERENTIAL) ){
 				return true;
 			}
 		} else if(selector.equals(Constants.CUMULATIVE_SELECTOR)){
-			if(method.equals(Constants.MERGE_RECORDS)){
+			if (method.equals(Constants.MERGE_RECORDS) ||
+				method.equals(Constants.DIFFERENTIAL) ){
 				return true;
 			}
 		} else if(selector.equals(Constants.CUMULATIVE_WITH_QUALIFIER_SELECTOR)){
-			if(method.equals(Constants.MERGE_RECORDS)){
+			if (method.equals(Constants.MERGE_RECORDS) ||
+				method.equals(Constants.DIFFERENTIAL) ){
 				return true;
 			}
 		} else if(selector.equals(Constants.TIME_SELECTOR)){
-			if(method.equals(Constants.MERGE_RECORDS)){
+			if (method.equals(Constants.MERGE_RECORDS) ||
+				method.equals(Constants.DIFFERENTIAL) ){
 				return true;
 			}
 		}

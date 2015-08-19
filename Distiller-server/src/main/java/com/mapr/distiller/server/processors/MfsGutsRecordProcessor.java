@@ -1,5 +1,6 @@
 package com.mapr.distiller.server.processors;
 
+import com.mapr.distiller.server.recordtypes.DifferentialValueRecord;
 import com.mapr.distiller.server.recordtypes.MfsGutsRecord;
 import com.mapr.distiller.server.recordtypes.Record;
 
@@ -7,6 +8,10 @@ import java.math.BigInteger;
 
 public class MfsGutsRecordProcessor implements RecordProcessor<Record> {
 
+	public DifferentialValueRecord diff(Record rec1, Record rec2, String metric) throws Exception {
+		throw new Exception("Not implemented");
+	}
+	
 	public String getName(){
 		return "MfsGutsRecordProcessor";
 	}

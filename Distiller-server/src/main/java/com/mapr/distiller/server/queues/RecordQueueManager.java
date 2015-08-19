@@ -1,5 +1,7 @@
 package com.mapr.distiller.server.queues;
 
+import java.util.TreeMap;
+import java.util.SortedMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -10,13 +12,13 @@ import com.mapr.distiller.server.utils.Constants;
 
 public class RecordQueueManager {
 	private boolean DEBUG_ENABLED=true;
-	private static ConcurrentHashMap<String, RecordQueue> nameToRecordQueueMap;
+	private static SortedMap<String, RecordQueue> nameToRecordQueueMap;
 	private static ConcurrentHashMap<String, Integer> nameToMaxProducerMap;
 	
 	public RecordQueueManager(){
 		if(DEBUG_ENABLED)
 			System.err.println("RecordQueueManager-" + System.identityHashCode(this) + ": Initializing");
-		nameToRecordQueueMap = new ConcurrentHashMap<String, RecordQueue>(1000);
+		nameToRecordQueueMap = new TreeMap<String, RecordQueue>();
 		nameToMaxProducerMap = new ConcurrentHashMap<String, Integer>(1000);
 	}
 	

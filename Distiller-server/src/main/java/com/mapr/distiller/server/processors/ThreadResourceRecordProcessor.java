@@ -1,11 +1,18 @@
 package com.mapr.distiller.server.processors;
 
+import com.mapr.distiller.server.recordtypes.DifferentialValueRecord;
+
 import java.math.BigInteger;
 
 import com.mapr.distiller.server.recordtypes.Record;
 import com.mapr.distiller.server.recordtypes.ThreadResourceRecord;
 
 public class ThreadResourceRecordProcessor implements RecordProcessor<Record> {
+
+	public DifferentialValueRecord diff(Record rec1, Record rec2, String metric) throws Exception {
+		throw new Exception("Not implemented");
+	}
+	
 	public String getName(){
 		return "ThreadResourceRecordProcessor";
 	}

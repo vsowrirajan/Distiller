@@ -1,6 +1,7 @@
 package com.mapr.distiller.server.processors;
 
 import com.mapr.distiller.server.recordtypes.Record;
+import com.mapr.distiller.server.recordtypes.DifferentialValueRecord;
 import com.mapr.distiller.server.recordtypes.SystemCpuRecord;
 
 public class SystemCpuRecordProcessor implements RecordProcessor<Record> {
@@ -105,6 +106,55 @@ public class SystemCpuRecordProcessor implements RecordProcessor<Record> {
 			throws Exception {
 		return new SystemCpuRecord((SystemCpuRecord) rec1,
 				(SystemCpuRecord) rec2);
+	}
+	
+	@Override
+	public DifferentialValueRecord diff(Record rec1, Record rec2, String metric) throws Exception {
+		if( ((SystemCpuRecord)rec1).getIdleCpuUtilPct()==-1d || 
+			((SystemCpuRecord)rec2).getIdleCpuUtilPct()==-1d ||
+			rec1.getPreviousTimestamp()==-1l ||
+			rec2.getPreviousTimestamp()==-1l )
+			throw new Exception("SystemCpuRecords can only be diff'd from non-raw SystemCpuRecords");
+		if(rec1.getTimestamp() == rec2.getTimestamp())
+			throw new Exception("Can not calculate diff for records with matching timestamps");
+	
+		SystemCpuRecord oldRecord, newRecord;
+		if(rec1.getTimestamp() < rec2.getTimestamp()){
+			oldRecord = (SystemCpuRecord)rec1;
+			newRecord = (SystemCpuRecord)rec2;
+		} else {
+			oldRecord = (SystemCpuRecord)rec2;
+			newRecord = (SystemCpuRecord)rec1;
+		}
+	
+		if(oldRecord.getPreviousTimestamp() > newRecord.getPreviousTimestamp())
+			throw new Exception("Can not calculate diff for input records where the timestamps of one record are within the timestamps of the other");
+
+		switch (metric) {
+		case "%idle":
+			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
+												oldRecord.getTimestamp(),
+												newRecord.getPreviousTimestamp(),
+												newRecord.getTimestamp(),
+												getName(),
+												metric,
+												"double",
+												newRecord.getIdleCpuUtilPct() - oldRecord.getIdleCpuUtilPct() );
+			
+		case "%iowait":
+			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
+												oldRecord.getTimestamp(),
+												newRecord.getPreviousTimestamp(),
+												newRecord.getTimestamp(),
+												getName(),
+												metric,
+												"double",
+												newRecord.getIowaitCpuUtilPct() - oldRecord.getIowaitCpuUtilPct() );
+
+		default:
+			throw new Exception("Metric " + metric
+					+ " is not Diffable in SystemCpuRecord");
+		}
 	}
 
 }

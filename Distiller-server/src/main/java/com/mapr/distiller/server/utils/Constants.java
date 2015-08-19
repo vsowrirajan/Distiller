@@ -54,6 +54,7 @@ public interface Constants {
 	public static final String IS_ABOVE 		= "isAbove";
 	public static final String IS_EQUAL 		= "isEqual";
 	public static final String IS_NOT_EQUAL 	= "isNotEqual";
+	public static final String DIFFERENTIAL 	= "differentialValue";
 	
 	// Allowable values for input.record.selector
 	public static final String SEQUENTIAL_SELECTOR					= "sequential";
@@ -76,6 +77,7 @@ public interface Constants {
 	public static final String PROC_RECORD_PRODUCER_RECORD 		= "ProcRecordProducer";
 	public static final String MFS_GUTS_RECORD_PRODUCER_RECORD 	= "MfsGutsRecordProducer";
 	public static final String RAW_RECORD_PRODUCER_STAT_RECORD 	= "RawRecordProducerStat";
+	public static final String DIFFERENTIAL_VALUE_RECORD	 	= "DifferentialValue";
 	
 	// Allowable values for input.record.processor.name
 	public static final String DISKSTAT_RECORD_PROCESSOR 				= "DiskstatRecordProcessor";
@@ -88,6 +90,7 @@ public interface Constants {
 	public static final String THREAD_RESOURCE_RECORD_PROCESSOR 		= "ThreadResourceRecordProcessor";
 	public static final String SLIM_PROCESS_RESOURCE_RECORD_PROCESSOR 	= "SlimProcessResourceRecordProcessor";
 	public static final String SLIM_THREAD_RESOURCE_RECORD_PROCESSOR 	= "SlimThreadResourceRecordProcessor";
+	public static final String DIFFERENTIAL_VALUE_RECORD_PROCESSOR 		= "DifferentialValueRecordProcessor";
 	
 	// Raw record producer names (e.g. names that will show up as producers in output record queues)
 	public static final String PROC_RECORD_PRODUCER_NAME 		= "ProcRecordProducer";

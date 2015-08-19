@@ -1,5 +1,6 @@
 package com.mapr.distiller.server.processors;
 
+import com.mapr.distiller.server.recordtypes.DifferentialValueRecord;
 import com.mapr.distiller.server.recordtypes.NetworkInterfaceRecord;
 import com.mapr.distiller.server.recordtypes.Record;
 import com.mapr.distiller.server.utils.Constants;
@@ -8,6 +9,10 @@ import java.math.BigInteger;
 
 public class NetworkInterfaceRecordProcessor implements RecordProcessor<Record> {
 
+	public DifferentialValueRecord diff(Record rec1, Record rec2, String metric) throws Exception {
+		throw new Exception("Not implemented");
+	}
+	
 	public String getName(){
 		return Constants.NETWORK_INTERFACE_RECORD_PROCESSOR;
 	}

@@ -36,6 +36,9 @@ public class BasicRelatedRecordSelector implements RelatedRecordSelector<Record,
 	{
 		this.id = id;
 		this.relatedQueue = relatedQueue;
+		if(relatedQueue==null){
+			throw new Exception("Relatedqueue is null");
+		}
 		this.outputQueue = outputQueue;
 		if(!relationMethod.equals(Constants.TIME_BASED_WINDOW))
 			throw new Exception("Unknown method: " + relationMethod);
@@ -59,12 +62,12 @@ public class BasicRelatedRecordSelector implements RelatedRecordSelector<Record,
 					if(inputRecord.getTimestamp() < relatedTimePeriods.getLast().start)
 						throw new Exception("End timestamp of current input record is less than start timestamp of previous input record, records must be in chronological order.");
 					p = relatedTimePeriods.getLast();
-					if(inputRecord.getPreviousTimestamp() < p.start)
-						p.start = inputRecord.getPreviousTimestamp();
-					if(inputRecord.getTimestamp() > p.end)
-						p.end = inputRecord.getTimestamp();
+					if(inputRecord.getPreviousTimestamp() - window < p.start)
+						p.start = inputRecord.getPreviousTimestamp() - window;
+					if(inputRecord.getTimestamp() + window > p.end)
+						p.end = inputRecord.getTimestamp() + window;
 					relatedTimePeriods.removeLast();
-					relatedTimePeriods.addFirst(p);
+					relatedTimePeriods.addLast(p);
 				} else {
 					if(inputRecord.getPreviousTimestamp()==-1)
 						throw new Exception("Can not perform duration based window selection for raw input records.");
@@ -75,9 +78,10 @@ public class BasicRelatedRecordSelector implements RelatedRecordSelector<Record,
 			} else {
 				throw new Exception("Unknown key " + relationKey + " for method " + Constants.TIME_BASED_WINDOW);
 			}
-			//Check the related queue against the new list of related TimePeriods to see if there are matching records to output
-						
-			while((relatedRecord = relatedQueue.peek(id, false)) != null){
+			//Check the related queue against the new list of related TimePeriods to see if there are matching records to output		
+			relatedRecord = relatedQueue.peek(id, false);
+
+			while(relatedRecord != null){
 				if (relatedRecord.getPreviousTimestamp()!=-1 && 
 					relatedRecord.getPreviousTimestamp() > relatedTimePeriods.getLast().end){
 						//The start timestamp of the oldest record in the related queue is newer than the end timestamp of the newest related TimePeriod, leave the Records in the related queue.
@@ -101,7 +105,6 @@ public class BasicRelatedRecordSelector implements RelatedRecordSelector<Record,
 						if(matchesWindow){
 							try {
 								outputQueue.put(id, relatedRecord);
-								System.err.println("Related records: " + inputRecord.toString() + " ||||| " + relatedRecord.toString());
 								outRecCntr++;
 							} catch (Exception e) {
 								putFailureCntr++;
@@ -148,6 +151,7 @@ public class BasicRelatedRecordSelector implements RelatedRecordSelector<Record,
 						break;
 					}
 				}
+				relatedRecord = relatedQueue.peek(id, false);
 			}
 		} else {
 			throw new Exception("Unknown method: " + relationMethod);

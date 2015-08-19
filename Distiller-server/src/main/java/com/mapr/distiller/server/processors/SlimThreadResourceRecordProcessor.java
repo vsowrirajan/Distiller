@@ -1,5 +1,7 @@
 package com.mapr.distiller.server.processors;
 
+import com.mapr.distiller.server.recordtypes.DifferentialValueRecord;
+
 import java.math.BigInteger;
 
 import com.mapr.distiller.server.recordtypes.Record;
@@ -7,6 +9,11 @@ import com.mapr.distiller.server.recordtypes.SlimThreadResourceRecord;
 import com.mapr.distiller.server.utils.Constants;
 
 public class SlimThreadResourceRecordProcessor implements RecordProcessor<Record> {
+
+	public DifferentialValueRecord diff(Record rec1, Record rec2, String metric) throws Exception {
+		throw new Exception("Not implemented");
+	}
+	
 	public String getName(){
 		return Constants.SLIM_THREAD_RESOURCE_RECORD_PROCESSOR;
 	}

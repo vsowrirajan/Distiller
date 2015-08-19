@@ -102,24 +102,6 @@ public class MetricAction implements Runnable, MetricsSelectable {
 		this.schedule = new Schedule(this.periodicity,
 									 1d,	//Hard coding here to disable adaptive scheduling (not sure if design is good yet))
 									 0d );	//Hard coding here to disable adaptive scheduling
-
-		if(config.getRelatedSelectorEnabled()){
-			switch(config.getRelatedSelectorName()){
-			case Constants.BASIC_RELATED_RECORD_SELECTOR:
-				this.relatedRecordSelector = new BasicRelatedRecordSelector(id, 
-																			relatedInputQueue,
-																			relatedOutputQueue, 
-																			config.getRelatedSelectorMethod(),
-																			config.getSelectorQualifierKey(),
-																			config.getSelectorQualifierValue());
-				break;
-				
-			default:
-				throw new Exception("Unknown value for " + Constants.SELECTOR_RELATED_NAME + " - value: " + 
-									config.getRelatedSelectorName());
-			}
-		}
-
 		
 		switch(config.getProcessor()) {
 			case Constants.DISKSTAT_RECORD_PROCESSOR:
@@ -148,6 +130,10 @@ public class MetricAction implements Runnable, MetricsSelectable {
 
 			case Constants.TCP_CONNECTION_STAT_RECORD_PROCESSOR:
 				this.recordProcessor = new TcpConnectionStatRecordProcessor();
+				break;
+
+			case Constants.DIFFERENTIAL_VALUE_RECORD_PROCESSOR:
+				this.recordProcessor = new DifferentialValueRecordProcessor();
 				break;
 
 			case Constants.THREAD_RESOURCE_RECORD_PROCESSOR:
@@ -483,7 +469,14 @@ public class MetricAction implements Runnable, MetricsSelectable {
 			inRecCntr++;
 			
 			//Break if this is the first record read from the input queue and the selector is a type that requires two records
-			if(method.equals(Constants.MERGE_RECORDS) && oldRec == null){
+			if 
+			( ( method.equals(Constants.MERGE_RECORDS) ||
+				method.equals(Constants.DIFFERENTIAL)
+			  )
+			  && 
+			  oldRec == null
+			)
+			{
 				oldRec = newRec;
 				break;
 			}
@@ -519,6 +512,39 @@ public class MetricAction implements Runnable, MetricsSelectable {
 				}
 				oldRec = newRec;
 			} 
+			else if(method.equals(Constants.DIFFERENTIAL)){
+				try {
+					Record outputRec = recordProcessor.diff(oldRec, newRec, thresholdKey);
+					try {
+						outputQueue.put(id, outputRec);
+						outRecCntr++;
+					} catch (Exception e) {
+						if(DEBUG_ENABLED){
+							System.err.println("MetricAction-" + System.identityHashCode(this) + ": Queue put failure:");
+							e.printStackTrace();
+						}
+						putFailureCntr++;
+					}
+					if(config.getRelatedSelectorEnabled())
+						try {
+							long[] ret = relatedRecordSelector.selectRelatedRecords(outputRec);
+							inRecCntr += ret[0];
+							outRecCntr += ret[1];
+							putFailureCntr += ret[2];
+							otherFailureCntr += ret[3];
+						} catch (Exception e) {
+							throw new Exception("Failed to process related records", e);
+						}
+				} catch (Exception e) {
+					if(DEBUG_ENABLED){
+						System.err.println("MetricAction-" + System.identityHashCode(this) + ": Record processing failure:");
+						e.printStackTrace();
+					}
+					processingFailureCntr++;
+				}
+				oldRec = newRec;
+			} 
+			
 			else if (method.equals(Constants.IS_ABOVE)){
 				try {
 					if(recordProcessor.isAboveThreshold(newRec, thresholdKey, thresholdValue)){
@@ -945,6 +971,8 @@ public class MetricAction implements Runnable, MetricsSelectable {
 			}
 			try{
 				setupRelatedInputQueue(config, queueManager);
+				if(config.getRelatedSelectorEnabled())
+					this.relatedInputQueue = queueManager.getQueue(config.getRelatedInputQueueName());
 			} catch (Exception e) {
 				cleanupRelatedInputQueue(config, queueManager);
 				cleanupInputQueue(config, queueManager);
@@ -952,6 +980,25 @@ public class MetricAction implements Runnable, MetricsSelectable {
 			}
 			try{
 				setupRelatedOutputQueue(config, queueManager);
+				if(config.getRelatedSelectorEnabled()){
+					this.relatedOutputQueue = queueManager.getQueue(config.getRelatedOutputQueueName());
+					switch(config.getRelatedSelectorName()){
+					case Constants.BASIC_RELATED_RECORD_SELECTOR:
+						if(relatedInputQueue==null){(new Exception("Related queue is null")).printStackTrace();;}
+						this.relatedRecordSelector = new BasicRelatedRecordSelector(id, 
+																					relatedInputQueue,
+																					relatedOutputQueue, 
+																					config.getRelatedSelectorMethod(),
+																					config.getSelectorQualifierKey(),
+																					config.getSelectorQualifierValue());
+						break;
+						
+					default:
+						throw new Exception("Unknown value for " + Constants.SELECTOR_RELATED_NAME + " - value: " + 
+											config.getRelatedSelectorName());
+					}
+				}
+
 			} catch (Exception e) {
 				cleanupRelatedOutputQueue(config, queueManager);
 				cleanupRelatedInputQueue(config, queueManager);
@@ -979,10 +1026,7 @@ public class MetricAction implements Runnable, MetricsSelectable {
 			}
 			this.inputQueue = queueManager.getQueue(config.getInputQueue());
 			this.outputQueue = queueManager.getQueue(config.getOutputQueue());
-			if(config.getRelatedSelectorEnabled()){
-				this.relatedInputQueue = queueManager.getQueue(config.getRelatedInputQueueName());
-				this.relatedOutputQueue = queueManager.getQueue(config.getRelatedOutputQueueName());
-			}
+			
 		}
 	}
 
