@@ -125,7 +125,7 @@ public class SlimThreadResourceRecord extends Record {
 				throw new Exception("Failed to produce a SlimThreadResourceRecord due to unexpected format of stat file, found " + parts.length + " fields");
 			}
 			this.pid = Integer.parseInt(line.split("\\s+", 2)[0]);
-			this.commandName = "(" + line.split("\\(", 2)[1].split("\\)", 2)[0] + ")";
+			this.commandName = line.split("\\(", 2)[1].split("\\)", 2)[0];
 			this.cpuUsageTicks = new BigInteger(parts[11]).add(new BigInteger(parts[12]));
 			this.startTime = Integer.parseInt(parts[19]);
 			this.iowaitTicks = new BigInteger(parts[39]);
@@ -180,7 +180,7 @@ public class SlimThreadResourceRecord extends Record {
 		if(record!= null && !outputQueue.put(producerName, record)){
 			ret[3]=1;
 			System.err.println("Failed to put SlimThreadResourceRecord into output queue " + outputQueue.getQueueName() + 
-					" size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.maxQueueSize() + 
+					" size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.getQueueRecordCapacity() + 
 					" producerName:" + producerName);
 		} else {
 			ret[1]=1;
@@ -209,37 +209,47 @@ public class SlimThreadResourceRecord extends Record {
 	public double getReadIoByteRate(){
 		return readIoByteRate;
 	}
-	public double getwriteIoByteRate(){
+	public double getWriteIoByteRate(){
 		return writeIoByteRate;
 	}
 	public String getCommandName(){
 		return commandName;
 	}
-	private int getPid(){
+	public int getPid(){
 		return pid;
 	}
-	private int getPpid(){
+	public int getPpid(){
 		return ppid;
 	}
-	private int getClockTick(){
+	public int getClockTick(){
 		return clockTick;
 	}
-	private long getStartTime(){
+	public long getStartTime(){
 		return startTime;
 	}
-	private BigInteger getIowaitTicks(){
+	public BigInteger getIowaitTicks(){
 		return iowaitTicks;
 	}
-	private BigInteger getCpuUsageTicks(){
+	public BigInteger getCpuUsageTicks(){
 		return cpuUsageTicks;
 	}
-	private BigInteger getIoCalls(){
+	public BigInteger getIoCalls(){
 		return ioCalls;
 	}
-	private BigInteger getIoBytesRead(){
+	public BigInteger getIoBytesRead(){
 		return ioBytesRead;
 	}
-	private BigInteger getIoBytesWritten(){
+	public BigInteger getIoBytesWritten(){
 		return ioBytesWritten;
+	}
+	
+	@Override
+	public String getValueForQualifier(String qualifier) throws Exception {
+		switch(qualifier){
+		case "pid":
+			return Integer.toString(pid);
+		default:
+			throw new Exception("Qualifier " + qualifier + " is not valid for this record type");
+		}
 	}
 }

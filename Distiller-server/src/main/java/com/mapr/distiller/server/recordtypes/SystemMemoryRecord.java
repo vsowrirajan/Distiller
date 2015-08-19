@@ -7,6 +7,10 @@ import com.mapr.distiller.server.queues.RecordQueue;
 
 public class SystemMemoryRecord extends Record {
 	/**
+	 * A general note about this class, if the amount of memory or swap space changes while this process is running, some stats can be inaccurate until the process is restarted.  
+	 */
+	
+	/**
 	 * DERIVED VALUES
 	 * These are variables that are not sourced directly from /proc
 	 * These values are computed only for records returned by calls to a diff function of this class
@@ -41,7 +45,6 @@ public class SystemMemoryRecord extends Record {
 		String[] parts;
 		String line;
 		RandomAccessFile proc_meminfo = null, proc_vmstat = null;
-		SystemMemoryRecord record = null;
 		try{
 			proc_meminfo = new RandomAccessFile("/proc/meminfo", "r");
 			proc_vmstat = new RandomAccessFile("/proc/vmstat", "r");
@@ -132,44 +135,75 @@ public class SystemMemoryRecord extends Record {
 			this.pswpout = newRecord.get_pswpout().subtract(oldRecord.get_pswpout());
 			this.allocstall = newRecord.get_allocstall().subtract(oldRecord.get_allocstall());
 			
-			this.freeMemPct = MemFree.divide(MemTotal).doubleValue();											//The mean MemFree of the input records expressed as a percentage of MemTotal.  ...Actually, it's just divided by the MemTotal.  E.g. the acceptable values are 0<=V<=1.  Should it be multiplied by 100?
+			this.freeMemPct = MemFree.doubleValue() / MemTotal.doubleValue();											//The mean MemFree of the input records expressed as a percentage of MemTotal.  ...Actually, it's just divided by the MemTotal.  E.g. the acceptable values are 0<=V<=1.  Should it be multiplied by 100?
 			this.freeMemByteMilliseconds = MemFree.multiply(new BigInteger(Long.toString(getDurationms())));	//The amount of free memory over the elapsed time expressed in a jiffy-like manner
 			
 		//Check if these are differential SystemMemoryRecords
 		} else if(rec1.getFreeMemPct()!=-1d && rec2.getFreeMemPct()!=-1d){
 			//Check if these are chronologically consecutive differential records
-			if(oldRecord.getTimestamp() != newRecord.getPreviousTimestamp())
-				throw new Exception("Can not generate differential SystemMemoryRecord from non-consecutive differential SystemMemoryRecords");
+			if(oldRecord.getTimestamp() == newRecord.getPreviousTimestamp()){
+				//Copied values
+				setTimestamp(newRecord.getTimestamp());					//Set the end timestamp to the timestamp of the newer record
+				setPreviousTimestamp(oldRecord.getPreviousTimestamp());	//Set the start timestamp to the start timestamp of the older record
+				this.MemTotal = newRecord.getMemTotal();				//Copy the MemTotal from either input record
+				this.SwapTotal = newRecord.getSwapTotal();				//Copy the SwapTotal from either input record
+		
+				//In differential SystemMemoryRecords, these values represent the best-guess of the average amount of memory used during the duration of time represented by the record.
+				//Since we are combining two such records, we should compute a new best-guess of the average amount used over the new total duration.
+				//To do this, express the value in the older and newer records in a CPU usage/jiffy-like form, add them, then divide by the aggregate duration.
+				this.MemFree = newRecord.getMemFree().multiply(new BigInteger(Long.toString(newRecord.getDurationms()))).add(
+						oldRecord.getMemFree().multiply(new BigInteger(Long.toString(oldRecord.getDurationms())))).divide(
+						new BigInteger(Long.toString(getDurationms())));
+				this.SwapFree = newRecord.getSwapFree().multiply(new BigInteger(Long.toString(newRecord.getDurationms()))).add(
+						oldRecord.getSwapFree().multiply(new BigInteger(Long.toString(oldRecord.getDurationms())))).divide(
+						new BigInteger(Long.toString(getDurationms())));
+				this.nr_dirty = newRecord.get_nr_dirty().multiply(new BigInteger(Long.toString(newRecord.getDurationms()))).add(
+						oldRecord.get_nr_dirty().multiply(new BigInteger(Long.toString(oldRecord.getDurationms())))).divide(
+						new BigInteger(Long.toString(getDurationms())));
+		
+				//In differential SystemMemoryRecords, these values represent the number of times a condition occurred over the period of time.
+				//Add the values together from older and newer records to get the aggregate sum.
+				this.pgmajfault = newRecord.get_pgmajfault().add(oldRecord.get_pgmajfault());
+				this.pswpin = newRecord.get_pswpin().add(oldRecord.get_pswpin());
+				this.pswpout = newRecord.get_pswpout().add(oldRecord.get_pswpout());
+				this.allocstall = newRecord.get_allocstall().add(oldRecord.get_allocstall());
+				
+				this.freeMemPct = MemFree.doubleValue() / MemTotal.doubleValue();
+				this.freeMemByteMilliseconds = MemFree.multiply(new BigInteger(Long.toString(getDurationms())));	//The amount of free memory over the elapsed time expressed in a jiffy-like manner
+			}
+			//Check if these are cumulative records
+			else if (oldRecord.getPreviousTimestamp() == newRecord.getPreviousTimestamp()){
+				setTimestamp(newRecord.getTimestamp());
+				setPreviousTimestamp(oldRecord.getTimestamp());
+				this.MemTotal = newRecord.getMemTotal();
+				this.SwapTotal = newRecord.getSwapTotal();
+				this.MemFree = newRecord.getMemFree().multiply(new BigInteger(Long.toString(newRecord.getDurationms()))).subtract(
+								oldRecord.getMemFree().multiply(new BigInteger(Long.toString(oldRecord.getDurationms())))).divide(
+								new BigInteger(Long.toString(this.getDurationms())));
+				this.SwapFree = newRecord.getSwapFree().multiply(new BigInteger(Long.toString(newRecord.getDurationms()))).subtract(
+								oldRecord.getSwapFree().multiply(new BigInteger(Long.toString(oldRecord.getDurationms())))).divide(
+								new BigInteger(Long.toString(this.getDurationms())));
+				this.nr_dirty = newRecord.get_nr_dirty().multiply(new BigInteger(Long.toString(newRecord.getDurationms()))).subtract(
+								oldRecord.get_nr_dirty().multiply(new BigInteger(Long.toString(oldRecord.getDurationms())))).divide(
+								new BigInteger(Long.toString(this.getDurationms())));
+				this.pgmajfault = newRecord.get_pgmajfault().subtract(oldRecord.get_pgmajfault());
+				this.pswpin = newRecord.get_pswpin().subtract(oldRecord.get_pswpin());
+				this.pswpout = newRecord.get_pswpout().subtract(oldRecord.get_pswpout());
+				this.allocstall = newRecord.get_allocstall().subtract(oldRecord.get_allocstall());
+				this.freeMemPct = MemFree.doubleValue() / MemTotal.doubleValue();
+				this.freeMemByteMilliseconds = MemFree.multiply(new BigInteger(Long.toString(getDurationms())));
+			} 
+			//Otherwise, throw an exception because these records can't be compared/merged/whatever
+			else {
+				throw new Exception ("Can not generate differential SystemMemoryRecord from non-consecutive differential SystemMemoryRecords, " + 
+									 " old pt:" + oldRecord.getPreviousTimestamp() + 
+									 " ts:" + oldRecord.getTimestamp() + 
+									 " new pt:" + newRecord.getPreviousTimestamp() + 
+									 " ts:" + newRecord.getTimestamp()
+									);
+			}
 			
-			//Copied values
-			setTimestamp(newRecord.getTimestamp());					//Set the end timestamp to the timestamp of the newer record
-			setPreviousTimestamp(oldRecord.getPreviousTimestamp());	//Set the start timestamp to the start timestamp of the older record
-			this.MemTotal = newRecord.getMemTotal();				//Copy the MemTotal from either input record
-			this.SwapTotal = newRecord.getSwapTotal();				//Copy the SwapTotal from either input record
-	
-			//In differential SystemMemoryRecords, these values represent the best-guess of the average amount of memory used during the duration of time represented by the record.
-			//Since we are combining two such records, we should compute a new best-guess of the average amount used over the new total duration.
-			//To do this, express the value in the older and newer records in a CPU usage/jiffy-like form, add them, then divide by the aggregate duration.
-			this.MemFree = newRecord.getMemFree().multiply(new BigInteger(Long.toString(newRecord.getDurationms()))).add(
-					oldRecord.getMemFree().multiply(new BigInteger(Long.toString(oldRecord.getDurationms())))).divide(
-					new BigInteger(Long.toString(getDurationms())));
-			this.SwapFree = newRecord.getSwapFree().multiply(new BigInteger(Long.toString(newRecord.getDurationms()))).add(
-					oldRecord.getSwapFree().multiply(new BigInteger(Long.toString(oldRecord.getDurationms())))).divide(
-					new BigInteger(Long.toString(getDurationms())));
-			this.nr_dirty = newRecord.get_nr_dirty().multiply(new BigInteger(Long.toString(newRecord.getDurationms()))).add(
-					oldRecord.get_nr_dirty().multiply(new BigInteger(Long.toString(oldRecord.getDurationms())))).divide(
-					new BigInteger(Long.toString(getDurationms())));
-	
-			//In differential SystemMemoryRecords, these values represent the number of times a condition occurred over the period of time.
-			//Add the values together from older and newer records to get the aggregate sum.
-			this.pgmajfault = newRecord.get_pgmajfault().add(oldRecord.get_pgmajfault());
-			this.pswpin = newRecord.get_pswpin().add(oldRecord.get_pswpin());
-			this.pswpout = newRecord.get_pswpout().add(oldRecord.get_pswpout());
-			this.allocstall = newRecord.get_allocstall().add(oldRecord.get_allocstall());
-			
-			this.freeMemPct = MemFree.divide(MemTotal).doubleValue();											//The mean MemFree of the input records expressed as a percentage of MemTotal.
-			this.freeMemByteMilliseconds = MemFree.multiply(new BigInteger(Long.toString(getDurationms())));	//The amount of free memory over the elapsed time expressed in a jiffy-like manner
-			
+						
 		//Otherwise, we are being asked to merge one raw record with one derived record and that is not valid.
 		} else {
 			throw new Exception("Can not generate differential SystemMemoryRecord from a raw record and a differential record");
@@ -194,7 +228,7 @@ public class SystemMemoryRecord extends Record {
 		if(record != null && !outputQueue.put(producerName, record)){
 			ret[3] = 1;
 			System.err.println("Failed to put SystemMemoryRecord into output queue " + outputQueue.getQueueName() + 
-					" size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.maxQueueSize() + 
+					" size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.getQueueRecordCapacity() + 
 					" producerName:" + producerName);
 		} else {
 			ret[1]=1;
@@ -290,6 +324,22 @@ public class SystemMemoryRecord extends Record {
  		return allocstall;
  	}
  	public String toString(){
-		return super.toString() + " memory.system total:" + MemTotal + " free:" + MemFree;
+ 		if(getPreviousTimestamp()==-1)
+ 			return super.toString() + " Free:" + MemFree +
+				" Mem:" + MemTotal +
+				" SwapUsed:" + SwapTotal.subtract(SwapFree) + 
+				" nr_dirty:" + nr_dirty + 
+				" pswpin:" + pswpin + 
+				" pswpout:" + pswpout + 
+				" allocstall:" + allocstall;
+ 		else
+ 			return super.toString() + " Free:" + MemFree + "/" + freeMemPct + "%" + 
+ 				" Mem:" + MemTotal +
+ 				" SwapUsed:" + SwapTotal.subtract(SwapFree) + 
+ 				" nr_dirty:" + nr_dirty + 
+ 				" pswpin:" + pswpin + 
+ 				" pswpout:" + pswpout + 
+ 				" allocstall:" + allocstall;
 	}
 }
+

@@ -94,7 +94,7 @@ public class ProcRecordProducer extends Thread {
 	private boolean shouldExit=false;
 	
 	//Controls whether metrics about how this raw record producer is running will be generated.
-	private boolean producerMetricsEnabled=true;
+	private boolean producerMetricsEnabled=false;
 	
 	//This holds the list of metrics to gather sorted by the time at which they should be gathered.
 	private TreeSet<GatherMetricEvent> metricSchedule = new TreeSet<GatherMetricEvent>(new MetricEventComparator());
@@ -121,11 +121,7 @@ public class ProcRecordProducer extends Thread {
 		setClockTick();
 		this.producerStatsQueue = null;
 		this.producerName = producerName;
-		if(producerStatsQueue != null){
-			producerMetricsEnabled = true;
-		} else {
-			producerMetricsEnabled=false;
-		}
+		this.producerMetricsEnabled=false;
 		this.enabledMetricManager = new ProcMetricDescriptorManager();
 	}
 	
@@ -148,7 +144,6 @@ public class ProcRecordProducer extends Thread {
 	public void run() {
 		long actionStartTime;
 		GatherMetricEvent event = null;
-		boolean producerMetricsEnabled=true;
 		
 		mystatus = new RawRecordProducerStatusRecord(producerName);
 		diskstatRecordCreationFailures=0;
@@ -200,7 +195,7 @@ public class ProcRecordProducer extends Thread {
 		//Keep trying to generate requested metrics until explicitly requested to exit
 		while(!shouldExit){
 			//Report self metrics
-			if( ((System.currentTimeMillis() - mystatus.getTimestamp()) / 1000l) >= statusIntervalSeconds ){
+			if(!shouldExit && ((System.currentTimeMillis() - mystatus.getTimestamp()) / 1000l) >= statusIntervalSeconds ){
 				RawRecordProducerStatusRecord newRecord = null;
 				try {
 					newRecord = new RawRecordProducerStatusRecord(mystatus);
@@ -311,7 +306,7 @@ public class ProcRecordProducer extends Thread {
 				mystatus.addExtraInfo("slimThreadResourceRunningTime%", Double.toString(100d * ((double)slimThreadResourceRunningTime) / ((double)mystatus.getDurationms())));
 				if(producerMetricsEnabled && !producerStatsQueue.put(producerName,mystatus)){
 					System.err.println("Failed to put RecordProducerStatusRecord to output queue " + producerStatsQueue.getQueueName() + 
-											" size:" + producerStatsQueue.queueSize() + " maxSize:" + producerStatsQueue.maxQueueSize() + 
+											" size:" + producerStatsQueue.queueSize() + " maxSize:" + producerStatsQueue.getQueueRecordCapacity() + 
 											" producerName:" + producerName);
 				} 
 				mystatus = newRecord;
@@ -364,7 +359,7 @@ public class ProcRecordProducer extends Thread {
 			
 			//We need to check what's in metricSchedule, so synchronize on it since other threads might be modifying it at the same time
 			boolean waitingForMetrics=true;
-			while(waitingForMetrics){
+			while(waitingForMetrics && !shouldExit){
 				synchronized(metricSchedule){
 					//Read the next scheduled event from the schedule;
 					try {
@@ -379,7 +374,7 @@ public class ProcRecordProducer extends Thread {
 					} catch (Exception e) {}
 				}
 			}
-			
+			if(shouldExit) break;
 			//If the time until the event should be executed is greater than 1 second from now, then sleep for a second and check again
 			//This is useful when new metrics need to be gathered.  A new metric that needs to be gathered will have it's first sample
 			//gathered with a delay of 1 second at most.
@@ -500,7 +495,7 @@ public class ProcRecordProducer extends Thread {
 		return producerMetricsEnabled;
 	}
 
-	public boolean isValidMetricName(String metricName){
+	public static boolean isValidMetricName(String metricName){
 		if(metricName.equals("Diskstat") || metricName.equals("NetworkInterface") || metricName.equals("ProcessResource") ||
 				metricName.equals("SystemCpu") || metricName.equals("SystemMemory") || metricName.equals ("TcpConnectionStat") ||
 				metricName.equals("ThreadResource") || metricName.equals("SlimThreadResource") || metricName.equals("SlimProcessResource") )
@@ -589,9 +584,9 @@ public class ProcRecordProducer extends Thread {
 		if(outputQueue == null){
 			throw new Exception("outputQueue is null");
 		}
-		
+		GatherMetricEvent event = null;
 		if(!enabledMetricManager.containsDescriptor(metricName, periodicity)){
-			GatherMetricEvent event = new GatherMetricEvent(0l, 0l, metricName, outputQueue, periodicity);
+			event = new GatherMetricEvent(0l, 0l, metricName, outputQueue, periodicity);
 			synchronized(metricSchedule){
 				metricSchedule.add(event);
 			}
@@ -904,5 +899,9 @@ public class ProcRecordProducer extends Thread {
 			System.err.println("Failed to run \"getconf CLK_TCK\"");
 			System.exit(1);
 		}
+	}
+	
+	public void requestExit(){
+		shouldExit=true;
 	}
 }

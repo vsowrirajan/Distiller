@@ -181,8 +181,6 @@ public class DiskstatRecord extends Record {
 		//If we fail to generate even one record for one device then this method will immediately return false.
 		RandomAccessFile proc_diskstats = null;
 		
-		boolean returnCode = true;
-		
 		//Open the "/proc/diskstats" file for reading
 		try {
 			proc_diskstats = new RandomAccessFile("/proc/diskstats", "r");
@@ -240,7 +238,7 @@ public class DiskstatRecord extends Record {
 					if(record != null && !outputQueue.put(producerName, record)){
 						ret[3]++;
 						System.err.println("Failed to put SystemMemoryRecord into output queue " + outputQueue.getQueueName() + 
-								" size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.maxQueueSize() + 
+								" size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.getQueueRecordCapacity() + 
 								" producerName:" + producerName);
 					} else {
 						ret[1]++;
@@ -352,5 +350,16 @@ public class DiskstatRecord extends Record {
 	public double getAverageWaitTime(){
 		return averageWaitTime;
 	}
+	
+	@Override
+	public String getValueForQualifier(String qualifier) throws Exception {
+		switch(qualifier){
+		case "device_name":
+			return device_name;
+		default:
+			throw new Exception("Qualifier " + qualifier + " is not valid for this record type");
+		}
+	}
+
 
 }

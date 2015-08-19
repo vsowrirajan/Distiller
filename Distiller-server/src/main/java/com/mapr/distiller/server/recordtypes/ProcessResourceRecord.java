@@ -174,7 +174,7 @@ public class ProcessResourceRecord extends Record {
 				//If the file could be read, parse the values
 				String tempStr = new String(b.array());
 				this.pid = Integer.parseInt(tempStr.split("\\s+", 2)[0]);
-				this.comm = "(" + tempStr.split("\\(", 2)[1].split("\\)", 2)[0] + ")";
+				this.comm = tempStr.split("\\(", 2)[1].split("\\)", 2)[0];
 				parts = tempStr.split("\\)", 2)[1].trim().split("\\s+");
 				//Expect 44 values in /proc/[pid]/stat based on Linux kernel version used for this dev.
 				//Note that 42 is used in below check because 
@@ -257,7 +257,7 @@ public class ProcessResourceRecord extends Record {
 		if(record != null && !outputQueue.put(producerName, record)){
 			ret[3]=1;
 			System.err.println("Failed to put ProcessResourceRecord into output queue " + outputQueue.getQueueName() + 
-					" size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.maxQueueSize() + 
+					" size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.getQueueRecordCapacity() + 
 					" producerName:" + producerName);
 		} else {
 			ret[1] = 1;
@@ -385,4 +385,15 @@ public class ProcessResourceRecord extends Record {
 	public double getCancelledWriteIoByteRate(){
 		return cancelledWriteIoByteRate;
 	}
+	
+	@Override
+	public String getValueForQualifier(String qualifier) throws Exception {
+		switch(qualifier){
+		case "pid":
+			return Integer.toString(pid);
+		default:
+			throw new Exception("Qualifier " + qualifier + " is not valid for this record type");
+		}
+	}
+
 }

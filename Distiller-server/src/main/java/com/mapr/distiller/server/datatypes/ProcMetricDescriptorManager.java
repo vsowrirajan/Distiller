@@ -1,5 +1,6 @@
 package com.mapr.distiller.server.datatypes;
 
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.ListIterator;
 
@@ -44,6 +45,18 @@ public class ProcMetricDescriptorManager {
 	}
 
 	public boolean removeDescriptor(String metricName, int periodicity){
-		return metricList.remove(new ProcMetricDescriptor(metricName, periodicity));
+		Iterator<ProcMetricDescriptor> i = metricList.iterator();
+		ProcMetricDescriptor d = null;
+		boolean found=false;
+		while (i.hasNext()) {
+			d = i.next();
+			if(d.metricName.equals(metricName) && d.periodicity == periodicity){
+				found=true;
+				break;
+			}
+		}
+		if(found)
+			return metricList.remove(d);
+		else return false;
 	}
 }

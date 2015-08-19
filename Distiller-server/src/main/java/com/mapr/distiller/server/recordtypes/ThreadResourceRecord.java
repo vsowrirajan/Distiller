@@ -129,7 +129,7 @@ public class ThreadResourceRecord extends Record {
 				throw new Exception("Failed to produce a ThreadResourceRecord due to unexpected format of stat file, found " + parts.length + " fields");
 			}
 			this.pid = Integer.parseInt(line.split("\\s+", 2)[0]);
-			this.comm = "(" + line.split("\\(", 2)[1].split("\\)", 2)[0] + ")";
+			this.comm = line.split("\\(", 2)[1].split("\\)", 2)[0];
 			this.state = parts[0].charAt(0);
 			this.minflt = new BigInteger(parts[7]);
 			this.majflt = new BigInteger(parts[9]);
@@ -193,7 +193,7 @@ public class ThreadResourceRecord extends Record {
 		if(record!= null && !outputQueue.put(producerName, record)){
 			ret[3]=1;
 			System.err.println("Failed to put ThreadResourceRecord into output queue " + outputQueue.getQueueName() + 
-					" size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.maxQueueSize() + 
+					" size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.getQueueRecordCapacity() + 
 					" producerName:" + producerName);
 		} else {
 			ret[1]=1;
@@ -290,5 +290,15 @@ public class ThreadResourceRecord extends Record {
 	}
 	public double getCancelledWriteByteRate(){
 		return cancelledWriteByteRate;
+	}
+	
+	@Override
+	public String getValueForQualifier(String qualifier) throws Exception {
+		switch(qualifier){
+		case "pid":
+			return Integer.toString(pid);
+		default:
+			throw new Exception("Qualifier " + qualifier + " is not valid for this record type");
+		}
 	}
 }

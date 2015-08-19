@@ -31,8 +31,8 @@ public class NetworkInterfaceRecord extends Record {
 			throw new Exception("Differential DiskstatRecord can only be generated from raw DiskstatRecords");
 		if(rec1.getTimestamp() == rec2.getTimestamp())
 			throw new Exception("Can not generate differential DiskstatRecord from input records with matching timestamp values");
-		if(rec1.getCarrier()!=1 || rec2.getCarrier()!=1)
-			throw new Exception("Can not generate differential DiskstatRecord from input records where carrier was not detected");
+		//if(rec1.getCarrier()!=1 || rec2.getCarrier()!=1)
+		//	throw new Exception("Can not generate differential DiskstatRecord from input records where carrier was not detected");
 		if(rec1.getSpeed() != rec2.getSpeed() || rec1.getSpeed()<1)
 			throw new Exception("Can not generate differential DiskstatRecord from input records where speed does not match");
 		if(rec1.getFullDuplex() != rec2.getFullDuplex())
@@ -133,7 +133,7 @@ public class NetworkInterfaceRecord extends Record {
 		if(record != null && !outputQueue.put(producerName, record)){
 			ret[3]=1;
 			System.err.println("Failed to put NetworkInterfaceRecord into output queue " + outputQueue.getQueueName() + 
-					" size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.maxQueueSize() + 
+					" size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.getQueueRecordCapacity() + 
 					" producerName:" + producerName);
 		} else {
 			ret[1] = 1;
@@ -255,4 +255,15 @@ public class NetworkInterfaceRecord extends Record {
 	public BigInteger get_tx_packets(){
 		return tx_packets;
 	}	
+	
+	@Override
+	public String getValueForQualifier(String qualifier) throws Exception {
+		switch(qualifier){
+		case "name":
+			return name;
+		default:
+			throw new Exception("Qualifier " + qualifier + " is not valid for this record type");
+		}
+	}
+
 }
