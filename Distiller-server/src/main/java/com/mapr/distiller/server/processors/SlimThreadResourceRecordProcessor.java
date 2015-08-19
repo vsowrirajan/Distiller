@@ -10,9 +10,145 @@ import com.mapr.distiller.server.utils.Constants;
 
 public class SlimThreadResourceRecordProcessor implements RecordProcessor<Record> {
 
+	@Override
 	public DifferentialValueRecord diff(Record rec1, Record rec2, String metric) throws Exception {
-		throw new Exception("Not implemented");
-	}
+		if( rec1.getPreviousTimestamp()==-1l ||
+			rec2.getPreviousTimestamp()==-1l )
+			throw new Exception("SlimThreadResourceRecords can only be diff'd from non-raw SlimThreadResourceRecords");
+			
+		SlimThreadResourceRecord oldRecord, newRecord;
+		if(rec1.getTimestamp() < rec2.getTimestamp()){
+			oldRecord = (SlimThreadResourceRecord)rec1;
+			newRecord = (SlimThreadResourceRecord)rec2;
+		} else {
+			oldRecord = (SlimThreadResourceRecord)rec2;
+			newRecord = (SlimThreadResourceRecord)rec1;
+		}
+		
+		if(oldRecord.getPreviousTimestamp() > newRecord.getPreviousTimestamp())
+			throw new Exception("Can not calculate diff for input records where the timestamps of one record are within the timestamps of the other");
+
+		if(oldRecord.getStartTime() != newRecord.getStartTime() || oldRecord.getPid() != newRecord.getPid())
+			throw new Exception("Can not calculate diff for input records that are from different processes");
+		
+		switch (metric) {
+		case "cpuUtilPct":
+			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
+												 oldRecord.getTimestamp(),
+												 newRecord.getPreviousTimestamp(),
+												 newRecord.getTimestamp(),
+												 getName(),
+												 metric,
+												"double",
+												 newRecord.getCpuUtilPct() - oldRecord.getCpuUtilPct() );
+
+
+		case "iowaitUtilPct":
+			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
+												 oldRecord.getTimestamp(),
+												 newRecord.getPreviousTimestamp(),
+												 newRecord.getTimestamp(),
+												 getName(),
+												 metric,
+												"double",
+												 newRecord.getIowaitUtilPct() - oldRecord.getIowaitUtilPct() );
+
+
+		case "ioCallRate":
+			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
+												 oldRecord.getTimestamp(),
+												 newRecord.getPreviousTimestamp(),
+												 newRecord.getTimestamp(),
+												 getName(),
+												 metric,
+												"double",
+												 newRecord.getIoCallRate() - oldRecord.getIoCallRate() );
+
+
+		case "readIoByteRate":
+			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
+												 oldRecord.getTimestamp(),
+												 newRecord.getPreviousTimestamp(),
+												 newRecord.getTimestamp(),
+												 getName(),
+												 metric,
+												"double",
+												 newRecord.getReadIoByteRate() - oldRecord.getReadIoByteRate() );
+
+
+		case "writeIoByteRate":
+			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
+												 oldRecord.getTimestamp(),
+												 newRecord.getPreviousTimestamp(),
+												 newRecord.getTimestamp(),
+												 getName(),
+												 metric,
+												"double",
+												 newRecord.getWriteIoByteRate() - oldRecord.getWriteIoByteRate() );
+
+
+		case "iowaitTicks":
+			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
+												 oldRecord.getTimestamp(),
+												 newRecord.getPreviousTimestamp(),
+												 newRecord.getTimestamp(),
+												 getName(),
+												 metric,
+												"BigInteger",
+												 newRecord.getIowaitTicks().subtract(oldRecord.getIowaitTicks()) );
+
+
+		case "cpuUsageTicks":
+			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
+												 oldRecord.getTimestamp(),
+												 newRecord.getPreviousTimestamp(),
+												 newRecord.getTimestamp(),
+												 getName(),
+												 metric,
+												"BigInteger",
+												 newRecord.getCpuUsageTicks().subtract(oldRecord.getCpuUsageTicks()) );
+
+
+		case "ioCalls":
+			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
+												 oldRecord.getTimestamp(),
+												 newRecord.getPreviousTimestamp(),
+												 newRecord.getTimestamp(),
+												 getName(),
+												 metric,
+												"BigInteger",
+												 newRecord.getIoCalls().subtract(oldRecord.getIoCalls()) );
+
+
+		case "ioBytesRead":
+			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
+												 oldRecord.getTimestamp(),
+												 newRecord.getPreviousTimestamp(),
+												 newRecord.getTimestamp(),
+												 getName(),
+												 metric,
+												"BigInteger",
+												 newRecord.getIoBytesRead().subtract(oldRecord.getIoBytesRead()) );
+
+
+		case "ioBytesWritten":
+			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
+												 oldRecord.getTimestamp(),
+												 newRecord.getPreviousTimestamp(),
+												 newRecord.getTimestamp(),
+												 getName(),
+												 metric,
+												"BigInteger",
+												 newRecord.getIoBytesWritten().subtract(oldRecord.getIoBytesWritten()) );
+
+
+
+		default:
+			throw new Exception("Metric " + metric
+					+ " is not Diffable in SlimThreadResourceRecordProcessor");
+		}
+	}	
+
 	
 	public String getName(){
 		return Constants.SLIM_THREAD_RESOURCE_RECORD_PROCESSOR;

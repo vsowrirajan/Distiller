@@ -10,9 +10,59 @@ import com.mapr.distiller.server.recordtypes.TcpConnectionStatRecord;
 public class TcpConnectionStatRecordProcessor implements
 		RecordProcessor<Record> {
 
+	@Override
 	public DifferentialValueRecord diff(Record rec1, Record rec2, String metric) throws Exception {
-		throw new Exception("Not implemented");
-	}
+		if( rec1.getPreviousTimestamp()==-1l ||
+			rec2.getPreviousTimestamp()==-1l )
+			throw new Exception("TcpConnectionStatRecords can only be diff'd from non-raw TcpConnectionStatRecords");
+			
+		TcpConnectionStatRecord oldRecord, newRecord;
+		if(rec1.getTimestamp() < rec2.getTimestamp()){
+			oldRecord = (TcpConnectionStatRecord)rec1;
+			newRecord = (TcpConnectionStatRecord)rec2;
+		} else {
+			oldRecord = (TcpConnectionStatRecord)rec2;
+			newRecord = (TcpConnectionStatRecord)rec1;
+		}
+		
+		if(oldRecord.getPreviousTimestamp() > newRecord.getPreviousTimestamp())
+			throw new Exception("Can not calculate diff for input records where the timestamps of one record are within the timestamps of the other");
+
+		if(	oldRecord.getLocalIp() != newRecord.getLocalIp() ||
+				oldRecord.getRemoteIp() != newRecord.getRemoteIp() ||
+				oldRecord.getLocalPort() != newRecord.getLocalPort() ||
+				oldRecord.getRemotePort() != newRecord.getRemotePort() ||
+				oldRecord.get_pid() != newRecord.get_pid() )
+				throw new Exception("Can not diff input records for different connections");
+		
+		switch (metric) {
+		case "rxQ":
+			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
+												 oldRecord.getTimestamp(),
+												 newRecord.getPreviousTimestamp(),
+												 newRecord.getTimestamp(),
+												 getName(),
+												 metric,
+												"BigInteger",
+												 newRecord.get_rxQ().subtract(oldRecord.get_rxQ()) );
+
+		case "txQ":
+			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
+												 oldRecord.getTimestamp(),
+												 newRecord.getPreviousTimestamp(),
+												 newRecord.getTimestamp(),
+												 getName(),
+												 metric,
+												"BigInteger",
+												 newRecord.get_txQ().subtract(oldRecord.get_txQ()) );
+
+		default:
+			throw new Exception("Metric " + metric
+					+ " is not Diffable in TcpConnectionStatRecordProcessor");
+		}
+	}	
+
+	
 	
 	public String getName(){
 		return "TcpConnectionStatRecordProcessor";

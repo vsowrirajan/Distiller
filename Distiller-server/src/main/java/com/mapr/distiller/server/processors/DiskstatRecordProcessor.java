@@ -5,10 +5,6 @@ import com.mapr.distiller.server.recordtypes.DifferentialValueRecord;
 import com.mapr.distiller.server.recordtypes.Record;
 
 public class DiskstatRecordProcessor implements RecordProcessor<Record> {
-
-	public DifferentialValueRecord diff(Record rec1, Record rec2, String metric) throws Exception {
-		throw new Exception("Not implemented");
-	}
 	
 	public String getName(){
 		return "DiskstatRecordProcessor";
@@ -303,6 +299,144 @@ public class DiskstatRecordProcessor implements RecordProcessor<Record> {
 	public DiskstatRecord merge(Record rec1, Record rec2)
 			throws Exception {
 		return new DiskstatRecord((DiskstatRecord) rec1, (DiskstatRecord) rec2);
+	}
+
+	@Override
+	public DifferentialValueRecord diff(Record rec1, Record rec2, String metric) throws Exception {
+		if( rec1.getPreviousTimestamp()==-1l ||
+			rec2.getPreviousTimestamp()==-1l )
+			throw new Exception("DiskstatRecords can only be diff'd from non-raw DiskstatRecords");
+			
+		DiskstatRecord oldRecord, newRecord;
+		if(rec1.getTimestamp() < rec2.getTimestamp()){
+			oldRecord = (DiskstatRecord)rec1;
+			newRecord = (DiskstatRecord)rec2;
+		} else {
+			oldRecord = (DiskstatRecord)rec2;
+			newRecord = (DiskstatRecord)rec1;
+		}
+		
+		if(oldRecord.getPreviousTimestamp() > newRecord.getPreviousTimestamp())
+			throw new Exception("Can not calculate diff for input records where the timestamps of one record are within the timestamps of the other");
+		if(		oldRecord.get_major_number() != newRecord.get_major_number() || oldRecord.get_minor_number() != newRecord.get_minor_number() || 
+				oldRecord.get_hw_sector_size() != newRecord.get_hw_sector_size() || !oldRecord.get_device_name().equals(newRecord.get_device_name()) )
+			throw new Exception("Can not diff from DiskstatRecords form different devices");
+		
+
+		switch (metric) {
+		case "averageOperationsInProgress":
+			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
+												oldRecord.getTimestamp(),
+												newRecord.getPreviousTimestamp(),
+												newRecord.getTimestamp(),
+												getName(),
+												metric,
+												"double",
+												newRecord.getAverageOperationsInProgress() - oldRecord.getAverageOperationsInProgress() );
+
+
+		case "averageServiceTime":
+			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
+												oldRecord.getTimestamp(),
+												newRecord.getPreviousTimestamp(),
+												newRecord.getTimestamp(),
+												getName(),
+												metric,
+												"double",
+												newRecord.getAverageServiceTime() - oldRecord.getAverageServiceTime() );
+
+
+		case "averageWaitTime":
+			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
+												oldRecord.getTimestamp(),
+												newRecord.getPreviousTimestamp(),
+												newRecord.getTimestamp(),
+												getName(),
+												metric,
+												"double",
+												newRecord.getAverageWaitTime() - oldRecord.getAverageWaitTime() );
+
+
+		case "diskReadOperationRate":
+			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
+												oldRecord.getTimestamp(),
+												newRecord.getPreviousTimestamp(),
+												newRecord.getTimestamp(),
+												getName(),
+												metric,
+												"double",
+												newRecord.getDiskReadOperationRate() - oldRecord.getDiskReadOperationRate() );
+
+
+		case "diskWriteOperationRate":
+			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
+												oldRecord.getTimestamp(),
+												newRecord.getPreviousTimestamp(),
+												newRecord.getTimestamp(),
+												getName(),
+												metric,
+												"double",
+												newRecord.getDiskWriteOperationRate() - oldRecord.getDiskWriteOperationRate() );
+
+
+		case "readByteRate":
+			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
+												oldRecord.getTimestamp(),
+												newRecord.getPreviousTimestamp(),
+												newRecord.getTimestamp(),
+												getName(),
+												metric,
+												"double",
+												newRecord.getReadByteRate() - oldRecord.getReadByteRate() );
+
+
+		case "readOperationRate":
+			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
+												oldRecord.getTimestamp(),
+												newRecord.getPreviousTimestamp(),
+												newRecord.getTimestamp(),
+												getName(),
+												metric,
+												"double",
+												newRecord.getReadOperationRate() - oldRecord.getReadOperationRate() );
+
+
+		case "utilizationPct":
+			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
+												oldRecord.getTimestamp(),
+												newRecord.getPreviousTimestamp(),
+												newRecord.getTimestamp(),
+												getName(),
+												metric,
+												"double",
+												newRecord.getUtilizationPct() - oldRecord.getUtilizationPct() );
+
+
+		case "writeByteRate":
+			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
+												oldRecord.getTimestamp(),
+												newRecord.getPreviousTimestamp(),
+												newRecord.getTimestamp(),
+												getName(),
+												metric,
+												"double",
+												newRecord.getWriteByteRate() - oldRecord.getWriteByteRate() );
+
+
+		case "writeOperationRate":
+			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
+												oldRecord.getTimestamp(),
+												newRecord.getPreviousTimestamp(),
+												newRecord.getTimestamp(),
+												getName(),
+												metric,
+												"double",
+												newRecord.getWriteOperationRate() - oldRecord.getWriteOperationRate() );
+		
+		default:
+			throw new Exception("Metric " + metric
+					+ " is not Diffable in DiskstatRecordProcessor");
+		}
 	}
 
 }

@@ -110,14 +110,10 @@ public class SystemCpuRecordProcessor implements RecordProcessor<Record> {
 	
 	@Override
 	public DifferentialValueRecord diff(Record rec1, Record rec2, String metric) throws Exception {
-		if( ((SystemCpuRecord)rec1).getIdleCpuUtilPct()==-1d || 
-			((SystemCpuRecord)rec2).getIdleCpuUtilPct()==-1d ||
-			rec1.getPreviousTimestamp()==-1l ||
+		if( rec1.getPreviousTimestamp()==-1l ||
 			rec2.getPreviousTimestamp()==-1l )
 			throw new Exception("SystemCpuRecords can only be diff'd from non-raw SystemCpuRecords");
-		if(rec1.getTimestamp() == rec2.getTimestamp())
-			throw new Exception("Can not calculate diff for records with matching timestamps");
-	
+		
 		SystemCpuRecord oldRecord, newRecord;
 		if(rec1.getTimestamp() < rec2.getTimestamp()){
 			oldRecord = (SystemCpuRecord)rec1;
@@ -153,7 +149,7 @@ public class SystemCpuRecordProcessor implements RecordProcessor<Record> {
 
 		default:
 			throw new Exception("Metric " + metric
-					+ " is not Diffable in SystemCpuRecord");
+					+ " is not Diffable in SystemCpuRecordProcessor");
 		}
 	}
 

@@ -9,8 +9,71 @@ import java.math.BigInteger;
 
 public class SystemMemoryRecordProcessor implements RecordProcessor<Record> {
 
+	@Override
 	public DifferentialValueRecord diff(Record rec1, Record rec2, String metric) throws Exception {
-		throw new Exception("Not implemented");
+		if( rec1.getPreviousTimestamp()==-1l ||
+			rec2.getPreviousTimestamp()==-1l )
+			throw new Exception("SystemMemoryRecords can only be diff'd from non-raw SystemMemoryRecords");
+			
+		SystemMemoryRecord oldRecord, newRecord;
+		if(rec1.getTimestamp() < rec2.getTimestamp()){
+			oldRecord = (SystemMemoryRecord)rec1;
+			newRecord = (SystemMemoryRecord)rec2;
+		} else {
+			oldRecord = (SystemMemoryRecord)rec2;
+			newRecord = (SystemMemoryRecord)rec1;
+		}
+		
+		if(oldRecord.getPreviousTimestamp() > newRecord.getPreviousTimestamp())
+			throw new Exception("Can not calculate diff for input records where the timestamps of one record are within the timestamps of the other");
+
+		switch (metric) {
+		case "pswpin":
+			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
+												 oldRecord.getTimestamp(),
+												 newRecord.getPreviousTimestamp(),
+												 newRecord.getTimestamp(),
+												 getName(),
+												 metric,
+												"BigInteger",
+												 newRecord.get_pswpin().subtract(oldRecord.get_pswpin()) );
+
+
+		case "pswpout":
+			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
+												 oldRecord.getTimestamp(),
+												 newRecord.getPreviousTimestamp(),
+												 newRecord.getTimestamp(),
+												 getName(),
+												 metric,
+												"BigInteger",
+												 newRecord.get_pswpout().subtract(oldRecord.get_pswpout()) );
+
+
+		case "allocstall":
+			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
+												 oldRecord.getTimestamp(),
+												 newRecord.getPreviousTimestamp(),
+												 newRecord.getTimestamp(),
+												 getName(),
+												 metric,
+												"BigInteger",
+												 newRecord.get_allocstall().subtract(oldRecord.get_allocstall()) );
+
+		case "%free":
+			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
+												oldRecord.getTimestamp(),
+												newRecord.getPreviousTimestamp(),
+												newRecord.getTimestamp(),
+												getName(),
+												metric,
+												"double",
+												newRecord.getFreeMemPct() - oldRecord.getFreeMemPct() );
+	
+		default:
+			throw new Exception("Metric " + metric
+					+ " is not Diffable in SystemMemoryRecordProcessor");
+		}
 	}
 	
 	public String getName(){

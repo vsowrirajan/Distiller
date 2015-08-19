@@ -34,6 +34,8 @@ public class DifferentialValueRecordProcessor implements RecordProcessor<Record>
 			return ((long)currentRecord.getValue()) == Long.parseLong(thresholdValue);
 		case "long":
 			return ((int)currentRecord.getValue()) == Integer.parseInt(thresholdValue);
+		case "boolean":
+			return ((boolean)currentRecord.getValue()) == Boolean.parseBoolean(thresholdValue);
 			
 		default:
 			throw new Exception("Value type " + currentRecord.getValueType()
