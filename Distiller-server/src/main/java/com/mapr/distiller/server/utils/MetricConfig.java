@@ -1,6 +1,13 @@
 package com.mapr.distiller.server.utils;
 
-public class MetricConfig {
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+
+public class MetricConfig {	
+		
+	private static final Logger LOG = LoggerFactory
+			.getLogger(MetricConfig.class);
 
 	private final String id;
 	private final String inputQueue;

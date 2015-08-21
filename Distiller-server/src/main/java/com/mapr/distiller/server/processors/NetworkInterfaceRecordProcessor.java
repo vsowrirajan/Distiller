@@ -7,257 +7,211 @@ import com.mapr.distiller.server.utils.Constants;
 
 import java.math.BigInteger;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public class NetworkInterfaceRecordProcessor implements RecordProcessor<Record> {
 
+	private static final Logger LOG = LoggerFactory
+			.getLogger(NetworkInterfaceRecordProcessor.class);
+
 	@Override
-	public DifferentialValueRecord diff(Record rec1, Record rec2, String metric) throws Exception {
-		if( rec1.getPreviousTimestamp()==-1l ||
-			rec2.getPreviousTimestamp()==-1l )
-			throw new Exception("NetworkInterfaceRecords can only be diff'd from non-raw NetworkInterfaceRecords");
-			
+	public DifferentialValueRecord diff(Record rec1, Record rec2, String metric)
+			throws Exception {
+		if (rec1.getPreviousTimestamp() == -1l
+				|| rec2.getPreviousTimestamp() == -1l)
+			throw new Exception(
+					"NetworkInterfaceRecords can only be diff'd from non-raw NetworkInterfaceRecords");
+
 		NetworkInterfaceRecord oldRecord, newRecord;
-		if(rec1.getTimestamp() < rec2.getTimestamp()){
-			oldRecord = (NetworkInterfaceRecord)rec1;
-			newRecord = (NetworkInterfaceRecord)rec2;
+		if (rec1.getTimestamp() < rec2.getTimestamp()) {
+			oldRecord = (NetworkInterfaceRecord) rec1;
+			newRecord = (NetworkInterfaceRecord) rec2;
 		} else {
-			oldRecord = (NetworkInterfaceRecord)rec2;
-			newRecord = (NetworkInterfaceRecord)rec1;
+			oldRecord = (NetworkInterfaceRecord) rec2;
+			newRecord = (NetworkInterfaceRecord) rec1;
 		}
-		if(!oldRecord.getName().equals(newRecord.getName()))
-			throw new Exception("Can not diff NetworkInterfaceRecords where interface name does not match");
-		
-		if(oldRecord.getPreviousTimestamp() > newRecord.getPreviousTimestamp())
-			throw new Exception("Can not calculate diff for input records where the timestamps of one record are within the timestamps of the other");
+		if (!oldRecord.getName().equals(newRecord.getName()))
+			throw new Exception(
+					"Can not diff NetworkInterfaceRecords where interface name does not match");
+
+		if (oldRecord.getPreviousTimestamp() > newRecord.getPreviousTimestamp())
+			throw new Exception(
+					"Can not calculate diff for input records where the timestamps of one record are within the timestamps of the other");
 
 		switch (metric) {
 		case "name":
-			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
-												 oldRecord.getTimestamp(),
-												 newRecord.getPreviousTimestamp(),
-												 newRecord.getTimestamp(),
-												 getName(),
-												 metric,
-												"boolean",
-												 !newRecord.getName().equals(oldRecord.getName()) );
-
+			return new DifferentialValueRecord(
+					oldRecord.getPreviousTimestamp(), oldRecord.getTimestamp(),
+					newRecord.getPreviousTimestamp(), newRecord.getTimestamp(),
+					getName(), metric, "boolean", !newRecord.getName().equals(
+							oldRecord.getName()));
 
 		case "duplex":
-			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
-												 oldRecord.getTimestamp(),
-												 newRecord.getPreviousTimestamp(),
-												 newRecord.getTimestamp(),
-												 getName(),
-												 metric,
-												"boolean",
-												 !newRecord.getDuplex().equals(oldRecord.getDuplex()) );
-
+			return new DifferentialValueRecord(
+					oldRecord.getPreviousTimestamp(), oldRecord.getTimestamp(),
+					newRecord.getPreviousTimestamp(), newRecord.getTimestamp(),
+					getName(), metric, "boolean", !newRecord.getDuplex()
+							.equals(oldRecord.getDuplex()));
 
 		case "fullDuplex":
-			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
-												 oldRecord.getTimestamp(),
-												 newRecord.getPreviousTimestamp(),
-												 newRecord.getTimestamp(),
-												 getName(),
-												 metric,
-												"boolean",
-												 newRecord.getFullDuplex() != (oldRecord.getFullDuplex()) );
-
+			return new DifferentialValueRecord(
+					oldRecord.getPreviousTimestamp(), oldRecord.getTimestamp(),
+					newRecord.getPreviousTimestamp(), newRecord.getTimestamp(),
+					getName(), metric, "boolean",
+					newRecord.getFullDuplex() != (oldRecord.getFullDuplex()));
 
 		case "carrier":
-			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
-												 oldRecord.getTimestamp(),
-												 newRecord.getPreviousTimestamp(),
-												 newRecord.getTimestamp(),
-												 getName(),
-												 metric,
-												"boolean",
-												 newRecord.getCarrier() != (oldRecord.getCarrier()) );
-
+			return new DifferentialValueRecord(
+					oldRecord.getPreviousTimestamp(), oldRecord.getTimestamp(),
+					newRecord.getPreviousTimestamp(), newRecord.getTimestamp(),
+					getName(), metric, "boolean",
+					newRecord.getCarrier() != (oldRecord.getCarrier()));
 
 		case "speed":
-			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
-												 oldRecord.getTimestamp(),
-												 newRecord.getPreviousTimestamp(),
-												 newRecord.getTimestamp(),
-												 getName(),
-												 metric,
-												"boolean",
-												 newRecord.getSpeed() != (oldRecord.getSpeed()) );
-
+			return new DifferentialValueRecord(
+					oldRecord.getPreviousTimestamp(), oldRecord.getTimestamp(),
+					newRecord.getPreviousTimestamp(), newRecord.getTimestamp(),
+					getName(), metric, "boolean",
+					newRecord.getSpeed() != (oldRecord.getSpeed()));
 
 		case "tx_queue_len":
-			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
-												 oldRecord.getTimestamp(),
-												 newRecord.getPreviousTimestamp(),
-												 newRecord.getTimestamp(),
-												 getName(),
-												 metric,
-												"boolean",
-												 newRecord.get_tx_queue_len() != (oldRecord.get_tx_queue_len()) );
-
+			return new DifferentialValueRecord(
+					oldRecord.getPreviousTimestamp(), oldRecord.getTimestamp(),
+					newRecord.getPreviousTimestamp(), newRecord.getTimestamp(),
+					getName(), metric, "boolean",
+					newRecord.get_tx_queue_len() != (oldRecord
+							.get_tx_queue_len()));
 
 		case "hasProblems":
-			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
-												 oldRecord.getTimestamp(),
-												 newRecord.getPreviousTimestamp(),
-												 newRecord.getTimestamp(),
-												 getName(),
-												 metric,
-												"boolean",
-												( !oldRecord.getFullDuplex() ||
-												  oldRecord.getCarrier() != 1 ||
-												  oldRecord.getSpeed() < 1000 ||
-												  oldRecord.get_tx_queue_len() < 1000 ||
-												  !oldRecord.get_collisions().equals(new BigInteger("0")) ||
-												  !oldRecord.get_rx_dropped().equals(new BigInteger("0")) ||
-												  !oldRecord.get_rx_errors().equals(new BigInteger("0")) ||
-												  !oldRecord.get_tx_dropped().equals(new BigInteger("0")) || 
-												  !oldRecord.get_tx_errors().equals(new BigInteger("0"))
-												)
-												!=
-												( !newRecord.getFullDuplex() ||
-												  newRecord.getCarrier() != 1 ||
-												  newRecord.getSpeed() < 1000 ||
-												  newRecord.get_tx_queue_len() < 1000 ||
-												  !newRecord.get_collisions().equals(new BigInteger("0")) ||
-												  !newRecord.get_rx_dropped().equals(new BigInteger("0")) ||
-												  !newRecord.get_rx_errors().equals(new BigInteger("0")) ||
-												  !newRecord.get_tx_dropped().equals(new BigInteger("0")) || 
-												  !newRecord.get_tx_errors().equals(new BigInteger("0"))	
-												)
-					);
+			return new DifferentialValueRecord(
+					oldRecord.getPreviousTimestamp(),
+					oldRecord.getTimestamp(),
+					newRecord.getPreviousTimestamp(),
+					newRecord.getTimestamp(),
+					getName(),
+					metric,
+					"boolean",
+					(!oldRecord.getFullDuplex()
+							|| oldRecord.getCarrier() != 1
+							|| oldRecord.getSpeed() < 1000
+							|| oldRecord.get_tx_queue_len() < 1000
+							|| !oldRecord.get_collisions().equals(
+									new BigInteger("0"))
+							|| !oldRecord.get_rx_dropped().equals(
+									new BigInteger("0"))
+							|| !oldRecord.get_rx_errors().equals(
+									new BigInteger("0"))
+							|| !oldRecord.get_tx_dropped().equals(
+									new BigInteger("0")) || !oldRecord
+							.get_tx_errors().equals(new BigInteger("0"))) != (!newRecord
+							.getFullDuplex()
+							|| newRecord.getCarrier() != 1
+							|| newRecord.getSpeed() < 1000
+							|| newRecord.get_tx_queue_len() < 1000
+							|| !newRecord.get_collisions().equals(
+									new BigInteger("0"))
+							|| !newRecord.get_rx_dropped().equals(
+									new BigInteger("0"))
+							|| !newRecord.get_rx_errors().equals(
+									new BigInteger("0"))
+							|| !newRecord.get_tx_dropped().equals(
+									new BigInteger("0")) || !newRecord
+							.get_tx_errors().equals(new BigInteger("0"))));
 
 		case "rxPacketsPerSecond":
-			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
-												 oldRecord.getTimestamp(),
-												 newRecord.getPreviousTimestamp(),
-												 newRecord.getTimestamp(),
-												 getName(),
-												 metric,
-												"double",
-												 newRecord.getRxPacketsPerSecond() - oldRecord.getRxPacketsPerSecond() );
-
+			return new DifferentialValueRecord(
+					oldRecord.getPreviousTimestamp(), oldRecord.getTimestamp(),
+					newRecord.getPreviousTimestamp(), newRecord.getTimestamp(),
+					getName(), metric, "double",
+					newRecord.getRxPacketsPerSecond()
+							- oldRecord.getRxPacketsPerSecond());
 
 		case "rxBytesPerSecond":
-			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
-												 oldRecord.getTimestamp(),
-												 newRecord.getPreviousTimestamp(),
-												 newRecord.getTimestamp(),
-												 getName(),
-												 metric,
-												"double",
-												 newRecord.getRxBytesPerSecond() - oldRecord.getRxBytesPerSecond() );
-
+			return new DifferentialValueRecord(
+					oldRecord.getPreviousTimestamp(), oldRecord.getTimestamp(),
+					newRecord.getPreviousTimestamp(), newRecord.getTimestamp(),
+					getName(), metric, "double",
+					newRecord.getRxBytesPerSecond()
+							- oldRecord.getRxBytesPerSecond());
 
 		case "rxUtilizationPct":
-			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
-												 oldRecord.getTimestamp(),
-												 newRecord.getPreviousTimestamp(),
-												 newRecord.getTimestamp(),
-												 getName(),
-												 metric,
-												"double",
-												 newRecord.getRxUtilizationPct() - oldRecord.getRxUtilizationPct() );
-
+			return new DifferentialValueRecord(
+					oldRecord.getPreviousTimestamp(), oldRecord.getTimestamp(),
+					newRecord.getPreviousTimestamp(), newRecord.getTimestamp(),
+					getName(), metric, "double",
+					newRecord.getRxUtilizationPct()
+							- oldRecord.getRxUtilizationPct());
 
 		case "txPacketsPerSecond":
-			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
-												 oldRecord.getTimestamp(),
-												 newRecord.getPreviousTimestamp(),
-												 newRecord.getTimestamp(),
-												 getName(),
-												 metric,
-												"double",
-												 newRecord.getTxPacketsPerSecond() - oldRecord.getTxPacketsPerSecond() );
-
+			return new DifferentialValueRecord(
+					oldRecord.getPreviousTimestamp(), oldRecord.getTimestamp(),
+					newRecord.getPreviousTimestamp(), newRecord.getTimestamp(),
+					getName(), metric, "double",
+					newRecord.getTxPacketsPerSecond()
+							- oldRecord.getTxPacketsPerSecond());
 
 		case "txBytesPerSecond":
-			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
-												 oldRecord.getTimestamp(),
-												 newRecord.getPreviousTimestamp(),
-												 newRecord.getTimestamp(),
-												 getName(),
-												 metric,
-												"double",
-												 newRecord.getTxBytesPerSecond() - oldRecord.getTxBytesPerSecond() );
-
+			return new DifferentialValueRecord(
+					oldRecord.getPreviousTimestamp(), oldRecord.getTimestamp(),
+					newRecord.getPreviousTimestamp(), newRecord.getTimestamp(),
+					getName(), metric, "double",
+					newRecord.getTxBytesPerSecond()
+							- oldRecord.getTxBytesPerSecond());
 
 		case "txUtilizationPct":
-			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
-												 oldRecord.getTimestamp(),
-												 newRecord.getPreviousTimestamp(),
-												 newRecord.getTimestamp(),
-												 getName(),
-												 metric,
-												"double",
-												 newRecord.getTxUtilizationPct() - oldRecord.getTxUtilizationPct() );
+			return new DifferentialValueRecord(
+					oldRecord.getPreviousTimestamp(), oldRecord.getTimestamp(),
+					newRecord.getPreviousTimestamp(), newRecord.getTimestamp(),
+					getName(), metric, "double",
+					newRecord.getTxUtilizationPct()
+							- oldRecord.getTxUtilizationPct());
 
 		case "collisions":
-			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
-												 oldRecord.getTimestamp(),
-												 newRecord.getPreviousTimestamp(),
-												 newRecord.getTimestamp(),
-												 getName(),
-												 metric,
-												"BigInteger",
-												 newRecord.get_collisions().subtract(oldRecord.get_collisions()) );
-
+			return new DifferentialValueRecord(
+					oldRecord.getPreviousTimestamp(), oldRecord.getTimestamp(),
+					newRecord.getPreviousTimestamp(), newRecord.getTimestamp(),
+					getName(), metric, "BigInteger", newRecord.get_collisions()
+							.subtract(oldRecord.get_collisions()));
 
 		case "rx_dropped":
-			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
-												 oldRecord.getTimestamp(),
-												 newRecord.getPreviousTimestamp(),
-												 newRecord.getTimestamp(),
-												 getName(),
-												 metric,
-												"BigInteger",
-												 newRecord.get_rx_dropped().subtract(oldRecord.get_rx_dropped()) );
-
+			return new DifferentialValueRecord(
+					oldRecord.getPreviousTimestamp(), oldRecord.getTimestamp(),
+					newRecord.getPreviousTimestamp(), newRecord.getTimestamp(),
+					getName(), metric, "BigInteger", newRecord.get_rx_dropped()
+							.subtract(oldRecord.get_rx_dropped()));
 
 		case "rx_errors":
-			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
-												 oldRecord.getTimestamp(),
-												 newRecord.getPreviousTimestamp(),
-												 newRecord.getTimestamp(),
-												 getName(),
-												 metric,
-												"BigInteger",
-												 newRecord.get_rx_errors().subtract(oldRecord.get_rx_errors()) );
-
+			return new DifferentialValueRecord(
+					oldRecord.getPreviousTimestamp(), oldRecord.getTimestamp(),
+					newRecord.getPreviousTimestamp(), newRecord.getTimestamp(),
+					getName(), metric, "BigInteger", newRecord.get_rx_errors()
+							.subtract(oldRecord.get_rx_errors()));
 
 		case "tx_dropped":
-			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
-												 oldRecord.getTimestamp(),
-												 newRecord.getPreviousTimestamp(),
-												 newRecord.getTimestamp(),
-												 getName(),
-												 metric,
-												"BigInteger",
-												 newRecord.get_tx_dropped().subtract(oldRecord.get_tx_dropped()) );
-
+			return new DifferentialValueRecord(
+					oldRecord.getPreviousTimestamp(), oldRecord.getTimestamp(),
+					newRecord.getPreviousTimestamp(), newRecord.getTimestamp(),
+					getName(), metric, "BigInteger", newRecord.get_tx_dropped()
+							.subtract(oldRecord.get_tx_dropped()));
 
 		case "tx_errors":
-			return new DifferentialValueRecord( oldRecord.getPreviousTimestamp(),
-												 oldRecord.getTimestamp(),
-												 newRecord.getPreviousTimestamp(),
-												 newRecord.getTimestamp(),
-												 getName(),
-												 metric,
-												"BigInteger",
-												 newRecord.get_tx_errors().subtract(oldRecord.get_tx_errors()) );
+			return new DifferentialValueRecord(
+					oldRecord.getPreviousTimestamp(), oldRecord.getTimestamp(),
+					newRecord.getPreviousTimestamp(), newRecord.getTimestamp(),
+					getName(), metric, "BigInteger", newRecord.get_tx_errors()
+							.subtract(oldRecord.get_tx_errors()));
 
-
-
-		
 		default:
 			throw new Exception("Metric " + metric
 					+ " is not Diffable in NetworkInterfaceRecordProcessor");
 		}
-	}	
-	public String getName(){
+	}
+
+	public String getName() {
 		return Constants.NETWORK_INTERFACE_RECORD_PROCESSOR;
 	}
-	
+
 	public boolean isNotEqual(Record record, String metric,
 			String thresholdValue) throws Exception {
 		return !isEqual(record, metric, thresholdValue);
