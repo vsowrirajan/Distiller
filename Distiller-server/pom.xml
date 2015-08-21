@@ -10,28 +10,46 @@
 	<packaging>jar</packaging>
 	<artifactId>Distiller-server</artifactId>
 
+	<repositories>
+		<repository>
+			<id>mapr-maven</id>
+			<url>http://repository.mapr.com/maven/</url>
+			<releases>
+				<enabled>true</enabled>
+			</releases>
+			<snapshots>
+				<enabled>false</enabled>
+			</snapshots>
+		</repository>
+	</repositories>
+
 	<properties>
 		<jdk.version>1.7</jdk.version>
-		<xmlrpc.version>3.1.3</xmlrpc.version>
 	</properties>
 
 	<dependencies>
+
 		<dependency>
-			<groupId>org.apache.xmlrpc</groupId>
-			<artifactId>xmlrpc-client</artifactId>
-			<version>${xmlrpc.version}</version>
+			<groupId>org.hbase</groupId>
+			<artifactId>asynchbase</artifactId>
+			<version>1.6.0-mapr-1504-m7-4.1.0</version>
 		</dependency>
 
 		<dependency>
-			<groupId>org.apache.xmlrpc</groupId>
-			<artifactId>xmlrpc-server</artifactId>
-			<version>${xmlrpc.version}</version>
-		</dependency>
+			<groupId>org.apache.hbase</groupId>
+			<artifactId>hbase-client</artifactId>
+			<version>0.98.9-mapr-1503-m7-4.1.0</version>
+			<exclusions>
+				<exclusion>
+					<artifactId>slf4j-log4j12</artifactId>
+					<groupId>org.slf4j</groupId>
+				</exclusion>
 
-		<dependency>
-			<groupId>org.apache.xmlrpc</groupId>
-			<artifactId>xmlrpc-common</artifactId>
-			<version>${xmlrpc.version}</version>
+				<exclusion>
+					<artifactId>log4j</artifactId>
+					<groupId>log4j</groupId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 
 		<dependency>
