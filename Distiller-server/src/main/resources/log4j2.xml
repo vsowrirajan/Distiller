@@ -1,16 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Configuration status="WARN">
-  <Appenders>
-    <Console name="Console" target="SYSTEM_OUT">
-      <PatternLayout pattern="%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>
-    </Console>
-  </Appenders>
-  <Loggers>
-    <Logger name="Coordinator" level="debug" additivity="false">
-      <AppenderRef ref="Console"/>
-    </Logger>
-    <Root level="debug">
-      <AppenderRef ref="Console"/>
-    </Root>
-  </Loggers>
-</Configuration>
+<configuration status="WARN">
+	<appenders>
+		<Console name="Console" target="SYSTEM_OUT">
+			<PatternLayout
+				pattern="%d{yyyy-mm-dd HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n" />
+		</Console>
+
+		<File name="MyFile" fileName="logs/distiller.log">
+			<PatternLayout
+				pattern="%d{yyyy-mm-dd HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n" />
+		</File>
+	</appenders>
+
+	<loggers>
+		<root level="info">
+			<appender-ref ref="Console" level="info" />
+			<appender-ref ref="MyFile" level="info" />
+		</root>
+	</loggers>
+</configuration>
