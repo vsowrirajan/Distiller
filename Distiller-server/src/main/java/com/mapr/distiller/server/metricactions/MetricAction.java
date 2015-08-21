@@ -5,6 +5,9 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.LinkedList;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.mapr.distiller.server.processors.RecordProcessor;
 import com.mapr.distiller.server.queues.RecordQueue;
 import com.mapr.distiller.server.recordtypes.Record;
@@ -19,7 +22,10 @@ import com.mapr.distiller.server.selectors.related.RelatedRecordSelector;
 import com.mapr.distiller.server.selectors.related.BasicRelatedRecordSelector;
 
 public class MetricAction implements Runnable, MetricsSelectable {
-	private boolean DEBUG_ENABLED=false;
+	
+	private static final Logger LOG = LoggerFactory
+			.getLogger(MetricAction.class);
+	
 	Object object = new Object();
 	private Schedule schedule;
 	private MetricActionScheduler metricActionScheduler;
@@ -368,37 +374,36 @@ public class MetricAction implements Runnable, MetricsSelectable {
 			lastStatus = startTime;
 		}
 		if(!metricEnabled) {
-			System.err.println("MetricAction-" + System.identityHashCode(this) + ": Received request to run metric while it is disabled");
+			LOG.warn("MetricAction-" + System.identityHashCode(this) + ": Received request to run metric while it is disabled");
 		} else {
-			if(DEBUG_ENABLED)
-				System.err.println("MetricAction-" + System.identityHashCode(this) + ": Started metric action " + this.id);
+				LOG.info("MetricAction-" + System.identityHashCode(this) + ": Started metric action " + this.id);
 			try {
 				if(selector.equals(Constants.SEQUENTIAL_SELECTOR)){
 					try {
 						selectSequentialRecords();
 					} catch (Exception e) {
-						System.err.println("MetricAction-" + System.identityHashCode(this) + ": Caught an exception while running sequential record selection for " + this.id);
+						LOG.error("MetricAction-" + System.identityHashCode(this) + ": Caught an exception while running sequential record selection for " + this.id);
 						throw e;
 					}
 				} else if(selector.equals(Constants.CUMULATIVE_SELECTOR)){
 					try {
 						selectCumulativeRecords();
 					} catch (Exception e) {
-						System.err.println("MetricAction-" + System.identityHashCode(this) + ": Caught an exception while running cumulative record selection for " + this.id);
+						LOG.error("MetricAction-" + System.identityHashCode(this) + ": Caught an exception while running cumulative record selection for " + this.id);
 						throw e;
 					}
 				} else if(selector.equals(Constants.TIME_SELECTOR)){
 					try {
 						selectTimeSeparatedRecords();
 					} catch (Exception e) {
-						System.err.println("MetricAction-" + System.identityHashCode(this) + ": Caught an exception while running time separated record selection for " + this.id);
+						LOG.error("MetricAction-" + System.identityHashCode(this) + ": Caught an exception while running time separated record selection for " + this.id);
 						throw e;
 					}
 				} else if(selector.equals(Constants.SEQUENTIAL_WITH_QUALIFIER_SELECTOR)){
 					try {
 						selectSequentialRecordsWithQualifier();
 					} catch (Exception e) {
-						System.err.println("MetricAction-" + System.identityHashCode(this) + ": Caught an exception while running sequential record selection with qualifier for " + this.id);
+						LOG.error("MetricAction-" + System.identityHashCode(this) + ": Caught an exception while running sequential record selection with qualifier for " + this.id);
 						throw e;
 					}
 					//This is not a suitable way to implement cleaning.  Just doing this for right now.
@@ -412,7 +417,7 @@ public class MetricAction implements Runnable, MetricsSelectable {
 					try {
 						selectCumulativeRecordsWithQualifier();
 					} catch (Exception e) {
-						System.err.println("MetricAction-" + System.identityHashCode(this) + ": Caught an exception while running cumulative record selection with qualifier for " + this.id);
+						LOG.error("MetricAction-" + System.identityHashCode(this) + ": Caught an exception while running cumulative record selection with qualifier for " + this.id);
 						throw e;
 					}
 					//TODO: Fix this
@@ -423,11 +428,11 @@ public class MetricAction implements Runnable, MetricsSelectable {
 					}
 
 				} else {
-					System.err.println("MetricAction-" + System.identityHashCode(this) + ": Unknown selector: " + selector);
+					LOG.error("MetricAction-" + System.identityHashCode(this) + ": Unknown selector: " + selector);
 					throw new Exception();
 				}
 			} catch (Exception e) {
-				System.err.println("MetricAction-" + System.identityHashCode(this) + ": Exiting due to exception while processing records:");
+				LOG.error("MetricAction-" + System.identityHashCode(this) + ": Exiting due to exception while processing records:");
 				e.printStackTrace();
 				return;
 			}
@@ -443,13 +448,12 @@ public class MetricAction implements Runnable, MetricsSelectable {
 			 	metricActionScheduler.schedule(this);
 			} catch (Exception e) {
 				//We should never be here};
-				System.err.println("Unknown exception:");
+				LOG.error("Unknown exception:");
 				e.printStackTrace();
 				System.exit(1);
 			}
 		}
-		if(DEBUG_ENABLED)
-			System.err.println("MetricAction-" + System.identityHashCode(this) + ": Completed metric action " + id);
+			LOG.info("MetricAction-" + System.identityHashCode(this) + ": Completed metric action " + id);
 	}
 	
 	public void disableMetric(){
@@ -487,10 +491,8 @@ public class MetricAction implements Runnable, MetricsSelectable {
 						outputQueue.put(id, outputRec);
 						outRecCntr++;
 					} catch (Exception e) {
-						if(DEBUG_ENABLED){
-							System.err.println("MetricAction-" + System.identityHashCode(this) + ": Queue put failure:");
-							e.printStackTrace();
-						}
+						LOG.error("MetricAction-" + System.identityHashCode(this) + ": Queue put failure:");
+						e.printStackTrace();
 						putFailureCntr++;
 					}
 					if(config.getRelatedSelectorEnabled())
@@ -504,10 +506,8 @@ public class MetricAction implements Runnable, MetricsSelectable {
 							throw new Exception("Failed to process related records", e);
 						}
 				} catch (Exception e) {
-					if(DEBUG_ENABLED){
-						System.err.println("MetricAction-" + System.identityHashCode(this) + ": Record processing failure:");
-						e.printStackTrace();
-					}
+					LOG.error("MetricAction-" + System.identityHashCode(this) + ": Record processing failure:");
+					e.printStackTrace();
 					processingFailureCntr++;
 				}
 				oldRec = newRec;
@@ -519,10 +519,8 @@ public class MetricAction implements Runnable, MetricsSelectable {
 						outputQueue.put(id, outputRec);
 						outRecCntr++;
 					} catch (Exception e) {
-						if(DEBUG_ENABLED){
-							System.err.println("MetricAction-" + System.identityHashCode(this) + ": Queue put failure:");
-							e.printStackTrace();
-						}
+						LOG.error("MetricAction-" + System.identityHashCode(this) + ": Queue put failure:");
+						e.printStackTrace();
 						putFailureCntr++;
 					}
 					if(config.getRelatedSelectorEnabled())
@@ -536,10 +534,8 @@ public class MetricAction implements Runnable, MetricsSelectable {
 							throw new Exception("Failed to process related records", e);
 						}
 				} catch (Exception e) {
-					if(DEBUG_ENABLED){
-						System.err.println("MetricAction-" + System.identityHashCode(this) + ": Record processing failure:");
-						e.printStackTrace();
-					}
+					LOG.error("MetricAction-" + System.identityHashCode(this) + ": Record processing failure:");
+					e.printStackTrace();
 					processingFailureCntr++;
 				}
 				oldRec = newRec;
@@ -552,10 +548,8 @@ public class MetricAction implements Runnable, MetricsSelectable {
 							outputQueue.put(id,  newRec);
 							outRecCntr++;
 						} catch (Exception e) {
-							if(DEBUG_ENABLED){
-								System.err.println("MetricAction-" + System.identityHashCode(this) + ": Queue put failure:");
-								e.printStackTrace();
-							}
+							LOG.error("MetricAction-" + System.identityHashCode(this) + ": Queue put failure:");
+							e.printStackTrace();
 							putFailureCntr++;
 						}
 						if(config.getRelatedSelectorEnabled())
@@ -570,10 +564,8 @@ public class MetricAction implements Runnable, MetricsSelectable {
 							}
 					}
 				} catch (Exception e) {
-					if(DEBUG_ENABLED){
-						System.err.println("MetricAction-" + System.identityHashCode(this) + ": Record processing failure:");
-						e.printStackTrace();
-					}
+					LOG.error("MetricAction-" + System.identityHashCode(this) + ": Record processing failure:");
+					e.printStackTrace();
 					processingFailureCntr++;
 				}
 			}
@@ -584,10 +576,8 @@ public class MetricAction implements Runnable, MetricsSelectable {
 							outputQueue.put(id,  newRec);
 							outRecCntr++;
 						} catch (Exception e) {
-							if(DEBUG_ENABLED){
-								System.err.println("MetricAction-" + System.identityHashCode(this) + ": Queue put failure:");
-								e.printStackTrace();
-							}
+							LOG.error("MetricAction-" + System.identityHashCode(this) + ": Queue put failure:");
+							e.printStackTrace();
 							putFailureCntr++;
 						}
 						if(config.getRelatedSelectorEnabled())
@@ -602,10 +592,8 @@ public class MetricAction implements Runnable, MetricsSelectable {
 							}
 					}
 				} catch (Exception e) {
-					if(DEBUG_ENABLED){
-						System.err.println("MetricAction-" + System.identityHashCode(this) + ": Record processing failure:");
-						e.printStackTrace();
-					}
+					LOG.error("MetricAction-" + System.identityHashCode(this) + ": Record processing failure:");
+					e.printStackTrace();
 					processingFailureCntr++;
 				}
 			}
@@ -616,10 +604,8 @@ public class MetricAction implements Runnable, MetricsSelectable {
 							outputQueue.put(id,  newRec);
 							outRecCntr++;
 						} catch (Exception e) {
-							if(DEBUG_ENABLED){
-								System.err.println("MetricAction-" + System.identityHashCode(this) + ": Queue put failure:");
-								e.printStackTrace();
-							}
+							LOG.error("MetricAction-" + System.identityHashCode(this) + ": Queue put failure:");
+							e.printStackTrace();
 							putFailureCntr++;
 						}
 						if(config.getRelatedSelectorEnabled())
@@ -634,10 +620,8 @@ public class MetricAction implements Runnable, MetricsSelectable {
 							}
 					}
 				} catch (Exception e) {
-					if(DEBUG_ENABLED){
-						System.err.println("MetricAction-" + System.identityHashCode(this) + ": Record processing failure:");
-						e.printStackTrace();
-					}
+					LOG.error("MetricAction-" + System.identityHashCode(this) + ": Record processing failure:");
+					e.printStackTrace();
 					processingFailureCntr++;
 				}
 			}
@@ -648,10 +632,8 @@ public class MetricAction implements Runnable, MetricsSelectable {
 							outputQueue.put(id,  newRec);
 							outRecCntr++;
 						} catch (Exception e) {
-							if(DEBUG_ENABLED){
-								System.err.println("MetricAction-" + System.identityHashCode(this) + ": Queue put failure:");
-								e.printStackTrace();
-							}
+							LOG.error("MetricAction-" + System.identityHashCode(this) + ": Queue put failure:");
+							e.printStackTrace();
 							putFailureCntr++;
 						}
 						if(config.getRelatedSelectorEnabled())
@@ -666,10 +648,8 @@ public class MetricAction implements Runnable, MetricsSelectable {
 							}
 					}
 				} catch (Exception e) {
-					if(DEBUG_ENABLED){
-						System.err.println("MetricAction-" + System.identityHashCode(this) + ": Record processing failure:");
-						e.printStackTrace();
-					}
+					LOG.error("MetricAction-" + System.identityHashCode(this) + ": Record processing failure:");
+					e.printStackTrace();
 					processingFailureCntr++;
 				}
 			}
@@ -697,10 +677,8 @@ public class MetricAction implements Runnable, MetricsSelectable {
 					} else
 						lastRecordPut = newRec.getTimestamp();
 				} catch (Exception e) {
-					if(DEBUG_ENABLED){
-						System.err.println("MetricAction-" + System.identityHashCode(this) + ": Queue put failure:");
-						e.printStackTrace();
-					}
+					LOG.error("MetricAction-" + System.identityHashCode(this) + ": Queue put failure:");
+					e.printStackTrace();
 					putFailureCntr++;
 				}
 				if(config.getRelatedSelectorEnabled())
@@ -728,10 +706,8 @@ public class MetricAction implements Runnable, MetricsSelectable {
 							outRecCntr++;
 						}
 					} catch (Exception e) {
-						if(DEBUG_ENABLED){
-							System.err.println("MetricAction-" + System.identityHashCode(this) + ": Queue put failure:");
-							e.printStackTrace();
-						}
+						LOG.error("MetricAction-" + System.identityHashCode(this) + ": Queue put failure:");
+						e.printStackTrace();
 						putFailureCntr++;
 					}
 					if(config.getRelatedSelectorEnabled())
@@ -745,10 +721,8 @@ public class MetricAction implements Runnable, MetricsSelectable {
 							throw new Exception("Failed to process related records", e);
 						}
 				} catch (Exception e) {
-					if(DEBUG_ENABLED){
-						System.err.println("MetricAction-" + System.identityHashCode(this) + ": Record processing failure:");
-						e.printStackTrace();
-					}
+					LOG.error("MetricAction-" + System.identityHashCode(this) + ": Record processing failure:");
+					e.printStackTrace();
 					oldRec = newRec;
 					processingFailureCntr++;
 				}
@@ -806,16 +780,12 @@ public class MetricAction implements Runnable, MetricsSelectable {
 						}
 					} catch (Exception e) {
 						putFailureCntr++;
-						if(DEBUG_ENABLED){
-							System.err.println("MetricAction-" + System.identityHashCode(this) + ": Queue put failure:");
-							e.printStackTrace();
-						}
-					}
-				} catch (Exception e) {
-					if(DEBUG_ENABLED){
-						System.err.println("MetricAction-" + System.identityHashCode(this) + ": Record processing failure:");
+						LOG.error("MetricAction-" + System.identityHashCode(this) + ": Queue put failure:");
 						e.printStackTrace();
 					}
+				} catch (Exception e) {
+					LOG.error("MetricAction-" + System.identityHashCode(this) + ": Record processing failure:");
+					e.printStackTrace();
 					processingFailureCntr++;
 				}
 			}
@@ -868,10 +838,8 @@ public class MetricAction implements Runnable, MetricsSelectable {
 						outRecCntr++;
 					} catch (Exception e) {
 						putFailureCntr++;
-						if(DEBUG_ENABLED){
-							System.err.println("MetricAction-" + System.identityHashCode(this) + ": Queue put failure:");
-							e.printStackTrace();
-						}
+						LOG.error("MetricAction-" + System.identityHashCode(this) + ": Queue put failure:");
+						e.printStackTrace();
 					}
 					if(config.getRelatedSelectorEnabled())
 						try {
@@ -884,10 +852,8 @@ public class MetricAction implements Runnable, MetricsSelectable {
 							throw new Exception("Failed to process related records", e);
 						}
 				} catch (Exception e) {
-					if(DEBUG_ENABLED){
-						System.err.println("MetricAction-" + System.identityHashCode(this) + ": Record processing failure:");
-						e.printStackTrace();
-					}
+					LOG.error("MetricAction-" + System.identityHashCode(this) + ": Record processing failure:");
+					e.printStackTrace();
 					processingFailureCntr++;
 				}
 				recordList.removeFirst();
@@ -911,10 +877,8 @@ public class MetricAction implements Runnable, MetricsSelectable {
 						outRecCntr++;
 					} catch (Exception e) {
 						putFailureCntr++;
-						if(DEBUG_ENABLED){
-							System.err.println("MetricAction-" + System.identityHashCode(this) + ": Queue put failure:");
-							e.printStackTrace();
-						}
+						LOG.error("MetricAction-" + System.identityHashCode(this) + ": Queue put failure:");
+						e.printStackTrace();
 					}
 					if(config.getRelatedSelectorEnabled())
 						try {
@@ -927,10 +891,8 @@ public class MetricAction implements Runnable, MetricsSelectable {
 							throw new Exception("Failed to process related records", e);
 						}
 				} catch (Exception e) {
-					if(DEBUG_ENABLED){
-						System.err.println("MetricAction-" + System.identityHashCode(this) + ": Record processing failure:");
-						e.printStackTrace();
-					}
+					LOG.error("MetricAction-" + System.identityHashCode(this) + ": Record processing failure:");
+					e.printStackTrace();
 					processingFailureCntr++;
 				}
 			}

@@ -9,6 +9,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.mapr.distiller.server.metricactions.MetricAction;
 import com.mapr.distiller.server.producers.raw.ProcRecordProducer;
 import com.mapr.distiller.server.producers.raw.MfsGutsRecordProducer;
@@ -23,8 +26,11 @@ import com.typesafe.config.ConfigFactory;
 import com.typesafe.config.ConfigObject;
 
 public class Coordinator {
+	
+	private static final Logger LOG = LoggerFactory
+			.getLogger(Coordinator.class);
+	
 	private static Object coordinatorLock;
-	private static boolean DEBUG_ENABLED=true;
 
 	private static SortedMap<String, MetricConfig> metricConfigMap;
 	private static SortedMap<String, MetricAction> metricActionsIdMap;
@@ -42,8 +48,7 @@ public class Coordinator {
 	public Coordinator() {
 		//Nothing is done here because the work is really done in the main() function as this is the primary class for distiller-server
 		//That's not great but will do for now.
-		if(DEBUG_ENABLED)
-			System.err.println("Coordinator-" + System.identityHashCode(this) + ": initialized");
+		LOG.info("Coordinator- {} : initialized", System.identityHashCode(this));
 	}
 
 	/**
@@ -61,8 +66,7 @@ public class Coordinator {
 		// Create metricActions
 		synchronized(coordinatorLock){
 			for (String metric : metricConfigNames) {
-				if(DEBUG_ENABLED)
-					System.err.println("Coordinator-" + System.identityHashCode(this) + ": Creating a MetricConfig for element " + metric);
+				LOG.info("Coordinator- {} : Creating a MetricConfig for element {} ", System.identityHashCode(this), metric);
 				Config configBlock = distillerConfig.getObject(metric).toConfig();
 				MetricConfig metricConfig = null;
 				try {
@@ -439,8 +443,7 @@ public class Coordinator {
 	//This method is called once during Distiller startup as the MetricConfig objects created from parsing the config file are built into MetricAction objects and scheduled for execution.
 	//Creation of metrics after this method is called must be done using the "createMetric" method
 	public void createMetricActions() throws Exception{
-		if(DEBUG_ENABLED)
-			System.err.println("Coordinator-" + System.identityHashCode(this) + ": request to create metric actions");
+		LOG.info("Coordinator- {} : request to create metric actions" , System.identityHashCode(this));
 		
 		int initializationSuccesses=0;
 		int consecutiveIterationsWithNoSuccesses=0;
@@ -462,21 +465,18 @@ public class Coordinator {
 						if(newAction!=null ){
 							metricActionsIdMap.put(newAction.getId(), newAction);
 							config.setMetricActionCreated(true);
-							if(DEBUG_ENABLED)
-								System.err.println("Coordinator-" + System.identityHashCode(this) + ": MetricAction created for " + newAction.getId());
+							LOG.debug("Coordinator- {} : MetricAction created for {}", System.identityHashCode(this), newAction.getId());
 						} else if(isRawRecordType(config.getRecordType()) || (config.isInitialized() && config.getRecordType().equals(Constants.RAW_RECORD_PRODUCER_STAT_RECORD))){
 							config.setMetricActionCreated(true);
 							initializationSuccesses++;
-							if(DEBUG_ENABLED)
-								System.err.println("Coordinator-" + System.identityHashCode(this) + ": Raw metric enabled for " + config.getRecordType() + " " + config.getProcRecordProducerMetricName());
+							LOG.debug("Coordinator- {} : Raw metric enabled for {} {} ", System.identityHashCode(this), config.getRecordType(), config.getProcRecordProducerMetricName());
 						}
 					}
 					if(newAction!=null){
 						if(config.getMetricEnabled()){
 							try {
 								enableMetricAction(newAction);
-								if(DEBUG_ENABLED)
-									System.err.println("Coordinator-" + System.identityHashCode(this) + ": Enabled MetricAction " + newAction.getId());
+								LOG.info("Coordinator- {} : Enabled MetricAction {}", System.identityHashCode(this), newAction.getId());
 							} catch (Exception e) {
 								throw new Exception("Failed to call enableMetricAction for " + newAction.getId());
 							}
@@ -497,17 +497,22 @@ public class Coordinator {
 			if(!initializationComplete){
 				for (MetricConfig config : metricConfigMap.values()) {
 					if(!config.getMetricActionCreated())
-						System.err.println("Coordinator-" + System.identityHashCode(this) + 
-								": Failed to create MetricAction for MetricConfig " + config.getId() + 
-								" inputQueue:" + config.getInputQueue() + 
-								" inputQExists:" + ((config.getInputQueue()==null) ? "null" : recordQueueManager.queueExists(config.getInputQueue())) + 
-								( (config.getRelatedSelectorEnabled()) ? (" relatedQueue:" + config.getRelatedInputQueueName() + 
-																		  " relatedQExists:" + recordQueueManager.queueExists(config.getRelatedInputQueueName())
-																		 ) 
-																	     : 
-																		 ""
-								  )
-								);
+						LOG.error("Coordinator-"
+								+ System.identityHashCode(this)
+								+ ": Failed to create MetricAction for MetricConfig "
+								+ config.getId()
+								+ " inputQueue:"
+								+ config.getInputQueue()
+								+ " inputQExists:"
+								+ ((config.getInputQueue() == null) ? "null"
+										: recordQueueManager.queueExists(config
+												.getInputQueue()))
+								+ ((config.getRelatedSelectorEnabled()) ? (" relatedQueue:"
+										+ config.getRelatedInputQueueName()
+										+ " relatedQExists:" + recordQueueManager
+										.queueExists(config
+												.getRelatedInputQueueName()))
+										: ""));
 				}
 				throw new Exception("Failed to initialize " + (metricConfigMap.size() - initializationSuccesses) + " metric(s), initialized:" + initializationSuccesses + " size:" + metricConfigMap.size());
 			}
@@ -539,8 +544,7 @@ public class Coordinator {
 			if(!enableMfsGutsRecordProducer(config)){
 				throw new Exception("Coordinato: Failed to enable MfsGutsRecordProducer");
 			} else {
-				if(DEBUG_ENABLED)
-					System.err.println("Coordinator: Enabled MfsGutsRecordProducer");
+				LOG.info("Coordinator: Enabled MfsGutsRecordProducer");
 				initialized=true;
 			}
 			break;
@@ -549,8 +553,7 @@ public class Coordinator {
 			if(!enableProcRecordProducerMetric(config)){
 				throw new Exception("Coordinator: Failed to enable ProcRecordProducer metric " + config.getProcRecordProducerMetricName());
 			} else {
-				if(DEBUG_ENABLED)
-					System.err.println("Coordinator: Enabled ProcRecordProducer metric " + config.getProcRecordProducerMetricName());
+				LOG.info("Coordinator: Enabled ProcRecordProducer metric " + config.getProcRecordProducerMetricName());
 				initialized=true;
 			}
 			break;
@@ -560,7 +563,7 @@ public class Coordinator {
 			try {
 				metricAction = MetricAction.getInstance(config, recordQueueManager, metricActionScheduler);
 			} catch (Exception e) {
-				System.err.println("Failed to enable metric: " + config.toString());
+				LOG.error("Failed to enable metric: " + config.toString());
 				e.printStackTrace();
 			}
 			if(metricAction != null){
@@ -574,7 +577,7 @@ public class Coordinator {
 			try {
 				metricAction = MetricAction.getInstance(config, recordQueueManager, metricActionScheduler);
 			} catch (Exception e) {
-				System.err.println("Failed to enable metric: " + config.toString());
+				LOG.error("Failed to enable metric: " + config.toString());
 				e.printStackTrace();
 			}
 			if(metricAction != null){
@@ -588,7 +591,7 @@ public class Coordinator {
 			try {
 				metricAction = MetricAction.getInstance(config, recordQueueManager, metricActionScheduler);
 			} catch (Exception e) {
-				System.err.println("Failed to enable metric: " + config.toString());
+				LOG.error("Failed to enable metric: " + config.toString());
 				e.printStackTrace();
 			}
 			if(metricAction != null){
@@ -602,7 +605,7 @@ public class Coordinator {
 			try {
 				metricAction = MetricAction.getInstance(config, recordQueueManager, metricActionScheduler);
 			} catch (Exception e) {
-				System.err.println("Failed to enable metric: " + config.toString());
+				LOG.error("Failed to enable metric: " + config.toString());
 				e.printStackTrace();
 			}
 			if(metricAction != null){
@@ -616,7 +619,7 @@ public class Coordinator {
 			try {
 				metricAction = MetricAction.getInstance(config, recordQueueManager, metricActionScheduler);
 			} catch (Exception e) {
-				System.err.println("Failed to enable metric: " + config.toString());
+				LOG.error("Failed to enable metric: " + config.toString());
 				e.printStackTrace();
 			}
 			if(metricAction != null){
@@ -630,7 +633,7 @@ public class Coordinator {
 			try {
 				metricAction = MetricAction.getInstance(config, recordQueueManager, metricActionScheduler);
 			} catch (Exception e) {
-				System.err.println("Failed to enable metric: " + config.toString());
+				LOG.error("Failed to enable metric: " + config.toString());
 				e.printStackTrace();
 			}
 			if(metricAction != null){
@@ -644,7 +647,7 @@ public class Coordinator {
 			try {
 				metricAction = MetricAction.getInstance(config, recordQueueManager, metricActionScheduler);
 			} catch (Exception e) {
-				System.err.println("Failed to enable metric: " + config.toString());
+				LOG.error("Failed to enable metric: " + config.toString());
 				e.printStackTrace();
 			}
 			if(metricAction != null){
@@ -658,7 +661,7 @@ public class Coordinator {
 			try {
 				metricAction = MetricAction.getInstance(config, recordQueueManager, metricActionScheduler);
 			} catch (Exception e) {
-				System.err.println("Failed to enable metric: " + config.toString());
+				LOG.error("Failed to enable metric: " + config.toString());
 				e.printStackTrace();
 			}
 			if(metricAction != null){
@@ -672,7 +675,7 @@ public class Coordinator {
 			try {
 				metricAction = MetricAction.getInstance(config, recordQueueManager, metricActionScheduler);
 			} catch (Exception e) {
-				System.err.println("Failed to enable metric: " + config.toString());
+				LOG.error("Failed to enable metric: " + config.toString());
 				e.printStackTrace();
 			}
 			if(metricAction != null){
@@ -686,7 +689,7 @@ public class Coordinator {
 			try {
 				metricAction = MetricAction.getInstance(config, recordQueueManager, metricActionScheduler);
 			} catch (Exception e) {
-				System.err.println("Failed to enable metric: " + config.toString());
+				LOG.error("Failed to enable metric: " + config.toString());
 				e.printStackTrace();
 			}
 			if(metricAction != null){
@@ -700,7 +703,7 @@ public class Coordinator {
 			try {
 				metricAction = MetricAction.getInstance(config, recordQueueManager, metricActionScheduler);
 			} catch (Exception e) {
-				System.err.println("Failed to enable metric: " + config.toString());
+				LOG.error("Failed to enable metric: " + config.toString());
 				e.printStackTrace();
 			}
 			if(metricAction != null){
@@ -726,8 +729,8 @@ public class Coordinator {
 					throw new Exception("Coordinator: Failed to enable stats for raw record producer " + config.getRawRecordProducerName());
 				}
 			} else {
-				if(DEBUG_ENABLED)
-					System.err.println("Coordinator: Enabled stats for raw record producer " + config.getRawRecordProducerName());
+				LOG.info("Coordinator: Enabled stats for raw record producer "
+						+ config.getRawRecordProducerName());
 				initialized=true;
 			}
 			break;
@@ -855,9 +858,9 @@ public class Coordinator {
 		boolean createdQueue=false;
 		if(mfsGutsRecordProducer != null) {
 			if(!mfsGutsRecordProducer.isAlive())
-				System.err.println("Coordinator: MfsGutsRecordProducer was initialized but is no longer running.  Will attempt to recreate it.");
-			else if(DEBUG_ENABLED){
-				System.err.println("Coordinator: MfsGutsRecordProducer is already running.");
+				LOG.warn("Coordinator: MfsGutsRecordProducer was initialized but is no longer running.  Will attempt to recreate it.");
+			else {
+				LOG.info("Coordinator: MfsGutsRecordProducer is already running.");
 				return false;
 			}
 		}
@@ -881,7 +884,7 @@ public class Coordinator {
 					 )
 				  )	
 			{
-				System.err.println("Coordinator: Failed to enable metric because output RecordQueue \"" + 
+				LOG.error("Coordinator: Failed to enable metric because output RecordQueue \"" + 
 						config.getOutputQueue() + "\" could not be created");
 				return false;
 			}
@@ -892,10 +895,10 @@ public class Coordinator {
 				 )
 			  )
 			{
-				System.err.println("Coordinator: Failed to enable metric because producer \"" + 
+				LOG.error("Coordinator: Failed to enable metric because producer \"" + 
 						Constants.MFS_GUTS_RECORD_PRODUCER_NAME + "\" could not be registered with queue \"" + config.getOutputQueue() + "\"");
 				if(createdQueue && !recordQueueManager.deleteQueue(config.getOutputQueue()))
-					System.err.println("Coordinator: Failed to delete queue \"" + config.getOutputQueue() + "\" while cleaning up");
+					LOG.error("Coordinator: Failed to delete queue \"" + config.getOutputQueue() + "\" while cleaning up");
 				return false;
 			}
 			mfsGutsRecordProducer = new MfsGutsRecordProducer(recordQueueManager.getQueue(config.getOutputQueue()), Constants.MFS_GUTS_RECORD_PRODUCER_NAME);
@@ -914,11 +917,11 @@ public class Coordinator {
 		boolean createdQueue=false, registeredProducer=false;
 		synchronized(coordinatorLock){
 			if(!ProcRecordProducer.isValidMetricName(config.getProcRecordProducerMetricName())){
-				System.err.println("Coordinator: Can not enable ProcRecordProducer metric due to invalid metric name: \"" + config.getProcRecordProducerMetricName() + "\"");
+				LOG.error("Coordinator: Can not enable ProcRecordProducer metric due to invalid metric name: \"" + config.getProcRecordProducerMetricName() + "\"");
 				return false;
 			}
 			if(procRecordProducer == null || !procRecordProducer.isAlive()){
-				System.err.println("Coordinator: Failed to enable metric because ProdRecordProducer is not alive");
+				LOG.error("Coordinator: Failed to enable metric because ProdRecordProducer is not alive");
 				return false;
 			}
 			if(	
@@ -940,7 +943,7 @@ public class Coordinator {
 				 )
 			  )	
 			{
-				System.err.println("Coordinator: Failed to enable metric because output RecordQueue \"" + 
+				LOG.error("Coordinator: Failed to enable metric because output RecordQueue \"" + 
 						config.getOutputQueue() + "\" could not be created");
 				return false;
 			}
@@ -954,22 +957,22 @@ public class Coordinator {
 				 )
 			  )
 			{
-				System.err.println("Coordinator: Failed to enable metric because producer \"" + 
+				LOG.error("Coordinator: Failed to enable metric because producer \"" + 
 						Constants.PROC_RECORD_PRODUCER_NAME + "\" could not be registered with queue \"" + config.getOutputQueue() + "\"");
 				if(createdQueue && !recordQueueManager.deleteQueue(config.getOutputQueue()))
-					System.err.println("Coordinator: Failed to delete queue \"" + config.getOutputQueue() + "\" while cleaning up");
+					LOG.error("Coordinator: Failed to delete queue \"" + config.getOutputQueue() + "\" while cleaning up");
 				return false;
 			}
 			try {
 				procRecordProducer.enableMetric(config.getProcRecordProducerMetricName(), recordQueueManager.getQueue(config.getOutputQueue()), config.getPeriodicity());
 			} catch (Exception e) {
-				System.err.println("Coordinator: Failed to enable ProcRecordProducer metric " + config.getProcRecordProducerMetricName() + " with exception:");
+				LOG.error("Coordinator: Failed to enable ProcRecordProducer metric " + config.getProcRecordProducerMetricName() + " with exception:");
 				e.printStackTrace();
 				if(registeredProducer && !recordQueueManager.unregisterProducer(config.getOutputQueue(), Constants.PROC_RECORD_PRODUCER_NAME))
-					System.err.println("Coordinator: Failed to unregister producer \"" + Constants.PROC_RECORD_PRODUCER_NAME + 
+					LOG.error("Coordinator: Failed to unregister producer \"" + Constants.PROC_RECORD_PRODUCER_NAME + 
 							"\" from queue \"" + config.getOutputQueue() + "\" while cleaning up");
 				if(createdQueue && !recordQueueManager.deleteQueue(config.getOutputQueue()))
-					System.err.println("Coordinator: Failed to delete queue \"" + config.getOutputQueue() + "\" while cleaning up");
+					LOG.error("Coordinator: Failed to delete queue \"" + config.getOutputQueue() + "\" while cleaning up");
 				return false;
 			}
 			
@@ -987,7 +990,7 @@ public class Coordinator {
 		synchronized(coordinatorLock){
 			if (!config.getRawRecordProducerName().equals(Constants.PROC_RECORD_PRODUCER_NAME) &&
 					!config.getRawRecordProducerName().equals(Constants.MFS_GUTS_RECORD_PRODUCER_NAME)){
-					System.err.println("Coordinator: Unknown raw.record.producer.name: " + config.getRawRecordProducerName());
+					LOG.warn("Coordinator: Unknown raw.record.producer.name: " + config.getRawRecordProducerName());
 					return false;
 				}
 					
@@ -1000,7 +1003,7 @@ public class Coordinator {
 					 )
 				)	
 				{
-					System.err.println("Coordinator: Failed to retrieve output queue for raw producer metrics: \"" + Constants.RAW_PRODUCER_STATS_QUEUE_NAME + "\"");
+					LOG.error("Coordinator: Failed to retrieve output queue for raw producer metrics: \"" + Constants.RAW_PRODUCER_STATS_QUEUE_NAME + "\"");
 				} 
 				else if(	!(	recordQueueManager.checkForQueueProducer(Constants.RAW_PRODUCER_STATS_QUEUE_NAME, config.getRawRecordProducerName()) ||
 								(	recordQueueManager.registerProducer(Constants.RAW_PRODUCER_STATS_QUEUE_NAME, config.getRawRecordProducerName()) &&
@@ -1009,29 +1012,29 @@ public class Coordinator {
 						 	 )
 					   )
 				{
-					System.err.println("Coordinator: Failed to register \"" + config.getRawRecordProducerName() + 
+					LOG.error("Coordinator: Failed to register \"" + config.getRawRecordProducerName() + 
 								"\" as a producer with queue \"" + Constants.RAW_PRODUCER_STATS_QUEUE_NAME + "\"");
 					if(createdQueue && !recordQueueManager.deleteQueue(Constants.RAW_PRODUCER_STATS_QUEUE_NAME))
-						System.err.println("Coordinator: Failed to delete queue \"" + Constants.RAW_PRODUCER_STATS_QUEUE_NAME + 
+						LOG.error("Coordinator: Failed to delete queue \"" + Constants.RAW_PRODUCER_STATS_QUEUE_NAME + 
 							"\" while cleaning up.");
 				}
 				else if (config.getRawRecordProducerName().equals(Constants.MFS_GUTS_RECORD_PRODUCER_NAME)) {
 					if(mfsGutsRecordProducer==null){
-						System.err.println("Failed to enable MfsGutsRecordProducer stats because it is not yet initialized");
+						LOG.error("Failed to enable MfsGutsRecordProducer stats because it is not yet initialized");
 						return false;
 					}
 					if (!mfsGutsRecordProducer.producerMetricsEnabled() && 
 							!mfsGutsRecordProducer.enableProducerMetrics(recordQueueManager.getQueue(Constants.RAW_PRODUCER_STATS_QUEUE_NAME))
 						   )
 						{
-							System.err.println("Coordinator: Failed to enable raw producer metrics for ProcRecordProducer");
+							LOG.error("Coordinator: Failed to enable raw producer metrics for ProcRecordProducer");
 							if (registeredProducer && 
 								!recordQueueManager.unregisterProducer(Constants.RAW_PRODUCER_STATS_QUEUE_NAME, config.getRawRecordProducerName())
 							   )
-								System.err.println("Coordinator: Failed to unregister producer \"" + 
+								LOG.error("Coordinator: Failed to unregister producer \"" + 
 										config.getRawRecordProducerName() + "\" while cleaning up.");
 							if(createdQueue && !recordQueueManager.deleteQueue(Constants.RAW_PRODUCER_STATS_QUEUE_NAME))
-								System.err.println("Coordinator: Failed to delete queue \"" + 
+								LOG.error("Coordinator: Failed to delete queue \"" + 
 										Constants.RAW_PRODUCER_STATS_QUEUE_NAME + "\" while cleaning up.");
 						}
 				}
@@ -1040,14 +1043,14 @@ public class Coordinator {
 						!procRecordProducer.enableProducerMetrics(recordQueueManager.getQueue(Constants.RAW_PRODUCER_STATS_QUEUE_NAME))
 					   )
 					{
-						System.err.println("Coordinator: Failed to enable raw producer metrics for ProcRecordProducer");
+						LOG.error("Coordinator: Failed to enable raw producer metrics for ProcRecordProducer");
 						if (registeredProducer && 
 							!recordQueueManager.unregisterProducer(Constants.RAW_PRODUCER_STATS_QUEUE_NAME, config.getRawRecordProducerName())
 						   )
-							System.err.println("Coordinator: Failed to unregister producer \"" + 
+							LOG.error("Coordinator: Failed to unregister producer \"" + 
 									config.getRawRecordProducerName() + "\" while cleaning up.");
 						if(createdQueue && !recordQueueManager.deleteQueue(Constants.RAW_PRODUCER_STATS_QUEUE_NAME))
-							System.err.println("Coordinator: Failed to delete queue \"" + 
+							LOG.error("Coordinator: Failed to delete queue \"" + 
 									Constants.RAW_PRODUCER_STATS_QUEUE_NAME + "\" while cleaning up.");
 					}
 				}
@@ -1110,7 +1113,7 @@ public class Coordinator {
 			if (metricActionsIdFuturesMap.containsKey(metricAction.getId())) {
 				Future<?> future = metricActionsIdFuturesMap.get(metricAction.getId());
 				if(!future.isDone()){
-					System.err.println(metricAction.getId() + " is still running, cancelling it");
+					LOG.info(metricAction.getId() + " is still running, cancelling it");
 					future.cancel(true);
 					if(!future.isDone() && !future.isCancelled())
 						throw new Exception("Bad state for " + metricAction.getId() + " isDone:" + future.isDone() + " isCancelled:" + future.isCancelled());
@@ -1119,7 +1122,7 @@ public class Coordinator {
 			}
 			
 			if(metricActionScheduler.contains(metricAction)){
-				System.err.println("Removing " + metricAction.getId() + " from schedule");
+				LOG.info("Removing " + metricAction.getId() + " from schedule");
 				metricActionScheduler.unschedule(metricAction);
 			}
 			metricActionsEnableMap.put(metricAction.getId(), false);
@@ -1211,14 +1214,14 @@ public class Coordinator {
 		boolean shouldExit = false;
 		String configLocation = "/opt/mapr/conf/distiller.conf";
 		if(args.length == 0){
-			System.err.println("Main: Using default configuration file location: " + configLocation);
+			LOG.debug("Main: Using default configuration file location: " + configLocation);
 		} else {
 			configLocation = args[0];
-			System.err.println("Main: Using custom configuration file location: " + configLocation);
+			LOG.debug("Main: Using custom configuration file location: " + configLocation);
 		}
 		File f = new File(configLocation);
 		if(!f.exists()){	
-			System.err.println("Main: Config file not found: " + configLocation);
+			LOG.warn("Main: Config file not found: " + configLocation);
 			System.exit(1);
 		}
 		
@@ -1239,20 +1242,20 @@ public class Coordinator {
 		try {
 			metricActionScheduler = new MetricActionScheduler(20);	
 		} catch (Exception e){
-			System.err.println("Failed to setup MetricActionScheduler" + e.toString());
+			LOG.error("Failed to setup MetricActionScheduler" + e.toString());
 			System.exit(1);
 		}
 		
 		Config config = ConfigFactory.parseFile(new File(configLocation));
 		if (config == null) {
-			System.err.println("Main: Failed to parse config file from " + configLocation);
+			LOG.error("Main: Failed to parse config file from " + configLocation);
 			System.exit(1);
 		}
 		
 		try {
 			coordinator.createMetricConfigs(config);
 		} catch (Exception e) {
-			System.err.println("Main: Failed to create metric configs due to exception:");
+			LOG.error("Main: Failed to create metric configs due to exception:");
 			e.printStackTrace();
 			System.exit(1);
 		}
@@ -1260,7 +1263,7 @@ public class Coordinator {
 		try {
 			coordinator.createMetricActions();
 		} catch (Exception e){
-			System.err.println("Main: Failed to create metric actions due to exception:");
+			LOG.error("Main: Failed to create metric actions due to exception:");
 			e.printStackTrace();
 			System.exit(1);
 		}
@@ -1271,7 +1274,7 @@ public class Coordinator {
 			try {
 				nextAction = metricActionScheduler.getNextScheduledMetricAction(true);
 			} catch (Exception e) {
-				System.err.println("Main: FATAL: Failed to retrieve net scheduled metric action");
+				LOG.error("Main: FATAL: Failed to retrieve net scheduled metric action");
 				e.printStackTrace();
 				System.exit(1);
 			}
@@ -1281,13 +1284,13 @@ public class Coordinator {
 				{
 					Future<?> future = metricActionsIdFuturesMap.get(nextAction.getId());
 					if(future!=null && !future.isDone()){
-						System.err.println("Main: CRITICAL: Metric " + nextAction.getId() + " is scheduled to run now but previous run is not done");
+						LOG.info("Main: CRITICAL: Metric " + nextAction.getId() + " is scheduled to run now but previous run is not done");
 					} else {
 						future = executor.submit(nextAction);
 						metricActionsIdFuturesMap.put(nextAction.getId(), ((Future<MetricAction>) future));
 					}
 				} else {
-					System.err.println("Main: dropping metric " + nextAction.getId() + " as it was disabled after retrieval from schedule.");
+					LOG.info("Main: dropping metric " + nextAction.getId() + " as it was disabled after retrieval from schedule.");
 				}
 			}
 			
@@ -1296,51 +1299,51 @@ public class Coordinator {
 
 			if(System.currentTimeMillis() >= lastStatus + statusInterval){
 				lastStatus = System.currentTimeMillis();
-				System.err.println("Main: Printing status at " + lastStatus);
+				LOG.debug("Main: Printing status at " + lastStatus);
 				synchronized(coordinatorLock){
 					RecordQueue[] queues = recordQueueManager.getQueues();
-					System.err.println("\tMfsGutsRecordProducer is " + 
+					LOG.debug("\tMfsGutsRecordProducer is " + 
 							((mfsGutsRecordProducer != null) ? ((mfsGutsRecordProducer.isAlive()) ? "" : "not ") : "not ") + 
 							"running and producer metrics are " + 
 							((mfsGutsRecordProducer != null && mfsGutsRecordProducer.producerMetricsEnabled()) ? "enabled" : "disabled"));
-					System.err.println("\tProcRecordProducer is " + 
+					LOG.debug("\tProcRecordProducer is " + 
 							((procRecordProducer != null) ? ((procRecordProducer.isAlive()) ? "" : "not ") : "not ") + 
 							"running and producer metrics are " + 
 							((procRecordProducer != null && procRecordProducer.producerMetricsEnabled()) ? "enabled" : "disabled"));
 					if(procRecordProducer != null){
-						System.err.println("\tEnabled ProcRecordProducer metrics:");
+						LOG.debug("\tEnabled ProcRecordProducer metrics:");
 						for(String s : procRecordProducer.listEnabledMetrics()){
-							System.err.println("\t\t" + s);
+							LOG.debug("\t\t" + s);
 						}
 					}
-					System.err.println("\tRecordQueue details:");
+					LOG.debug("\tRecordQueue details:");
 					for(int x=0; x<queues.length; x++){
-						System.err.println("\t\tQueue " + queues[x].getQueueName() + " contains " + queues[x].queueSize() + " records with time capacity " + 
+						LOG.debug("\t\tQueue " + queues[x].getQueueName() + " contains " + queues[x].queueSize() + " records with time capacity " + 
 								queues[x].getQueueTimeCapacity() + " and time usage " + (System.currentTimeMillis() - queues[x].getOldestRecordTimestamp()) + 
 								"ms and record capacity " + queues[x].getQueueRecordCapacity() + " (" + 
 								(((double)queues[x].queueSize())/((double)queues[x].getQueueRecordCapacity())*100d) + "%)" + 
 								" cl:" + queues[x].listConsumers().length +
 								" pl:" + queues[x].listProducers().length);
 						//if(queues[x].getQueueName().equals("HighMfsThreadCpu-1s")){
-						//	System.err.println(queues[x].printNewestRecords(null, 5));
+						//	LOG.debug(queues[x].printNewestRecords(null, 5));
 						//}
 						//if (queues[x].getQueueName().equals(Constants.RAW_PRODUCER_STATS_QUEUE_NAME) || 
 						//	queues[x].getQueueName().equals(Constants.METRIC_ACTION_STATS_QUEUE_NAME)){
-						//	System.err.println(queues[x].printNewestRecords(null, 5));
+						//	LOG.debug(queues[x].printNewestRecords(null, 5));
 						//}
 					}
-					System.err.println("\tMetricAction details:");
+					LOG.debug("\tMetricAction details:");
 					Iterator<Map.Entry<String, MetricAction>> i = metricActionsIdMap.entrySet().iterator();
 					while(i.hasNext()){
 						Map.Entry<String, MetricAction> e = i.next();
-						System.err.println("\t\tID:" + e.getKey() + " enabled:" + e.getValue().getMetricEnabled() + " running:" + ((metricActionsIdFuturesMap.containsKey(e.getValue().getId()) && !metricActionsIdFuturesMap.get(e.getValue().getId()).isDone())) + " inSched:" + metricActionScheduler.contains(e.getValue()) + " sched:" + e.getValue().printSchedule());
+						LOG.debug("\t\tID:" + e.getKey() + " enabled:" + e.getValue().getMetricEnabled() + " running:" + ((metricActionsIdFuturesMap.containsKey(e.getValue().getId()) && !metricActionsIdFuturesMap.get(e.getValue().getId()).isDone())) + " inSched:" + metricActionScheduler.contains(e.getValue()) + " sched:" + e.getValue().printSchedule());
 					}
 				}
 			}
 
 		}
 
-		System.err.println("Main: Shutting down.");
+		LOG.info("Main: Shutting down.");
 		//Do shutdown stuff here...
 	}
 	

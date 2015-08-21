@@ -8,9 +8,16 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.HashMap;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.mapr.distiller.server.queues.RecordQueue;
 
 public class TcpConnectionStatRecord extends Record {
+	
+	private static final Logger LOG = LoggerFactory
+			.getLogger(TcpConnectionStatRecord.class);
+	
 	/**
 	 * DERIVED VALUES
 	 */
@@ -65,7 +72,7 @@ public class TcpConnectionStatRecord extends Record {
 				try {
 					oldRecord.get_rxQ().add(new BigInteger("1"));
 				} catch (Exception e) {
-					System.err.println("Bad oldRecord rxQ, record: " + oldRecord.toString());
+					LOG.error("Bad oldRecord rxQ, record: " + oldRecord.toString());
 				}
 				oldRecord.get_rxQ().add(newRecord.get_rxQ().multiply(new BigInteger(Long.toString(newRecord.getTimestamp() - oldRecord.getTimestamp()))));
 				this.rxQ = oldRecord.get_rxQ().add(newRecord.get_rxQ().multiply(new BigInteger(Long.toString(newRecord.getTimestamp() - oldRecord.getTimestamp()))));
@@ -124,7 +131,7 @@ public class TcpConnectionStatRecord extends Record {
 				}
 				proc_net_tcp.close();
 			} catch (Exception e){
-				System.err.println("Failed to parse line from /proc/net/tcp: " + line);
+				LOG.error("Failed to parse line from /proc/net/tcp: " + line);
 				e.printStackTrace();
 				return new int[] {1, 0, 0, 0};
 			} finally {
@@ -164,11 +171,11 @@ public class TcpConnectionStatRecord extends Record {
 									try {
 										record = new TcpConnectionStatRecord(parts, pid);
 									} catch (Exception e) {
-										System.err.println("Failed to generate a TcpConnectionStatRecord");
+										LOG.error("Failed to generate a TcpConnectionStatRecord");
 										ret[2]++;
 									}
 									if(record != null && !outputQueue.put(producerName, record)){
-										System.err.println("Failed to put TcpConnectionStatRecord into output queue " + outputQueue.getQueueName() + " size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.getQueueRecordCapacity() + " producerName:" + producerName);
+										LOG.error("Failed to put TcpConnectionStatRecord into output queue " + outputQueue.getQueueName() + " size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.getQueueRecordCapacity() + " producerName:" + producerName);
 										ret[3]++;
 									} else {
 										ret[1]++;
@@ -180,10 +187,10 @@ public class TcpConnectionStatRecord extends Record {
 				}
 			}
 			//long duration = System.currentTimeMillis() - startTime;
-			//System.err.println("Generated " + recordsGenerated + " output records from " + processesChecked + " processes and " + 
+			//LOG.info("Generated " + recordsGenerated + " output records from " + processesChecked + " processes and " + 
 			//					fdChecked + " file descriptors in " + duration + " ms");
 		} catch (Exception e) {
-			System.err.println("Failed to generate TcpConnectionStatRecord");
+			LOG.error("Failed to generate TcpConnectionStatRecord");
 			e.printStackTrace();
 			ret[0]=3;
 		}

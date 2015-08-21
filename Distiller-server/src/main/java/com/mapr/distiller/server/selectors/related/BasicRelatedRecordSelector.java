@@ -7,7 +7,14 @@ import com.mapr.distiller.server.utils.Constants;
 import java.util.Iterator;
 import java.util.LinkedList;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public class BasicRelatedRecordSelector implements RelatedRecordSelector<Record, Record> {
+	
+	private static final Logger LOG = LoggerFactory
+			.getLogger(BasicRelatedRecordSelector.class);
+	
 	private static final int maxRelatedTimePeriods = 100;
 	private class TimePeriod {
 		long start;

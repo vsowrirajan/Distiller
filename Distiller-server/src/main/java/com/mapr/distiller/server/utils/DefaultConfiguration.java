@@ -4,7 +4,13 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Properties;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public class DefaultConfiguration {
+	
+	private static final Logger LOG = LoggerFactory
+			.getLogger(DefaultConfiguration.class);
 	
 	public static Properties getConfiguration(Properties otherProperties, boolean applyOtherPropertiesFirst) {
 		if(applyOtherPropertiesFirst) {
@@ -46,16 +52,16 @@ public class DefaultConfiguration {
 		try {
 			confFile = new FileInputStream(configurationFilePath);
 		} catch (FileNotFoundException e) {
-			System.err.println("FATAL: Configuration file not found: " + configurationFilePath);
+			LOG.error("FATAL: Configuration file not found: " + configurationFilePath);
 			System.exit(1);
 		}
 		try {
 			configuration.load(confFile);
 		} catch (IOException e) {
-			System.err.println("FATAL: Failed to read configuration from file: " + configurationFilePath);
+			LOG.error("FATAL: Failed to read configuration from file: " + configurationFilePath);
 			System.exit(1);
 		}
-		System.err.println("DEBUG: Applied configuration from file: " + configurationFilePath);
+		LOG.debug("DEBUG: Applied configuration from file: " + configurationFilePath);
 		return configuration;
 	}
 }

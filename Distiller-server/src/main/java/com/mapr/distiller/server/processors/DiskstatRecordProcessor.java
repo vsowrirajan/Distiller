@@ -1,10 +1,16 @@
 package com.mapr.distiller.server.processors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.mapr.distiller.server.recordtypes.DiskstatRecord;
 import com.mapr.distiller.server.recordtypes.DifferentialValueRecord;
 import com.mapr.distiller.server.recordtypes.Record;
 
 public class DiskstatRecordProcessor implements RecordProcessor<Record> {
+	
+	private static final Logger LOG = LoggerFactory
+			.getLogger(DiskstatRecordProcessor.class);
 	
 	public String getName(){
 		return "DiskstatRecordProcessor";

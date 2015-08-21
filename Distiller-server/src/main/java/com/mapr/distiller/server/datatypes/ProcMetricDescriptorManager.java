@@ -4,9 +4,16 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.ListIterator;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.mapr.distiller.server.datatypes.ProcMetricDescriptor;
 
 public class ProcMetricDescriptorManager {
+	
+	private static final Logger LOG = LoggerFactory
+			.getLogger(ProcMetricDescriptorManager.class);
+	
 	private LinkedList<ProcMetricDescriptor> metricList;
 	
 	public ProcMetricDescriptorManager(){

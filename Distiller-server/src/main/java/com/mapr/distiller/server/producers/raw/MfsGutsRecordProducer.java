@@ -2,9 +2,15 @@ package com.mapr.distiller.server.producers.raw;
 
 import java.io.RandomAccessFile;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.mapr.distiller.server.queues.RecordQueue;
 
 public class MfsGutsRecordProducer extends Thread {
+	
+	private static final Logger LOG = LoggerFactory
+			.getLogger(MfsGutsRecordProducer.class);
 	
 	private class MfsId{
 		int pid;
@@ -125,7 +131,7 @@ public class MfsGutsRecordProducer extends Thread {
 					mfsAlive = true;
 				} catch (Exception e){
 					if(System.currentTimeMillis() > lastTimeMfsDownPrinted + minTime){
-						System.err.println("Found MFS pid " + mfsPid + " from pid file, but could not identify MFS process running from /proc/" + mfsPid + "/stat, will try again...");
+						LOG.info("Found MFS pid " + mfsPid + " from pid file, but could not identify MFS process running from /proc/" + mfsPid + "/stat, will try again...");
 						lastTimeMfsDownPrinted = System.currentTimeMillis();
 					}
 					mfsAlive = false;
@@ -139,7 +145,7 @@ public class MfsGutsRecordProducer extends Thread {
 				    } catch (Exception e) {
 				    	mfsGutsProcess.destroy();
 				    	gutsAlive = false;
-				    	System.err.println("Failed to launch guts process to monitor MFS, will retry...");
+				    	LOG.error("Failed to launch guts process to monitor MFS, will retry...");
 				    }
 				    
 				    if(gutsAlive){
@@ -156,23 +162,23 @@ public class MfsGutsRecordProducer extends Thread {
 					    	//Check if MFS is running
 					    	try {
 					    		if(!mfsId.equals(readMfsIdFromFile("/proc/" + mfsPid + "/stat"))){
-					    			System.err.println("MFS process is no longer running with PID " + mfsId.pid + " and starttime " + mfsId.starttime);
+					    			LOG.warn("MFS process is no longer running with PID " + mfsId.pid + " and starttime " + mfsId.starttime);
 					    			break;
 					    		}
 					    	} catch (Exception e) {
-					    		System.err.println("Failed to determine if MFS process is still running with PID " + mfsId.pid + " and starttime " + mfsId.starttime);
+					    		LOG.error("Failed to determine if MFS process is still running with PID " + mfsId.pid + " and starttime " + mfsId.starttime);
 					    		break;
 					    	}
 					    	//Check if MfsGutsStdoutRecordProducer is still running
 					    	if(!mfsGutsStdoutRecordProducer.isAlive()){
 					    		if(!shouldExit)
-					    			System.err.println("MfsGutsStdoutRecordProducer is not running.");
+					    			LOG.debug("MfsGutsStdoutRecordProducer is not running.");
 					    		break;
 					    	}
 					    	//Check if guts is running
 					    	try {
 					    		int gutsRetCode = mfsGutsProcess.exitValue();
-					    		System.err.println("MFS guts process exited with return code " + gutsRetCode);
+					    		LOG.info("MFS guts process exited with return code " + gutsRetCode);
 					    		break;
 					    	} catch (IllegalThreadStateException e) {
 					    		//Guts is still running, do nothing...
@@ -183,7 +189,7 @@ public class MfsGutsRecordProducer extends Thread {
 					    	//Check if guts logged to stderr
 					    	try {
 					    		if(mfsGutsProcess.getErrorStream().available() != 0){
-					    			System.err.println("Guts threw error");
+					    			LOG.error("Guts threw error");
 					    			break;
 					    		}
 					    	} catch (Exception e) {
@@ -215,13 +221,13 @@ public class MfsGutsRecordProducer extends Thread {
 			}
 		}
 		if(mfsGutsStdoutRecordProducer!=null){
-			System.err.println("MfsGutsRecordProducer." + System.identityHashCode(this) + " is waiting for MfsGutsStdoutRecordProducer to exit");
+			LOG.info("MfsGutsRecordProducer." + System.identityHashCode(this) + " is waiting for MfsGutsStdoutRecordProducer to exit");
 			while(mfsGutsStdoutRecordProducer.isAlive()){
 				try {
 					Thread.sleep(1000);
 				} catch (Exception e){}
 			}
 		}
-		System.err.println("MfsGutsRecordProducer." + System.identityHashCode(this) + " exited.");
+		LOG.info("MfsGutsRecordProducer." + System.identityHashCode(this) + " exited.");
 	}
 }

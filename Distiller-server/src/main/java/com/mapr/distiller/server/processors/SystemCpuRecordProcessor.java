@@ -1,10 +1,16 @@
 package com.mapr.distiller.server.processors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.mapr.distiller.server.recordtypes.Record;
 import com.mapr.distiller.server.recordtypes.DifferentialValueRecord;
 import com.mapr.distiller.server.recordtypes.SystemCpuRecord;
 
 public class SystemCpuRecordProcessor implements RecordProcessor<Record> {
+	
+	private static final Logger LOG = LoggerFactory
+			.getLogger(SystemCpuRecordProcessor.class);
 
 	public String getName(){
 		return "SystemCpuRecordProcessor";

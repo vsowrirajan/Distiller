@@ -3,9 +3,16 @@ package com.mapr.distiller.server.recordtypes;
 import java.io.RandomAccessFile;
 import java.math.BigInteger;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.mapr.distiller.server.queues.RecordQueue;
 
 public class NetworkInterfaceRecord extends Record {
+	
+	private static final Logger LOG = LoggerFactory
+			.getLogger(NetworkInterfaceRecord.class);
+	
 	/**
 	 * DERIVED VALUES
 	 */
@@ -126,13 +133,13 @@ public class NetworkInterfaceRecord extends Record {
 		try{
 			record = new NetworkInterfaceRecord(ifName);
 		} catch (Exception e) {
-			System.err.println("Failed to generate a NetworkInterfaceRecord");
+			LOG.error("Failed to generate a NetworkInterfaceRecord");
 			e.printStackTrace();
 			ret[2] = 1;
 		}
 		if(record != null && !outputQueue.put(producerName, record)){
 			ret[3]=1;
-			System.err.println("Failed to put NetworkInterfaceRecord into output queue " + outputQueue.getQueueName() + 
+			LOG.error("Failed to put NetworkInterfaceRecord into output queue " + outputQueue.getQueueName() + 
 					" size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.getQueueRecordCapacity() + 
 					" producerName:" + producerName);
 		} else {

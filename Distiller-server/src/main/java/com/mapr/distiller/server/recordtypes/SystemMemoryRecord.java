@@ -3,9 +3,16 @@ package com.mapr.distiller.server.recordtypes;
 import java.io.RandomAccessFile;
 import java.math.BigInteger;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.mapr.distiller.server.queues.RecordQueue;
 
 public class SystemMemoryRecord extends Record {
+	
+	private static final Logger LOG = LoggerFactory
+			.getLogger(SystemMemoryRecord.class);
+	
 	/**
 	 * A general note about this class, if the amount of memory or swap space changes while this process is running, some stats can be inaccurate until the process is restarted.  
 	 */
@@ -221,13 +228,13 @@ public class SystemMemoryRecord extends Record {
 		try {
 			record = new SystemMemoryRecord();
 		} catch (Exception e) {
-			System.err.println("Failed to generate a SystemMemoryRecord");
+			LOG.error("Failed to generate a SystemMemoryRecord");
 			e.printStackTrace();
 			ret[2] = 1;
 		}
 		if(record != null && !outputQueue.put(producerName, record)){
 			ret[3] = 1;
-			System.err.println("Failed to put SystemMemoryRecord into output queue " + outputQueue.getQueueName() + 
+			LOG.error("Failed to put SystemMemoryRecord into output queue " + outputQueue.getQueueName() + 
 					" size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.getQueueRecordCapacity() + 
 					" producerName:" + producerName);
 		} else {

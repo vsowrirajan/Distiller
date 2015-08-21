@@ -1,6 +1,11 @@
 package com.mapr.distiller.server.recordtypes;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public class Record {
+	
+	private static final Logger LOG = LoggerFactory.getLogger(Record.class);
 
 	private long timestamp, previousTimestamp;
 	

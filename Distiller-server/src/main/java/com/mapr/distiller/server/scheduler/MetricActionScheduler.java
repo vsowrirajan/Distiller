@@ -1,10 +1,18 @@
 package com.mapr.distiller.server.scheduler;
 
 import java.util.TreeSet;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.mapr.distiller.server.metricactions.MetricAction;
 import com.mapr.distiller.server.scheduler.MetricActionScheduleComparator;
 
 public class MetricActionScheduler{
+	
+	private static final Logger LOG = LoggerFactory
+			.getLogger(MetricActionScheduler.class);
+	
 	//This holds the list of MetricActions to gather sorted by the time returned by MetricAction.nextScheduledTime(
 	private TreeSet<MetricAction> metricSchedule;
 	long window;

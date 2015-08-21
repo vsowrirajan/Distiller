@@ -1,6 +1,12 @@
 package com.mapr.distiller.server.recordtypes;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public class MetricActionStatusRecord extends Record {
+	
+	private static final Logger LOG = LoggerFactory
+			.getLogger(MetricActionStatusRecord.class);
 
 	private String producerId;							//This should uniquely identify what generated this status record (e.g. an instance of ProcRecordProducer)
 	private long 	inputRecords,					//The number of Records taken from the input queue

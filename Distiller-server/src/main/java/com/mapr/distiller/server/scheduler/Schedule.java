@@ -1,6 +1,12 @@
 package com.mapr.distiller.server.scheduler;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public class Schedule {
+	
+	private static final Logger LOG = LoggerFactory.getLogger(Schedule.class);
+	
 	long lastScheduledStartTime, lastStartTime, lastEndTime, periodicity;
 	double maxDurationPct;
 	double minWaitPct;

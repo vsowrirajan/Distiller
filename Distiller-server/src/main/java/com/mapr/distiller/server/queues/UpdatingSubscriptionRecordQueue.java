@@ -2,10 +2,17 @@ package com.mapr.distiller.server.queues;
 
 
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.mapr.distiller.server.recordtypes.Record;
 import com.mapr.distiller.server.utils.Constants;
 
 public class UpdatingSubscriptionRecordQueue extends SubscriptionRecordQueue {
+	
+	private static final Logger LOG = LoggerFactory
+			.getLogger(UpdatingSubscriptionRecordQueue.class);
+	
 	String qualifierKey;
 	
 	public UpdatingSubscriptionRecordQueue(String id, int queueRecordCapacity, int queueTimeCapacity, String qualifierKey) throws Exception {
@@ -33,7 +40,7 @@ public class UpdatingSubscriptionRecordQueue extends SubscriptionRecordQueue {
 			else
 				return super.put(producerName, record);
 		} catch (Throwable e) {
-			System.err.println( "UpdatingSubscriptionRecordQueue-" + System.identityHashCode(this) + ": Failed to put or update, producerName:" + producerName + 
+			LOG.error( "UpdatingSubscriptionRecordQueue-" + System.identityHashCode(this) + ": Failed to put or update, producerName:" + producerName + 
 								" qualifierKey:" + qualifierKey + " record:" + record.toString() );
 			return false;
 		}
