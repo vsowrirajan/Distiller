@@ -4,7 +4,13 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Iterator;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public class RawRecordProducerStatusRecord extends Record {
+	
+	private static final Logger LOG = LoggerFactory
+			.getLogger(RawRecordProducerStatusRecord.class);
 
 	private String producerId;							//This should uniquely identify what generated this status record (e.g. an instance of ProcRecordProducer)
 	private long 	recordsCreated,						//The number of Records created by the producer	

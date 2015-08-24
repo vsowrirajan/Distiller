@@ -12,6 +12,9 @@ import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.mapr.distiller.server.recordtypes.DiskstatRecord;
 import com.mapr.distiller.server.recordtypes.NetworkInterfaceRecord;
 import com.mapr.distiller.server.recordtypes.ProcessResourceRecord;
@@ -28,6 +31,10 @@ import com.mapr.distiller.server.datatypes.ProcMetricDescriptorManager;
 import com.mapr.distiller.server.recordtypes.RawRecordProducerStatusRecord;
 
 public class ProcRecordProducer extends Thread {
+	
+	private static final Logger LOG = LoggerFactory
+			.getLogger(ProcRecordProducer.class);
+	
 	//Counters for how many times a raw metric was not successfully samples
 	int diskstatRecordCreationFailures,
 		networkInterfaceRecordCreationFailures,
@@ -200,7 +207,7 @@ public class ProcRecordProducer extends Thread {
 				try {
 					newRecord = new RawRecordProducerStatusRecord(mystatus);
 				} catch (Exception e){
-					System.err.println("Failed to generate a RawRecordProducerStatusRecord");
+					LOG.error("Failed to generate a RawRecordProducerStatusRecord");
 					e.printStackTrace();
 					newRecord = new RawRecordProducerStatusRecord(producerName);
 				}
@@ -305,7 +312,7 @@ public class ProcRecordProducer extends Thread {
 				mystatus.addExtraInfo("threadResourceRunningTime%", Double.toString(100d * ((double)threadResourceRunningTime) / ((double)mystatus.getDurationms())));
 				mystatus.addExtraInfo("slimThreadResourceRunningTime%", Double.toString(100d * ((double)slimThreadResourceRunningTime) / ((double)mystatus.getDurationms())));
 				if(producerMetricsEnabled && !producerStatsQueue.put(producerName,mystatus)){
-					System.err.println("Failed to put RecordProducerStatusRecord to output queue " + producerStatsQueue.getQueueName() + 
+					LOG.error("Failed to put RecordProducerStatusRecord to output queue " + producerStatsQueue.getQueueName() + 
 											" size:" + producerStatsQueue.queueSize() + " maxSize:" + producerStatsQueue.getQueueRecordCapacity() + 
 											" producerName:" + producerName);
 				} 
@@ -436,7 +443,7 @@ public class ProcRecordProducer extends Thread {
 								} else 
 									throw new Exception("GatherMetricEvent for unknown metric type:" + event.getMetricName());
 							} catch (Exception e) {
-								System.err.println("ProcRecordProducer: Caught an exception while gathering metric " + event.getMetricName());
+								LOG.error("ProcRecordProducer: Caught an exception while gathering metric " + event.getMetricName());
 								e.printStackTrace();
 								gatheredMetric = false;
 							} finally {
@@ -541,7 +548,7 @@ public class ProcRecordProducer extends Thread {
 	}
 	public boolean disableMetric(String metricName, RecordQueue outputQueue, int periodicity){
 		if(outputQueue == null || metricName == null){
-			System.err.println("Can't disable null metric");
+			LOG.error("Can't disable null metric");
 			return false;
 		}
 		synchronized(enabledMetricManager){
@@ -635,7 +642,7 @@ public class ProcRecordProducer extends Thread {
                         }
                 }
         } catch(Exception e){
-        	System.err.println("Unexpected exception:");
+        	LOG.error("Unexpected exception:");
         	e.printStackTrace();
         	return false;
         }
@@ -683,7 +690,7 @@ public class ProcRecordProducer extends Thread {
                         }
                 }
         } catch(Exception e){
-        	System.err.println("Unexpected exception:");
+        	LOG.error("Unexpected exception:");
         	e.printStackTrace();
         	return false;
         }
@@ -787,7 +794,7 @@ public class ProcRecordProducer extends Thread {
                         }
                 }
         } catch (Exception e) {
-                System.err.println("Failed to list network interfaces");
+                LOG.error("Failed to list network interfaces");
                 e.printStackTrace();
                 return false;
         }
@@ -875,7 +882,7 @@ public class ProcRecordProducer extends Thread {
 			process = processBuilder.start();
 			ret = process.waitFor();
 		} catch (Exception e) {
-			System.err.println("Failed to wait for getconf to complete");
+			LOG.error("Failed to wait for getconf to complete");
 			e.printStackTrace();
 			System.exit(1);
 		}
@@ -887,16 +894,16 @@ public class ProcRecordProducer extends Thread {
 				if (line != null){
 					clockTick = Integer.parseInt(line);
 					if(clockTick < 1){
-						System.err.println("Failed to retrieve sysconfig(\"CLK_TCK\")");
+						LOG.error("Failed to retrieve sysconfig(\"CLK_TCK\")");
 						System.exit(1);
 					}
 				}
 			} catch (Exception e) {
-				System.err.println("Failed to read getconf output");
+				LOG.error("Failed to read getconf output");
 				e.printStackTrace();
 			}
 		} else {
-			System.err.println("Failed to run \"getconf CLK_TCK\"");
+			LOG.error("Failed to run \"getconf CLK_TCK\"");
 			System.exit(1);
 		}
 	}

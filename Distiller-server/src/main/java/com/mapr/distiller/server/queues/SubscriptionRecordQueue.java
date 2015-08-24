@@ -8,10 +8,17 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.Iterator;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.mapr.distiller.server.recordtypes.Record;
 import com.mapr.distiller.server.utils.Constants;
 
 public class SubscriptionRecordQueue implements RecordQueue {
+	
+	private static final Logger LOG = LoggerFactory
+			.getLogger(SubscriptionRecordQueue.class);
+	
 	protected String id;
 	private int queueRecordCapacity, queueTimeCapacity;
 
@@ -300,7 +307,7 @@ public class SubscriptionRecordQueue implements RecordQueue {
 								((Integer) pair.getValue()).intValue() - 1);
 						consumers.put((String) pair.getKey(), newPosition);
 					//} else {
-					//	System.err.println(System.currentTimeMillis() + " DEBUG: " + id + " Subscriber " + (String) pair.getKey()
+					//	LOG.info(System.currentTimeMillis() + " DEBUG: " + id + " Subscriber " + (String) pair.getKey()
 					//	+ " missed a Record in this queue that was dropped when the queue became full and a subsequent put was performed");
 					}
 				}

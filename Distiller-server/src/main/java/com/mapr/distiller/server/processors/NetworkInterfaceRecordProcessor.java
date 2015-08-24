@@ -7,7 +7,13 @@ import com.mapr.distiller.server.utils.Constants;
 
 import java.math.BigInteger;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public class NetworkInterfaceRecordProcessor implements RecordProcessor<Record> {
+	
+	private static final Logger LOG = LoggerFactory
+			.getLogger(NetworkInterfaceRecordProcessor.class);
 
 	@Override
 	public DifferentialValueRecord diff(Record rec1, Record rec2, String metric) throws Exception {

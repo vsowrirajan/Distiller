@@ -5,8 +5,14 @@ import com.mapr.distiller.server.recordtypes.DifferentialValueRecord;
 
 import java.math.BigInteger;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public class DifferentialValueRecordProcessor implements RecordProcessor<Record>{
 
+	private static final Logger LOG = LoggerFactory
+			.getLogger(DifferentialValueRecordProcessor.class);
+	
 	@Override
 	public String getName(){
 		return "DifferentialValueRecordProcessor";

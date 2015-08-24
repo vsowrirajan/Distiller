@@ -3,9 +3,16 @@ package com.mapr.distiller.server.recordtypes;
 import java.math.BigInteger;
 import java.io.RandomAccessFile;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.mapr.distiller.server.queues.RecordQueue;
 
 public class SystemCpuRecord extends Record {
+	
+	private static final Logger LOG = LoggerFactory
+			.getLogger(SystemCpuRecord.class);
+	
 	/**
 	 * DERIVED VALUES
 	 * These are variables that are not sourced directly from /proc
@@ -121,13 +128,13 @@ public class SystemCpuRecord extends Record {
 		try {
 			record = new SystemCpuRecord();
 		} catch (Exception e) {
-			System.err.println("Failed to generate a SystemCpuRecord");
+			LOG.error("Failed to generate a SystemCpuRecord");
 			e.printStackTrace();
 			ret[2] = 1;
 		}
 		if(record != null && !outputQueue.put(producerName, record)){
 			ret[3] = 1;
-			System.err.println("Failed to put SystemCpuRecord into output queue " + outputQueue.getQueueName() + 
+			LOG.error("Failed to put SystemCpuRecord into output queue " + outputQueue.getQueueName() + 
 					" size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.getQueueRecordCapacity() + 
 					" producerName:" + producerName);
 		} else {

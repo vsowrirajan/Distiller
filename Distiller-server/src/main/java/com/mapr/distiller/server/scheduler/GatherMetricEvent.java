@@ -1,8 +1,15 @@
 package com.mapr.distiller.server.scheduler;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.mapr.distiller.server.queues.RecordQueue;
 
 public class GatherMetricEvent {
+	
+	private static final Logger LOG = LoggerFactory
+			.getLogger(GatherMetricEvent.class);
+	
 	private long previousTime, targetTime;
 	private String metricName;
 	RecordQueue outputQueue;

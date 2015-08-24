@@ -2,9 +2,16 @@ package com.mapr.distiller.server.recordtypes;
 
 import java.math.BigInteger;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.mapr.distiller.server.queues.RecordQueue;
 
 public class MfsGutsRecord extends Record {
+	
+	private static final Logger LOG = LoggerFactory
+			.getLogger(MfsGutsRecord.class);
+	
 	/**
 	 * DERIVED VALUES
 	 * These are variables that are not sourced directly from guts
@@ -297,13 +304,13 @@ public class MfsGutsRecord extends Record {
 		try{
 			rec = new MfsGutsRecord(line, version);
 		} catch (Exception e) {
-			System.err.println("Failed to generate a MfsGutsRecord");
+			LOG.error("Failed to generate a MfsGutsRecord");
 			e.printStackTrace();
 			ret[2]=1;
 		}
 		if(rec != null && !outputQueue.put(producerName, rec)){
 			ret[3] = 1;
-			System.err.println("Failed to put MfsGutsRecord into output queue " + outputQueue.getQueueName() + 
+			LOG.error("Failed to put MfsGutsRecord into output queue " + outputQueue.getQueueName() + 
 					" size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.getQueueRecordCapacity() + 
 					" producerName:" + producerName);
 		} else {

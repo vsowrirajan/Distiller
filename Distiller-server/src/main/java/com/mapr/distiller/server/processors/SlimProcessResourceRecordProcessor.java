@@ -4,11 +4,17 @@ import com.mapr.distiller.server.recordtypes.DifferentialValueRecord;
 
 import java.math.BigInteger;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.mapr.distiller.server.recordtypes.Record;
 import com.mapr.distiller.server.recordtypes.SlimProcessResourceRecord;
 import com.mapr.distiller.server.utils.Constants;
 
 public class SlimProcessResourceRecordProcessor implements RecordProcessor<Record> {
+	
+	private static final Logger LOG = LoggerFactory
+			.getLogger(SlimProcessResourceRecordProcessor.class);
 
 	@Override
 	public DifferentialValueRecord diff(Record rec1, Record rec2, String metric) throws Exception {

@@ -6,7 +6,13 @@ import com.mapr.distiller.server.recordtypes.Record;
 
 import java.math.BigInteger;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public class MfsGutsRecordProcessor implements RecordProcessor<Record> {
+	
+	private static final Logger LOG = LoggerFactory
+			.getLogger(MfsGutsRecordProcessor.class);
 
 	@Override
 	public DifferentialValueRecord diff(Record rec1, Record rec2, String metric) throws Exception {

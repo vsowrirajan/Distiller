@@ -9,7 +9,14 @@ import java.io.InputStreamReader;
 import java.io.BufferedReader;
 import java.util.regex.Pattern;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public class MfsGutsStdoutRecordProducer extends Thread{
+	
+	private static final Logger LOG = LoggerFactory
+			.getLogger(MfsGutsStdoutRecordProducer.class);
+	
 	String producerName;
 	RecordQueue outputQueue, producerStatsQueue;
 	BufferedReader stdout;
@@ -103,12 +110,12 @@ public class MfsGutsStdoutRecordProducer extends Thread{
 				try {
 					newRecord = new RawRecordProducerStatusRecord(mystatus);
 				} catch (Exception e){
-					System.err.println("Failed to generate a RecordProducerStatusRecord");
+					LOG.error("Failed to generate a RecordProducerStatusRecord");
 					e.printStackTrace();
 					newRecord = new RawRecordProducerStatusRecord(producerName);
 				}
 				if(producerMetricsEnabled && !producerStatsQueue.put(producerName,mystatus)){
-						System.err.println("Failed to put RecordProducerStatusRecord to output queue " + producerStatsQueue.getQueueName() + 
+						LOG.error("Failed to put RecordProducerStatusRecord to output queue " + producerStatsQueue.getQueueName() + 
 												" size:" + producerStatsQueue.queueSize() + " maxSize:" + producerStatsQueue.getQueueRecordCapacity() + 
 												" producerName:" + producerName);
 				} 
@@ -118,7 +125,7 @@ public class MfsGutsStdoutRecordProducer extends Thread{
 			try {
 				line = stdout.readLine();
 			} catch (Exception e) {
-				System.err.println("ERROR: Could not read from MFS guts stdout");
+				LOG.error("ERROR: Could not read from MFS guts stdout");
 				break;
 			}
 			long startTime = System.currentTimeMillis();
@@ -128,7 +135,7 @@ public class MfsGutsStdoutRecordProducer extends Thread{
 					if(!verifiedHeader){
 						headerVersion = checkHeaderVersion(line);
 						if(headerVersion==-1){
-							System.err.println("ERROR: MFS guts did not produce the expected header");
+							LOG.error("ERROR: MFS guts did not produce the expected header");
 							break;
 						}
 						verifiedHeader=true;
@@ -138,7 +145,7 @@ public class MfsGutsStdoutRecordProducer extends Thread{
 						try {
 							generateMfsGutsRecord(line, headerVersion);
 						} catch (Exception e){
-							System.err.println("Failed to produce a MfsGutsRecord");
+							LOG.error("Failed to produce a MfsGutsRecord");
 							e.printStackTrace();
 							break;
 						}
@@ -150,7 +157,7 @@ public class MfsGutsStdoutRecordProducer extends Thread{
 				}
 				//else skip it, because guts prints blank lines for whatever reason...
 			} else {
-				System.err.println("ERROR: Could not read from MFS guts stdout.");
+				LOG.error("ERROR: Could not read from MFS guts stdout.");
 				break;
 			}
 			

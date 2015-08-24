@@ -4,9 +4,16 @@ import java.io.File;
 import java.io.RandomAccessFile;
 import java.math.BigInteger;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.mapr.distiller.server.queues.RecordQueue;
 
 public class DiskstatRecord extends Record {
+	
+	private static final Logger LOG = LoggerFactory
+			.getLogger(DiskstatRecord.class);
+	
 	/**
 	 * DERIVED VALUES
 	 */
@@ -198,8 +205,8 @@ public class DiskstatRecord extends Record {
 				//If someone were to build their own OS image it's possible we still have 14 fields but they don't mean the same things...
 				//Not worrying about that for now...
 				if(parts.length < 14){
-					System.err.println("Unexpected format found in /proc/diskstats, length:" + parts.length);
-					System.err.println(line);
+					LOG.error("Unexpected format found in /proc/diskstats, length:" + parts.length);
+					LOG.error(line);
 					return new int[] {1, 0, 0, 0};
 				}
 				//Check if it's a physical device, we only want stats for physical devices
@@ -215,7 +222,7 @@ public class DiskstatRecord extends Record {
 	                        String l = hw_sector_sizeFile.readLine();
 	                        hw_sector_size = Integer.parseInt(l.trim().split("\\s+")[0]);
 	                } catch (Exception e) {
-	                		System.err.println("Failed to read hw_sector_size from /sys/block/" + parts[2].replaceAll("/", "!") + "/queue/hw_sector_size");
+	                		LOG.error("Failed to read hw_sector_size from /sys/block/" + parts[2].replaceAll("/", "!") + "/queue/hw_sector_size");
 	                        return new int[] {1, 0, 0, 0};
 	                } finally {
 	                        try{
@@ -231,13 +238,13 @@ public class DiskstatRecord extends Record {
 						//The constructor may throw an exception, we catch this here and do NOT rethrow it.
 						//We just set that we failed to gather a record and thus the call to this method will return false.
 						//We catch this exception here so that we can continue trying to process the remaining lines in the diskstat file.
-						System.err.println("Failed to generate a DiskstatRecord");
+						LOG.error("Failed to generate a DiskstatRecord");
 						e.printStackTrace();
 						ret[2]++;
 					}
 					if(record != null && !outputQueue.put(producerName, record)){
 						ret[3]++;
-						System.err.println("Failed to put SystemMemoryRecord into output queue " + outputQueue.getQueueName() + 
+						LOG.error("Failed to put SystemMemoryRecord into output queue " + outputQueue.getQueueName() + 
 								" size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.getQueueRecordCapacity() + 
 								" producerName:" + producerName);
 					} else {
@@ -247,7 +254,7 @@ public class DiskstatRecord extends Record {
 				} 
 			}
 		} catch (Exception e) {
-			System.err.println("Failed reading disksstats");
+			LOG.error("Failed reading disksstats");
 			e.printStackTrace();
 			ret[0]++;
 		} finally {

@@ -5,9 +5,16 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Paths;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.mapr.distiller.server.queues.RecordQueue;
 
 public class SlimThreadResourceRecord extends Record {
+	
+	private static final Logger LOG = LoggerFactory
+			.getLogger(SlimThreadResourceRecord.class);
+	
 	/**
 	 * DERIVED VALUES
 	 */
@@ -179,7 +186,7 @@ public class SlimThreadResourceRecord extends Record {
 		}
 		if(record!= null && !outputQueue.put(producerName, record)){
 			ret[3]=1;
-			System.err.println("Failed to put SlimThreadResourceRecord into output queue " + outputQueue.getQueueName() + 
+			LOG.error("Failed to put SlimThreadResourceRecord into output queue " + outputQueue.getQueueName() + 
 					" size:" + outputQueue.queueSize() + " maxSize:" + outputQueue.getQueueRecordCapacity() + 
 					" producerName:" + producerName);
 		} else {
