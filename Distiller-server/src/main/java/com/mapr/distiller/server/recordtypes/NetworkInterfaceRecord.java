@@ -133,8 +133,8 @@ public class NetworkInterfaceRecord extends Record {
 		try{
 			record = new NetworkInterfaceRecord(ifName);
 		} catch (Exception e) {
-			LOG.error("Failed to generate a NetworkInterfaceRecord");
-			e.printStackTrace();
+			LOG.error("Failed to generate a NetworkInterfaceRecord "+e.getMessage());
+			//e.printStackTrace();
 			ret[2] = 1;
 		}
 		if(record != null && !outputQueue.put(producerName, record)){
