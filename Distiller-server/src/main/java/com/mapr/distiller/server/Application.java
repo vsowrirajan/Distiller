@@ -9,8 +9,6 @@ import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.ComponentScan;
 
-import com.mapr.distiller.server.Coordinator;
-
 @SpringBootApplication
 @EnableAutoConfiguration
 @ComponentScan("com.mapr.distiller.server")
@@ -23,6 +21,7 @@ public class Application implements CommandLineRunner {
 
 	public static void main(String[] args) {
 		// LOG.info("Main: Shutting down.");
+		System.setProperty("app.workdir", "/tmp/distiller/");
 		SpringApplication.run(Application.class, args);
 	}
 

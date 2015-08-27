@@ -15,13 +15,19 @@
 		<start-class>com.mapr.distiller.server.Application</start-class>
 		<java.version>1.7</java.version>
 	</properties>
-	
+
 	<dependencies>
 
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-web</artifactId>
 		</dependency>
+
+		<!-- Right now Spring security is disabled for the time.
+  		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency> -->
 
 		<dependency>
 			<groupId>org.hbase</groupId>
@@ -52,5 +58,5 @@
 			<version>1.0.2</version>
 		</dependency>
 
-	</dependencies>	
+	</dependencies>
 </project>
