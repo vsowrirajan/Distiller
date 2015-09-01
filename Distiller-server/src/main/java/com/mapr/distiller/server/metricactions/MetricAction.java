@@ -376,7 +376,7 @@ public class MetricAction implements Runnable, MetricsSelectable {
 		if(!metricEnabled) {
 			LOG.warn("MetricAction-" + System.identityHashCode(this) + ": Received request to run metric while it is disabled");
 		} else {
-				LOG.info("MetricAction-" + System.identityHashCode(this) + ": Started metric action " + this.id);
+				LOG.debug("MetricAction-" + System.identityHashCode(this) + ": Started metric action " + this.id);
 			try {
 				if(selector.equals(Constants.SEQUENTIAL_SELECTOR)){
 					try {
@@ -453,7 +453,7 @@ public class MetricAction implements Runnable, MetricsSelectable {
 				System.exit(1);
 			}
 		}
-			LOG.info("MetricAction-" + System.identityHashCode(this) + ": Completed metric action " + id);
+			LOG.debug("MetricAction-" + System.identityHashCode(this) + ": Completed metric action " + id);
 	}
 	
 	public void disableMetric(){
