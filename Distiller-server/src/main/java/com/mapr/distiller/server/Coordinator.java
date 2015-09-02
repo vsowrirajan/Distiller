@@ -1,57 +1,68 @@
 package com.mapr.distiller.server;
 
+import com.mapr.distiller.server.metricactions.MetricAction;
+import com.mapr.distiller.server.persistance.LocalFileSystemPersistanceManager;
+import com.mapr.distiller.server.persistance.MapRDBSyncPersistanceManager;
+import com.mapr.distiller.server.producers.raw.MfsGutsRecordProducer;
+import com.mapr.distiller.server.producers.raw.ProcRecordProducer;
+import com.mapr.distiller.server.queues.RecordQueue;
+import com.mapr.distiller.server.queues.RecordQueueManager;
+import com.mapr.distiller.server.queues.SubscriptionRecordQueue;
+import com.mapr.distiller.server.recordtypes.ProcessResourceRecord;
+import com.mapr.distiller.server.recordtypes.Record;
+import com.mapr.distiller.server.scheduler.MetricActionScheduler;
+import com.mapr.distiller.server.status.MetricActionStatus;
+import com.mapr.distiller.server.status.RecordProducerStatus;
+import com.mapr.distiller.server.status.RecordQueueStatus;
+import com.mapr.distiller.server.utils.Constants;
+import com.mapr.distiller.server.utils.MetricConfig.MetricConfigBuilder;
+import com.mapr.distiller.server.utils.MetricConfig;
+
+import com.typesafe.config.Config;
+import com.typesafe.config.ConfigFactory;
+import com.typesafe.config.ConfigObject;
+
 import java.io.BufferedReader;
-import java.io.InputStreamReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.RandomAccessFile;
-import java.util.SortedMap;
-import java.util.TreeMap;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
 
-import com.mapr.distiller.server.metricactions.MetricAction;
-import com.mapr.distiller.server.producers.raw.ProcRecordProducer;
-import com.mapr.distiller.server.producers.raw.MfsGutsRecordProducer;
-import com.mapr.distiller.server.queues.RecordQueue;
-import com.mapr.distiller.server.queues.RecordQueueManager;
-import com.mapr.distiller.server.recordtypes.ProcessResourceRecord;
-import com.mapr.distiller.server.utils.Constants;
-import com.mapr.distiller.server.utils.MetricConfig;
-import com.mapr.distiller.server.utils.MetricConfig.MetricConfigBuilder;
-import com.mapr.distiller.server.scheduler.MetricActionScheduler;
-import com.mapr.distiller.server.persistance.MapRDBSyncPersistanceManager;
-import com.mapr.distiller.server.persistance.LocalFileSystemPersistanceManager;
-import com.typesafe.config.Config;
-import com.typesafe.config.ConfigFactory;
-import com.typesafe.config.ConfigObject;
+@Component
+public class Coordinator implements Runnable, DistillerMonitor {
 
-public class Coordinator {
-	
 	private static final Logger LOG = LoggerFactory
 			.getLogger(Coordinator.class);
-	
+
 	private static Object coordinatorLock;
 
-	private static SortedMap<String, MetricConfig> metricConfigMap;
-	private static SortedMap<String, MetricAction> metricActionsIdMap;
-	private static SortedMap<String, Boolean> metricActionsEnableMap;
-	private static ExecutorService executor = Executors.newFixedThreadPool(5);
+	private SortedMap<String, MetricConfig> metricConfigMap;
+	private SortedMap<String, MetricAction> metricActionsIdMap;
+	private SortedMap<String, Boolean> metricActionsEnableMap;
+	private ExecutorService executor = Executors.newFixedThreadPool(5);
 
-	private static SortedMap<String, Future<MetricAction>> metricActionsIdFuturesMap;
+	private SortedMap<String, Future<MetricAction>> metricActionsIdFuturesMap;
 
-	private static ProcRecordProducer procRecordProducer;
-	private static MfsGutsRecordProducer mfsGutsRecordProducer;
-	private static RecordQueueManager recordQueueManager;
-	private static MetricActionScheduler metricActionScheduler;
-	
+	private ProcRecordProducer procRecordProducer;
+	private MfsGutsRecordProducer mfsGutsRecordProducer;
+	private RecordQueueManager recordQueueManager;
+	private MetricActionScheduler metricActionScheduler;
+	private String configFileLocation;
+
 	private static int myPid;
 	private static long myStarttime;
 	private static String maprdbHostname;
@@ -59,10 +70,11 @@ public class Coordinator {
 	private static MapRDBSyncPersistanceManager maprdbSyncPersistanceManager;
 	private static LocalFileSystemPersistanceManager localFileSystemPersistanceManager;
 
-	//Constructor
+	// Constructor
 	public Coordinator() {
-		//Nothing is done here because the work is really done in the main() function as this is the primary class for distiller-server
-		//That's not great but will do for now.
+		// Nothing is done here because the work is really done in the main()
+		// function as this is the primary class for distiller-server
+		// That's not great but will do for now.
 		LOG.info("Coordinator- {} : initialized", System.identityHashCode(this));
 	}
 
@@ -74,7 +86,6 @@ public class Coordinator {
 	//This method is called to create a MetricConfig for each sub-block of config in the "distiller" config block of the conf file 
 	//The MetricConfig objects it generates are created one at a time using calls to createMetricConfig
 	public void createMetricConfigs(Config baseConfig) throws Exception {
-
 		ConfigObject distillerConfigObject = baseConfig.getObject("distiller");
 		Set<String> metricConfigNames = distillerConfigObject.keySet();
 		Config distillerConfig = distillerConfigObject.toConfig();
@@ -148,43 +159,31 @@ public class Coordinator {
 			}
 		}
 	}
+
 	//Creates a single MetricConfig object from the block of configuration passed as argument
 	public static MetricConfig createMetricConfig(Config configBlock) throws Exception{
 		//Generates a MetricConfig from a Config object while performing error checking.
 		//If there is a problem with the content of the configuration then this will throw an exception.
 		//If this returns succesfully, it doesn't imply the metric can be gathered, it just implies the values provided in the config are valid.
 		//For instance, this function does not ensure that no other metric is already running with this name, nor does it try to resolve such a situation.
-		boolean maprdbCreateTables=false;
-		boolean maprdbWorkDirEnabled=false;
-		boolean metricActionStatusRecordsEnabled=false;
-		boolean metricEnabled=false;
-		boolean rawProducerMetricsEnabled = false;
-		boolean relatedSelectorEnabled = false;
-		int maprdbAsyncPutTimeout = -1;
-		int maprdbWorkDirBatchSize = 1000;
-		int outputQueueMaxProducers = -1;
-		int outputQueueRecordCapacity = -1;
-		int outputQueueTimeCapacity = -1;
-		int relatedOutputQueueMaxProducers = -1;
-		int relatedOutputQueueRecordCapacity = -1;
-		int relatedOutputQueueTimeCapacity = -1;
-		int periodicity = -1;
-		long cumulativeSelectorFlushTime = -1;
-		long maprdbLocalWorkDirByteLimit;
-		long metricActionStatusRecordFrequency=-1;
-		long timeSelectorMaxDelta = -1;
-		long timeSelectorMinDelta = -1;
+
 		String id = null;
 		String inputQueue = null;
 		String inputQueueType = null;
+		String lfspOutputDir = null;
+		String localFileInputMetricName = null;
+		String localFileInputQueueScanner = null;
+		String maprdbInputQueueScanEndTime = null;
+		String maprdbInputQueueScanStartTime = null;
+		String maprdbInputQueueScanner = null;
 		String maprdbLocalWorkDirPath = null;
 		String method = null;
 		String metricDescription = null;
 		String outputQueue = null;
 		String outputQueueType = null;
 		String persistorName = null;
-		String processor = null;
 		String procRecordProducerMetricName = null;
+		String processor = null;
 		String rawRecordProducerName = null;
 		String recordType = null;
 		String relatedInputQueueName = null;
@@ -197,21 +196,33 @@ public class Coordinator {
 		String thresholdKey = null;
 		String thresholdValue = null;
 		String updatingSubscriptionQueueKey = null;
-		String maprdbInputQueueScanner = null;
-		String maprdbInputQueueScanStartTime = null;
-		String maprdbInputQueueScanEndTime = null;
-		
-		String lfspOutputDir = null;
-		long lfspMaxOutputDirSize = -1;
-		int lfspWriteBatchSize = -1;
+		boolean generateJavaStackTraces = false;
+		boolean maprdbCreateTables=false;
+		boolean maprdbWorkDirEnabled=false;
+		boolean metricActionStatusRecordsEnabled=false;
+		boolean metricEnabled=false;
+		boolean rawProducerMetricsEnabled = false;
+		boolean relatedSelectorEnabled = false;
 		int lfspFlushFrequency = -1;
 		int lfspRecordsPerFile = 0;
-		String localFileInputQueueScanner = null;
-		long localFileInputQueueStartTimestamp = -1;
+		int lfspWriteBatchSize = -1;
+		int maprdbAsyncPutTimeout = -1;
+		int maprdbWorkDirBatchSize = 1000;
+		int outputQueueMaxProducers = -1;
+		int outputQueueRecordCapacity = -1;
+		int outputQueueTimeCapacity = -1;
+		int periodicity = -1;
+		int relatedOutputQueueMaxProducers = -1;
+		int relatedOutputQueueRecordCapacity = -1;
+		int relatedOutputQueueTimeCapacity = -1;
+		long cumulativeSelectorFlushTime = -1;
+		long lfspMaxOutputDirSize = -1;
 		long localFileInputQueueEndTimestamp = 0;
-		String localFileInputMetricName = null;
-		
-		boolean generateJavaStackTraces = false;
+		long localFileInputQueueStartTimestamp = -1;
+		long maprdbLocalWorkDirByteLimit;
+		long metricActionStatusRecordFrequency=-1;
+		long timeSelectorMaxDelta = -1;
+		long timeSelectorMinDelta = -1;
 
 		//Completely optional parameters
 		try { 
@@ -674,7 +685,7 @@ public class Coordinator {
 				throw new Exception("A valid name must be specified for " + Constants.RAW_RECORD_PRODUCER_NAME + 
 									" when " + Constants.RAW_PRODUCER_METRICS_ENABLED + "=true", e);
 		}
-		
+
 		MetricConfigBuilder metricConfigBuilder = null;
 		try {
 			metricConfigBuilder = new MetricConfigBuilder(id, inputQueue, outputQueue, outputQueueRecordCapacity, 
@@ -696,8 +707,12 @@ public class Coordinator {
 		}
 		return metricConfigBuilder.build();
 	}
-	//This method is called once during Distiller startup as the MetricConfig objects created from parsing the config file are built into MetricAction objects and scheduled for execution.
-	//Creation of metrics after this method is called must be done using the "createMetric" method
+
+	// This method is called once during Distiller startup as the MetricConfig
+	// objects created from parsing the config file are built into MetricAction
+	// objects and scheduled for execution.
+	// Creation of metrics after this method is called must be done using the
+	// "createMetric" method
 	public void createMetricActions() throws Exception{
 		LOG.info("Coordinator-{} : request to create metric actions" , System.identityHashCode(this));
 		
@@ -726,8 +741,6 @@ public class Coordinator {
 							config.setMetricActionCreated(true);
 							initializationSuccesses++;
 							LOG.debug("Coordinator- {} : Raw metric enabled for {} {} ", System.identityHashCode(this), config.getRecordType(), config.getProcRecordProducerMetricName());
-						//} else {
-						//	throw new Exception("Unexpected state while creating MetricAction for MetricConfig " + config.getId());
 						}
 					}
 					if(newAction!=null){
@@ -776,7 +789,10 @@ public class Coordinator {
 			}
 		}
 	}
-	//This method builds a MetricAction from a MetricConfig, e.g. a schedulable object (MetricAction) from a description of what should be done (MetricConfig)
+
+	// This method builds a MetricAction from a MetricConfig, e.g. a schedulable
+	// object (MetricAction) from a description of what should be done
+	// (MetricConfig)
 	private static MetricAction createMetricAction(MetricConfig config) throws Exception {
 		MetricAction metricAction = null;
 		boolean initialized=false;
@@ -1020,7 +1036,9 @@ public class Coordinator {
 		else 
 			return null;
 	}
-	//This method constructs, registers and schedules (if enabled) MetricConfig and MetricAction objects based on a provided block of config
+
+	// This method constructs, registers and schedules (if enabled) MetricConfig
+	// and MetricAction objects based on a provided block of config
 	public static void createMetric(Config configBlock) throws Exception{
 		synchronized(coordinatorLock){
 			MetricConfig metricConfig = null;
@@ -1106,7 +1124,7 @@ public class Coordinator {
 						metricActionsIdFuturesMap.remove(metricConfig.getId());
 					} catch (Exception e2){}
 					try {
-						metricActionsEnableMap.remove(metricConfig.getId());
+metricActionsEnableMap.remove(metricConfig.getId());
 					} catch (Exception e2){}
 					try {
 						metricActionsIdMap.remove(metricConfig.getId());
@@ -1123,8 +1141,8 @@ public class Coordinator {
 	/**
 	 * Methods related to enabling metrics
 	 */
-	//Call this method to enable a metric based on the id parameter of a MetricConfig
-
+	// Call this method to enable a metric based on the id parameter of a
+	// MetricConfig
 	private static void enableMetric(String metricName) throws Exception{
 		synchronized(coordinatorLock){
 			MetricAction metricToEnable = metricActionsIdMap.get(metricName);
@@ -1170,7 +1188,9 @@ public class Coordinator {
 			}
 		}
 	}
-	//Call this method to enable a single MetricAction (e.g. schedule it for execution)
+
+	// Call this method to enable a single MetricAction (e.g. schedule it for
+	// execution)
 	private static void enableMetricAction(MetricAction metricAction) throws Exception {
 		synchronized(coordinatorLock){
 			metricAction.enableMetric();
@@ -1300,8 +1320,7 @@ public class Coordinator {
 					LOG.error("Coordinator: Failed to delete queue \"" + config.getOutputQueue() + "\" while cleaning up");
 				return false;
 			}
-			
-			if(config.getRawProducerMetricsEnabled()){
+						if(config.getRawProducerMetricsEnabled()){
 				config.setRawRecordProducerName(Constants.PROC_RECORD_PRODUCER_NAME);
 				enableRawRecordProducerStats(config);
 			}
@@ -1382,13 +1401,13 @@ public class Coordinator {
 				return true;
 		}
 	}
-
 	/**
 	 * Methods related to disabling metrics
 	 */
-	//Call this method to disable a metric based on the id parameter of a MetricConfig
-	private static void disableMetric(String metricName) throws Exception{
-		synchronized(coordinatorLock){	
+	// Call this method to disable a metric based on the id parameter of a
+	// MetricConfig
+	public void disableMetric(String metricName) throws Exception {
+		synchronized (coordinatorLock) {
 			MetricAction metricToDisable = metricActionsIdMap.get(metricName);
 			if(metricToDisable!=null){
 				try {
@@ -1429,8 +1448,8 @@ public class Coordinator {
 			}
 		}
 	}
-	//Call this method to disable a MetricAction
-	private static void disableMetricAction(MetricAction metricAction) throws Exception {
+	// Call this method to disable a MetricAction
+	public void disableMetricAction(MetricAction metricAction) throws Exception {
 		synchronized(coordinatorLock){
 			if(!metricActionsEnableMap.containsKey(metricAction.getId()))
 				throw new Exception("Current state for MetricAction " + metricAction.getId() + " not found");
@@ -1454,8 +1473,8 @@ public class Coordinator {
 			metricAction.disableMetric();
 		}
 	}
-	//Call this method to disable MfsGutsRecordProducer
-	private static void disableMfsGutsRecordProducer(MetricConfig config) throws Exception{
+	// Call this method to disable MfsGutsRecordProducer
+	public void disableMfsGutsRecordProducer throws Exception(MetricConfig config) {
 		synchronized(coordinatorLock){
 			if(mfsGutsRecordProducer == null){
 				throw new Exception("Failed to disable metric because MfsGutsRecordProducer is not initialized");
@@ -1484,8 +1503,10 @@ public class Coordinator {
 			recordQueueManager.deleteQueue(config.getOutputQueue());
 		}
 	}
-	//Call this method to disable a stats for a raw record producer (e.g. MfsGutsRecordProducer or ProcRecordProducer)
-	private static void disableRawRecordProducerStats(MetricConfig config) throws Exception{
+	// Call this method to disable a stats for a raw record producer (e.g.
+	// MfsGutsRecordProducer or ProcRecordProducer)
+	public void disableRawRecordProducerStats(MetricConfig config)
+			throws Exception {
 		synchronized(coordinatorLock) {
 			if (config.getRawRecordProducerName().equals(Constants.MFS_GUTS_RECORD_PRODUCER_NAME)) {
 				if(mfsGutsRecordProducer==null){
@@ -1508,7 +1529,7 @@ public class Coordinator {
 	/**
 	 * Method to delete a metric
 	 */
-	private static void deleteMetric(String metricName) throws Exception {
+	public void deleteMetric(String metricName) throws Exception {
 		synchronized(coordinatorLock){
 			MetricConfig config = metricConfigMap.get(metricName);
 			if(config == null){
@@ -1533,209 +1554,7 @@ public class Coordinator {
 			metricConfigMap.remove(config.getId());
 		}
 	}
-	
-	public static void main(String[] args) throws IOException,
-			InterruptedException {
-		boolean shouldExit = false;
-		String configLocation = "/opt/mapr/conf/distiller.conf";
-		if(args.length == 0){
-			LOG.debug("Main: Using default configuration file location: " + configLocation);
-		} else {
-			configLocation = args[0];
-			LOG.debug("Main: Using custom configuration file location: " + configLocation);
-		}
-		File f = new File(configLocation);
-		if(!f.exists()){	
-			LOG.warn("Main: Config file not found: " + configLocation);
-			System.exit(1);
-		}
-		
-		coordinatorLock = new Object();
-		Coordinator coordinator = new Coordinator();
-		recordQueueManager = new RecordQueueManager();
-		procRecordProducer = new ProcRecordProducer(Constants.PROC_RECORD_PRODUCER_NAME);
-		procRecordProducer.start();
-		metricActionsIdMap = new TreeMap<String, MetricAction>();
-		metricActionsIdFuturesMap = new TreeMap<String, Future<MetricAction>>();
-		metricActionsEnableMap = new TreeMap<String, Boolean>();
-		metricConfigMap = new TreeMap<String, MetricConfig>();
-		//maprdbPersistanceManager = null;
-		maprdbSyncPersistanceManager = null;
-		
-		try {
-			ProcessResourceRecord self = new ProcessResourceRecord("/proc/self/stat", "/proc/self/io", 100);
-			myPid = self.get_pgrp();
-			myStarttime = self.get_starttime();
-		} catch (Exception e) {
-			System.err.println("Failed to retrieve the PID and starttime of this process from /proc/self/stat");
-			e.printStackTrace();
-		}
-		RandomAccessFile maprdbHostnameFile = null;
-		try {
-			maprdbHostnameFile = new RandomAccessFile("/opt/mapr/hostname", "r");
-			maprdbHostname = maprdbHostnameFile.readLine();
-		} catch (Exception e) {
-			System.err.println("Failed to retrieve hostname from /opt/mapr/hostname, falling back to generic lookup.");
-			BufferedReader r = null;
-			try {
-				Process p = (new ProcessBuilder("hostname", "-f")).start();
-				r = new BufferedReader(new InputStreamReader(p.getInputStream()));
-				maprdbHostname = r.readLine();
-				p.waitFor();
-			} catch (Exception e2) {
-				System.err.println("Failed to retrieve hostname using \"hostname -f\"");
-				e2.printStackTrace();
-				System.exit(1);
-			} finally {
-				try {
-					r.close();
-				} catch (Exception e2){}
-			}
-		} finally {
-			try {
-				maprdbHostnameFile.close();
-			} catch (Exception e) {}
-		}
-		System.err.println("Main: Using hostname: " + maprdbHostname);
-		
-		//Hard coding a fuzzy window size of 20ms
-		//This means that a metric may be triggered up to 20ms before it is actually supposed to be gathered per schedule.
-		//The reason for this is to avoid requiring extra code/waiting to run in the scheduler when the precision of when a metric needs to be processed is low.
-		//E.g. since the records this scheduler will process are already timestamped, we don't need to be worried about the exact time that the processing happens.
-		try {
-			metricActionScheduler = new MetricActionScheduler(20);	
-		} catch (Exception e){
-			LOG.error("Failed to setup MetricActionScheduler" + e.toString());
-			System.exit(1);
-		}
-		
-		Config config = null;
-		try {
-			config = ConfigFactory.parseFile(new File(configLocation));
-		} catch (Exception e){
-			LOG.error("Exception while parsing configuration file", e);
-			config = null;
-		}
-		if (config == null) {
-			LOG.error("Main: Failed to parse config file from " + configLocation);
-			System.exit(1);
-		}
-		
-		try {
-			coordinator.createMetricConfigs(config);
-		} catch (Exception e) {
-			LOG.error("Main: Failed to create metric configs due to exception:");
-			e.printStackTrace();
-			System.exit(1);
-		}
-		
-		try {
-			coordinator.createMetricActions();
-		} catch (Exception e){
-			LOG.error("Main: Failed to create metric actions due to exception:");
-			e.printStackTrace();
-			System.exit(1);
-		}
-		long statusInterval = 3000l;
-		long lastStatus = System.currentTimeMillis();
-		while(!shouldExit){
-            MetricAction nextAction = null;
-			try {
-				nextAction = metricActionScheduler.getNextScheduledMetricAction(true);
-			} catch (Exception e) {
-				LOG.error("Main: FATAL: Failed to retrieve net scheduled metric action");
-				e.printStackTrace();
-				System.exit(1);
-			}
-			synchronized(coordinatorLock){
-				if (metricActionsEnableMap.containsKey(nextAction.getId()) && 
-					metricActionsEnableMap.get(nextAction.getId()))
-				{
-					Future<?> future = metricActionsIdFuturesMap.get(nextAction.getId());
-					if(future!=null && !future.isDone()){
-						nextAction.advanceSchedule();
-						LOG.warn("Metric " + nextAction.getId() + " is scheduled to run now but previous run is not done, advancing schedule (This can happen due to timing issues with GC)");
-					} else {
-						future = executor.submit(nextAction);
-						metricActionsIdFuturesMap.put(nextAction.getId(), ((Future<MetricAction>) future));
-					}
-				} else {
-					LOG.info("Main: dropping metric " + nextAction.getId() + " as it was disabled after retrieval from schedule.");
-				}
-			}
-			
-		//This is where the while loop should end when there is an RPC interface to query for status
-		//}
 
-			if(System.currentTimeMillis() >= lastStatus + statusInterval){
-				lastStatus = System.currentTimeMillis();
-				LOG.info("Main: Printing status at " + lastStatus);
-				synchronized(coordinatorLock){
-					RecordQueue[] queues = recordQueueManager.getQueues();
-					LOG.info("\tMfsGutsRecordProducer is " + 
-							((mfsGutsRecordProducer != null) ? ((mfsGutsRecordProducer.isAlive()) ? "" : "not ") : "not ") + 
-							"running and producer metrics are " + 
-							((mfsGutsRecordProducer != null && mfsGutsRecordProducer.producerMetricsEnabled()) ? "enabled" : "disabled"));
-					LOG.info("\tProcRecordProducer is " + 
-							((procRecordProducer != null) ? ((procRecordProducer.isAlive()) ? "" : "not ") : "not ") + 
-							"running and producer metrics are " + 
-							((procRecordProducer != null && procRecordProducer.producerMetricsEnabled()) ? "enabled" : "disabled"));
-					if(procRecordProducer != null){
-						LOG.info("\tEnabled ProcRecordProducer metrics:");
-						for(String s : procRecordProducer.listEnabledMetrics()){
-							LOG.debug("\t\t" + s);
-						}
-					}
-					LOG.info("\tRecordQueue details:");
-					for(int x=0; x<queues.length; x++){
-						LOG.info("\t\tQueue " + queues[x].getQueueName() + " contains " + queues[x].queueSize() + " records with time capacity " + 
-								queues[x].getQueueTimeCapacity() + " and time usage " + (System.currentTimeMillis() - queues[x].getOldestRecordTimestamp()) + 
-								"ms and record capacity " + queues[x].getQueueRecordCapacity() + " (" + 
-								(((double)queues[x].queueSize())/((double)queues[x].getQueueRecordCapacity())*100d) + "%)" + 
-								" cl:" + queues[x].listConsumers().length +
-								" pl:" + queues[x].listProducers().length);
-						//if(queues[x].getQueueName().equals("HighMfsThreadCpu-1s")){
-						//	LOG.debug(queues[x].printNewestRecords(null, 5));
-						//}
-						//if (queues[x].getQueueName().equals(Constants.RAW_PRODUCER_STATS_QUEUE_NAME) || 
-						//	queues[x].getQueueName().equals(Constants.METRIC_ACTION_STATS_QUEUE_NAME)){
-						//	LOG.debug(queues[x].printNewestRecords(null, 5));
-						//}
-					}
-					LOG.info("\tMetricAction details:");
-					Iterator<Map.Entry<String, MetricAction>> i = metricActionsIdMap.entrySet().iterator();
-					while(i.hasNext()){
-						Map.Entry<String, MetricAction> e = i.next();
-						LOG.info("\t\tID:" + e.getKey() + " enabled:" + e.getValue().getMetricEnabled() + " running:" + ((metricActionsIdFuturesMap.containsKey(e.getValue().getId()) && !metricActionsIdFuturesMap.get(e.getValue().getId()).isDone())) + " inSched:" + metricActionScheduler.contains(e.getValue()) + " sched:" + e.getValue().printSchedule());
-					}
-					i = metricActionsIdMap.entrySet().iterator();
-					LOG.info("\tMetricAction counters:");
-					while(i.hasNext()){
-						Map.Entry<String, MetricAction> e = i.next();
-						long[] counters = e.getValue().getCounters();
-						LOG.info("\t\tID:" + e.getKey() + " inRec:" + counters[0] + " outRec:" + counters[1] + " processingFail:" + counters[2] + " putFail:" + counters[3] + " otherFail:" + counters[4] + " runningTime:" + counters[5] + " startTime:" + counters[6]);
-					}
-					//if(maprdbPersistanceManager != null){
-					//	LOG.info("\tMapRDBPersistanceManager details:");
-					//	maprdbPersistanceManager.logPersistorStatus();
-					if(maprdbSyncPersistanceManager != null){
-						LOG.info("\tMapRDBSyncPersistanceManager details:");
-						maprdbSyncPersistanceManager.logPersistorStatus();
-					}
-					if(localFileSystemPersistanceManager != null){
-						LOG.info("\tLocalFileSystemPersistanceManager details:");
-						localFileSystemPersistanceManager.logPersistorStatus();
-					}
-					
-				}
-			}
-
-		}
-
-		LOG.info("Main: Shutting down.");
-		//Do shutdown stuff here...
-	}
-	
 	//Methods for error checking configuration
 	public static boolean isRawRecordProducerName(String name){
 		if(name==null) return false;
@@ -1923,5 +1742,390 @@ public class Coordinator {
 			name.equals(Constants.LOCAL_FILE_SYSTEM) )
 			return true;
 		return false;
+	}
+
+
+	@Override
+	public RecordProducerStatus getRecordProducerStatus() {
+		boolean isMfsGutsRecordProducerRunning = mfsGutsRecordProducer != null
+				&& mfsGutsRecordProducer.isAlive();
+		boolean isMfsGutsRecordProducerMetricsEnabled = mfsGutsRecordProducer != null
+				&& mfsGutsRecordProducer.producerMetricsEnabled();
+
+		boolean isProcRecordProducerRunning = procRecordProducer != null
+				&& procRecordProducer.isAlive();
+		boolean isProcRecordProducerMetricsEnabled = procRecordProducer != null
+				&& procRecordProducer.producerMetricsEnabled();
+
+		RecordProducerStatus producerStatus = new RecordProducerStatus(
+				isMfsGutsRecordProducerRunning,
+				isMfsGutsRecordProducerMetricsEnabled,
+				isProcRecordProducerRunning,
+				isProcRecordProducerMetricsEnabled,
+				procRecordProducer.listEnabledMetrics());
+		
+		/*StringBuffer status = new StringBuffer();
+		LOG.debug("\tMfsGutsRecordProducer is "
+				+ ((mfsGutsRecordProducer != null) ? ((mfsGutsRecordProducer
+						.isAlive()) ? "" : "not ") : "not ")
+				+ "running and producer metrics are "
+				+ ((mfsGutsRecordProducer != null && mfsGutsRecordProducer
+						.producerMetricsEnabled()) ? "enabled" : "disabled"));
+		LOG.debug("\tProcRecordProducer is "
+				+ ((procRecordProducer != null) ? ((procRecordProducer
+						.isAlive()) ? "" : "not ") : "not ")
+				+ "running and producer metrics are "
+				+ ((procRecordProducer != null && procRecordProducer
+						.producerMetricsEnabled()) ? "enabled" : "disabled"));
+		if (procRecordProducer != null) {
+			LOG.debug("\tEnabled ProcRecordProducer metrics:");
+
+			for (String s : procRecordProducer.listEnabledMetrics()) {
+				status.append("\t\t");
+				status.append(s);
+				status.append("\n");
+				LOG.debug("\t\t" + s);
+			}
+		}*/
+		return producerStatus;
+	}
+
+	@Override
+	public List<MetricActionStatus> getMetricActions() {
+		LOG.debug("\tMetricAction details:");
+		List<MetricActionStatus> metricActionStatuses = new ArrayList<MetricActionStatus>();
+
+		MetricActionStatus metricActionStatus;
+
+		for (String metricId : metricActionsIdMap.keySet()) {
+			MetricAction metricAction = metricActionsIdMap.get(metricId);
+			boolean isRunning = metricActionsIdFuturesMap
+					.containsKey(metricAction.getId())
+					&& !metricActionsIdFuturesMap.get(metricAction.getId())
+							.isDone();
+			boolean isScheduled = metricActionScheduler.contains(metricAction);
+			metricActionStatus = new MetricActionStatus(metricId,
+					metricAction.getMetricEnabled(), isRunning, isScheduled,
+					metricAction.printSchedule());
+			metricActionStatuses.add(metricActionStatus);
+		}
+
+		return metricActionStatuses;
+
+		/*
+		 * StringBuffer status = new StringBuffer();
+		 * 
+		 * Iterator<Map.Entry<String, MetricAction>> i = metricActionsIdMap
+		 * .entrySet().iterator(); while (i.hasNext()) { Map.Entry<String,
+		 * MetricAction> e = i.next(); status.append("\t\tID:" + e.getKey() +
+		 * " enabled:" + e.getValue().getMetricEnabled() + " running:" +
+		 * ((metricActionsIdFuturesMap.containsKey(e.getValue() .getId()) &&
+		 * !metricActionsIdFuturesMap.get( e.getValue().getId()).isDone())) +
+		 * " inSched:" + metricActionScheduler.contains(e.getValue()) +
+		 * " sched:" + e.getValue().printSchedule() + "\n");
+		 * 
+		 * LOG.debug("\t\tID:" + e.getKey() + " enabled:" +
+		 * e.getValue().getMetricEnabled() + " running:" +
+		 * ((metricActionsIdFuturesMap.containsKey(e.getValue() .getId()) &&
+		 * !metricActionsIdFuturesMap.get( e.getValue().getId()).isDone())) +
+		 * " inSched:" + metricActionScheduler.contains(e.getValue()) +
+		 * " sched:" + e.getValue().printSchedule()); } return
+		 * status.toString();
+		 */
+
+	}
+
+	@Override
+	public boolean metricDisable(String metricName) {
+		try {
+			disableMetric(metricName);
+			return true;
+		}
+
+		catch (Exception e) {
+			LOG.error("Metric " + metricName + " cannot be disabled - "
+					+ e.getMessage());
+		}
+		return false;
+	}
+
+	@Override
+	public boolean metricEnable(String metricName) {
+		try {
+			enableMetric(metricName);
+			return true;
+		}
+
+		catch (Exception e) {
+			LOG.error("Metric " + metricName + " cannot be enabled - "
+					+ e.getMessage());
+		}
+		return false;
+	}
+
+	@Override
+	public boolean metricDelete(String metricName) {
+		try {
+			deleteMetric(metricName);
+			return true;
+		}
+
+		catch (Exception e) {
+			LOG.error("Metric " + metricName + " cannot be deleted - "
+					+ e.getMessage());
+		}
+		return false;
+	}
+
+	@Override
+	public List<RecordQueueStatus> getRecordQueues() {
+		RecordQueue[] queues = recordQueueManager.getQueues();
+
+		List<RecordQueueStatus> queueStatuses = new ArrayList<RecordQueueStatus>();
+		RecordQueueStatus queueStatus;
+
+		for (RecordQueue queue : queues) {
+			queueStatus = new RecordQueueStatus(queue.getQueueName(),
+					queue.getQueueType(), queue.getQueueRecordCapacity(),
+					queue.queueSize(), queue.listProducers(),
+					queue.listConsumers());
+			queueStatuses.add(queueStatus);
+		}
+		/*
+		 * StringBuffer status = new StringBuffer();
+		 * 
+		 * LOG.debug("\tRecordQueue details:"); for (int x = 0; x <
+		 * queues.length; x++) { status.append("\t\tQueue " +
+		 * queues[x].getQueueName() + " contains " + queues[x].queueSize() +
+		 * " records with time capacity " + queues[x].getQueueTimeCapacity() +
+		 * " and time usage " + (System.currentTimeMillis() - queues[x]
+		 * .getOldestRecordTimestamp()) + "ms and record capacity " +
+		 * queues[x].getQueueRecordCapacity() + " (" + (((double)
+		 * queues[x].queueSize()) / ((double)
+		 * queues[x].getQueueRecordCapacity()) * 100d) + "%)" + " cl:" +
+		 * queues[x].listConsumers().length + " pl:" +
+		 * queues[x].listProducers().length + "\n");
+		 * 
+		 * LOG.debug("\t\tQueue " + queues[x].getQueueName() + " contains " +
+		 * queues[x].queueSize() + " records with time capacity " +
+		 * queues[x].getQueueTimeCapacity() + " and time usage " +
+		 * (System.currentTimeMillis() - queues[x] .getOldestRecordTimestamp())
+		 * + "ms and record capacity " + queues[x].getQueueRecordCapacity() +
+		 * " (" + (((double) queues[x].queueSize()) / ((double)
+		 * queues[x].getQueueRecordCapacity()) * 100d) + "%)" + " cl:" +
+		 * queues[x].listConsumers().length + " pl:" +
+		 * queues[x].listProducers().length); //
+		 * if(queues[x].getQueueName().equals("HighMfsThreadCpu-1s")){ //
+		 * LOG.debug(queues[x].printNewestRecords(null, 5)); // } // if //
+		 * (queues
+		 * [x].getQueueName().equals(Constants.RAW_PRODUCER_STATS_QUEUE_NAME) //
+		 * || //
+		 * queues[x].getQueueName().equals(Constants.METRIC_ACTION_STATS_QUEUE_NAME
+		 * )){ // LOG.debug(queues[x].printNewestRecords(null, 5)); // } }
+		 * return status.toString();
+		 */
+		return queueStatuses;
+	}
+
+	@Override
+	public RecordQueueStatus getQueueStatus(String queueName) {
+		RecordQueue queue = recordQueueManager.getQueue(queueName);
+		RecordQueueStatus queueStatus = new RecordQueueStatus(
+				queue.getQueueName(), queue.getQueueType(),
+				queue.getQueueRecordCapacity(), queue.queueSize(),
+				queue.listProducers(), queue.listConsumers());
+		return queueStatus;
+	}
+
+	@Override
+	public Record[] getRecords(String queueName, int count) {
+		SubscriptionRecordQueue queue = (SubscriptionRecordQueue) recordQueueManager
+				.getQueue(queueName);
+		return queue.dumpNewestRecords(count);
+	}
+
+	@Override
+	public boolean isScheduledMetricAction(String metricAction) {
+		MetricAction action = metricActionsIdMap.get(metricAction);
+		return metricActionScheduler.contains(action);
+	}
+
+	@Override
+	public boolean isRunningMetricAction(String metricAction) {
+		MetricAction action = metricActionsIdMap.get(metricAction);
+		return metricActionsIdFuturesMap.containsKey(action)
+				&& !metricActionsIdFuturesMap.get(action).isDone();
+	}
+
+	public void init(String configLocation) {
+		this.configFileLocation = configLocation;
+	}
+
+	public static void main(String[] args) throws IOException,
+			InterruptedException {
+		boolean shouldExit = false;
+		String configLocation = "/opt/mapr/conf/distiller.conf";
+		if(args.length == 0){
+			LOG.debug("Main: Using default configuration file location: " + configLocation);
+		} else {
+			configLocation = args[0];
+			LOG.debug("Main: Using custom configuration file location: " + configLocation);
+		}
+		File f = new File(configLocation);
+		if(!f.exists()){	
+			LOG.warn("Main: Config file not found: " + configLocation);
+			System.exit(1);
+		}
+		Coordinator coordinator = new Coordinator();
+		coordinator.init(configLocation);
+		Thread coordinatorThread = new Thread(coordinator, "Coordinator");
+		coordinatorThread.start();
+
+		LOG.info("Main: Shutting down.");
+		// Do shutdown stuff here...
+	}			
+
+	@Override
+	public void run() {
+		boolean shouldExit = false;
+		long statusInterval = 3000l;
+		long lastStatus = System.currentTimeMillis();
+
+		coordinatorLock = new Object();
+
+		this.recordQueueManager = new RecordQueueManager();
+		this.procRecordProducer = new ProcRecordProducer(Constants.PROC_RECORD_PRODUCER_NAME);
+		this.metricActionsIdMap = new TreeMap<String, MetricAction>();
+		this.metricActionsIdFuturesMap = new TreeMap<String, Future<MetricAction>>();
+		this.metricActionsEnableMap = new TreeMap<String, Boolean>();
+		this.metricConfigMap = new TreeMap<String, MetricConfig>();
+		//this.maprdbPersistanceManager = null;
+		this.maprdbSyncPersistanceManager = null;
+
+		try {
+			ProcessResourceRecord self = new ProcessResourceRecord("/proc/self/stat", "/proc/self/io", 100);
+			this.myPid = self.get_pgrp();
+			this.myStarttime = self.get_starttime();
+		} catch (Exception e) {
+			System.err.println("Failed to retrieve the PID and starttime of this process from /proc/self/stat");
+			e.printStackTrace();
+		}
+		RandomAccessFile maprdbHostnameFile = null;
+		try {
+			maprdbHostnameFile = new RandomAccessFile("/opt/mapr/hostname", "r");
+			this.maprdbHostname = maprdbHostnameFile.readLine();
+		} catch (Exception e) {
+			System.err.println("Failed to retrieve hostname from /opt/mapr/hostname, falling back to generic lookup.");
+			BufferedReader r = null;
+			try {
+				Process p = (new ProcessBuilder("hostname", "-f")).start();
+				r = new BufferedReader(new InputStreamReader(p.getInputStream()));
+				this.maprdbHostname = r.readLine();
+				p.waitFor();
+			} catch (Exception e2) {
+				System.err.println("Failed to retrieve hostname using \"hostname -f\"");
+				e2.printStackTrace();
+				System.exit(1);
+			} finally {
+				try {
+					r.close();
+				} catch (Exception e2){}
+			}
+		} finally {
+			try {
+				maprdbHostnameFile.close();
+			} catch (Exception e) {}
+		}
+
+
+		// Hard coding a fuzzy window size of 20ms
+		// This means that a metric may be triggered up to 20ms before it is
+		// actually supposed to be gathered per schedule.
+		// The reason for this is to avoid requiring extra code/waiting to run
+		// in the scheduler when the precision of when a metric needs to be
+		// processed is low.
+		// E.g. since the records this scheduler will process are already
+		// timestamped, we don't need to be worried about the exact time that
+		// the processing happens.
+		try {
+			this.metricActionScheduler = new MetricActionScheduler(20);
+		} catch (Exception e) {
+			LOG.error("Failed to setup MetricActionScheduler" + e.toString());
+			System.exit(1);
+		}
+
+		Config config = null;
+		try {
+			config = ConfigFactory.parseFile(new File(configLocation));
+		} catch (Exception e){
+			LOG.error("Exception while parsing configuration file", e);
+			config = null;
+		}
+		if (config == null) {
+			LOG.error("Main: Failed to parse config file from " + configLocation);
+			System.exit(1);
+		}
+
+		procRecordProducer.start();
+		try {
+			createMetricConfigs(config);
+		} catch (Exception e) {
+			LOG.error("Main: Failed to create metric configs due to exception:");
+			e.printStackTrace();
+			System.exit(1);
+		}
+
+		try {
+			createMetricActions();
+		} catch (Exception e) {
+			LOG.error("Main: Failed to create metric actions due to exception:");
+			e.printStackTrace();
+			System.exit(1);
+		}
+
+		while (!shouldExit) {
+			MetricAction nextAction = null;
+			try {
+				nextAction = metricActionScheduler
+						.getNextScheduledMetricAction(true);
+			} catch (Exception e) {
+				LOG.error("Main: FATAL: Failed to retrieve net scheduled metric action");
+				e.printStackTrace();
+				System.exit(1);
+			}
+			synchronized (coordinatorLock) {
+				if (metricActionsEnableMap.containsKey(nextAction.getId())
+						&& metricActionsEnableMap.get(nextAction.getId())) {
+					Future<?> future = metricActionsIdFuturesMap.get(nextAction
+							.getId());
+					if (future != null && !future.isDone()) {
+						LOG.info("Main: CRITICAL: Metric "
+								+ nextAction.getId()
+								+ " is scheduled to run now but previous run is not done");
+					} else {
+						future = executor.submit(nextAction);
+						metricActionsIdFuturesMap.put(nextAction.getId(),
+								((Future<MetricAction>) future));
+					}
+				} else {
+					LOG.info("Main: dropping metric "
+							+ nextAction.getId()
+							+ " as it was disabled after retrieval from schedule.");
+				}
+			}
+
+			/*
+			 * if (System.currentTimeMillis() >= lastStatus + statusInterval) {
+			 * lastStatus = System.currentTimeMillis();
+			 * LOG.debug("Main: Printing status " + lastStatus); String
+			 * recordProducerStatus = getRecordProducerStatus();
+			 * 
+			 * LOG.debug("Record Queues"); String recordQueues =
+			 * getRecordQueues();
+			 * 
+			 * LOG.debug("Metric Actions"); String metricActions =
+			 * getMetricActions(); }
+			 */
+		}
 	}
 }
