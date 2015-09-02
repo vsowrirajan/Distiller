@@ -125,7 +125,7 @@ public class MfsGutsStdoutRecordProducer extends Thread{
 			try {
 				line = stdout.readLine();
 			} catch (Exception e) {
-				LOG.error("ERROR: Could not read from MFS guts stdout");
+				LOG.error("Could not read from MFS guts stdout");
 				break;
 			}
 			long startTime = System.currentTimeMillis();
@@ -135,8 +135,7 @@ public class MfsGutsStdoutRecordProducer extends Thread{
 					if(!verifiedHeader){
 						headerVersion = checkHeaderVersion(line);
 						if(headerVersion==-1){
-							LOG.error("ERROR: MFS guts did not produce the expected header");
-							break;
+							LOG.info("MFS guts did not produce a known header");
 						}
 						verifiedHeader=true;
 					}

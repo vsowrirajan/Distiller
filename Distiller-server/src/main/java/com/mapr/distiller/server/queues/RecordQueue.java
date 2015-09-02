@@ -28,10 +28,10 @@ public interface RecordQueue {
 	public Record get(String subscriber) throws Exception;
 
 	//Perform a get for the next sequential Record for the specific consumer, either blocking or non blocking as specified, return null for non-blocking requests where no records are available
-	public Record get(String subscriber, boolean blocking);
+	public Record get(String subscriber, boolean blocking) throws Exception;
 	
 	//Perform a peek at the next sequential Record for the specific consumer, either blocking or non blocking as specified, return null for non-blocking requests where no records are available
-	public Record peek(String subscriber, boolean blocking);
+	public Record peek(String subscriber, boolean blocking) throws Exception;
 	
 	//Return a String array where each element represents the name of a registered Producer
 	public String[] listProducers();

@@ -11,4 +11,5 @@ public interface MetricsSelectable {
 
 	public void selectTimeSeparatedRecords() throws Exception;
 
+	public void persistRecords() throws Exception;
 }

@@ -12,12 +12,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.mapr.distiller.server.queues.RecordQueue;
+import com.mapr.distiller.server.utils.Constants;
 
 public class TcpConnectionStatRecord extends Record {
-	
 	private static final Logger LOG = LoggerFactory
 			.getLogger(TcpConnectionStatRecord.class);
-	
+	private static final long serialVersionUID = Constants.SVUID_TCP_CONNECTION_RECORD;
 	/**
 	 * DERIVED VALUES
 	 */
@@ -29,6 +29,12 @@ public class TcpConnectionStatRecord extends Record {
 	private BigInteger rxQ, txQ;
 	private int localPort, remotePort, pid;
 	
+	@Override
+	public String getRecordType(){
+		return Constants.TCP_CONNECTION_RECORD;
+	}
+	
+
 	/**
 	 * CONSTRUCTORS
 	 */

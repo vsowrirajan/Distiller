@@ -9,12 +9,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.mapr.distiller.server.queues.RecordQueue;
+import com.mapr.distiller.server.utils.Constants;
 
 public class ThreadResourceRecord extends Record {
-	
 	private static final Logger LOG = LoggerFactory
 			.getLogger(ThreadResourceRecord.class);
-	
+	private static final long serialVersionUID = Constants.SVUID_THREAD_RESOURCE_RECORD;
 	/**
 	 * DERIVED VALUES
 	 */
@@ -29,6 +29,12 @@ public class ThreadResourceRecord extends Record {
 	private long starttime;
 	private BigInteger delayacct_blkio_ticks, guest_time, majflt, minflt, stime, utime;
 	private BigInteger rchar, wchar, syscr, syscw, read_bytes, write_bytes, cancelled_write_bytes;
+
+	@Override
+	public String getRecordType(){
+		return Constants.THREAD_RESOURCE_RECORD;
+	}
+	
 
 	/**
 	 * CONSTRUCTORS

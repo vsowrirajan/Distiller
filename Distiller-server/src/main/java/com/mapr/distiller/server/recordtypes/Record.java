@@ -1,12 +1,15 @@
 package com.mapr.distiller.server.recordtypes;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.mapr.distiller.server.utils.Constants;
+import java.io.Serializable;
 
-public class Record {
+public class Record implements Serializable{
+	private static final long serialVersionUID = Constants.SVUID_RECORD;
 	
-	private static final Logger LOG = LoggerFactory.getLogger(Record.class);
-
+	public String getRecordType(){
+		return "Record";
+	}
+	
 	private long timestamp, previousTimestamp;
 	
 	public String getValueForQualifier(String qualifier) throws Exception {

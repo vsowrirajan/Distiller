@@ -9,12 +9,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.mapr.distiller.server.queues.RecordQueue;
+import com.mapr.distiller.server.utils.Constants;
 
 public class ProcessResourceRecord extends Record {
-	
 	private static final Logger LOG = LoggerFactory
 			.getLogger(ProcessResourceRecord.class);
-	
+	private static final long serialVersionUID = Constants.SVUID_PROCESS_RESOURCE_RECORD;
 	/**
 	 * DERIVED VALUES
 	 */
@@ -29,6 +29,12 @@ public class ProcessResourceRecord extends Record {
 	private long starttime;
 	private BigInteger cguest_time, cmajflt, cminflt, cstime, cutime, delayacct_blkio_ticks, guest_time, majflt, minflt, rss, rsslim, stime, utime, vsize;
 	private BigInteger rchar, wchar, syscr, syscw, read_bytes, write_bytes, cancelled_write_bytes;
+
+	@Override
+	public String getRecordType(){
+		return Constants.PROCESS_RESOURCE_RECORD;
+	}
+	
 
 	/**
 	 * CONSTRUCTORS
