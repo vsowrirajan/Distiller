@@ -11,11 +11,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.mapr.distiller.common.status.MetricActionStatus;
+import com.mapr.distiller.common.status.RecordProducerStatus;
+import com.mapr.distiller.common.status.RecordQueueStatus;
 import com.mapr.distiller.server.DistillerMonitor;
 import com.mapr.distiller.server.recordtypes.Record;
-import com.mapr.distiller.server.status.MetricActionStatus;
-import com.mapr.distiller.server.status.RecordProducerStatus;
-import com.mapr.distiller.server.status.RecordQueueStatus;
 
 @RestController
 @EnableAutoConfiguration
@@ -96,5 +96,17 @@ public class CoordinatorController {
 	public boolean disableMetric(@PathVariable String name) throws Exception {
 		LOG.info("Disable metric " + name);
 		return monitor.metricDisable(name);
+	}
+	
+	@RequestMapping(value = "/metricActions/isScheduled/{name}", method = RequestMethod.GET)
+	public boolean isScheduledMetricAction(@PathVariable String name) throws Exception {
+    LOG.info("Is Scheduled for " + name);
+    return monitor.isScheduledMetricAction(name);
+	}
+
+	@RequestMapping(value = "/metricActions/isRunning/{name}", method = RequestMethod.GET)
+	public boolean isRunningMetricAction(@PathVariable String name) throws Exception {
+	   LOG.info("Is Running for " + name);
+	   return monitor.isRunningMetricAction(name);
 	}
 }

@@ -9,7 +9,8 @@ import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
-import com.mapr.distiller.server.status.ErrorInfo;
+
+import com.mapr.distiller.common.status.ErrorInfo;
 
 @ControllerAdvice
 public class ExceptionHandlingController {

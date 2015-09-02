@@ -1,5 +1,24 @@
 package com.mapr.distiller.server;
 
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
+
+import com.mapr.distiller.common.status.MetricActionStatus;
+import com.mapr.distiller.common.status.RecordProducerStatus;
+import com.mapr.distiller.common.status.RecordQueueStatus;
+
 import com.mapr.distiller.server.metricactions.MetricAction;
 import com.mapr.distiller.server.persistance.LocalFileSystemPersistanceManager;
 import com.mapr.distiller.server.persistance.MapRDBSyncPersistanceManager;
@@ -11,9 +30,6 @@ import com.mapr.distiller.server.queues.SubscriptionRecordQueue;
 import com.mapr.distiller.server.recordtypes.ProcessResourceRecord;
 import com.mapr.distiller.server.recordtypes.Record;
 import com.mapr.distiller.server.scheduler.MetricActionScheduler;
-import com.mapr.distiller.server.status.MetricActionStatus;
-import com.mapr.distiller.server.status.RecordProducerStatus;
-import com.mapr.distiller.server.status.RecordQueueStatus;
 import com.mapr.distiller.server.utils.Constants;
 import com.mapr.distiller.server.utils.MetricConfig.MetricConfigBuilder;
 import com.mapr.distiller.server.utils.MetricConfig;
@@ -1980,9 +1996,9 @@ metricActionsEnableMap.remove(metricConfig.getId());
 	@Override
 	public boolean isRunningMetricAction(String metricAction) throws Exception {
 		if (metricActionsIdMap.containsKey(metricAction)) {
-			MetricAction action = metricActionsIdMap.get(metricAction);
-			return metricActionsIdFuturesMap.containsKey(action)
-					&& !metricActionsIdFuturesMap.get(action).isDone();
+		  LOG.error("Found in Map "+metricAction);
+			return metricActionsIdFuturesMap.containsKey(metricAction)
+					&& !metricActionsIdFuturesMap.get(metricAction).isDone();
 		}
 		
 		throw new Exception("Not a valid MetricAction " + metricAction);

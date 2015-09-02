@@ -2,10 +2,10 @@ package com.mapr.distiller.server;
 
 import java.util.List;
 
+import com.mapr.distiller.common.status.MetricActionStatus;
+import com.mapr.distiller.common.status.RecordProducerStatus;
+import com.mapr.distiller.common.status.RecordQueueStatus;
 import com.mapr.distiller.server.recordtypes.Record;
-import com.mapr.distiller.server.status.MetricActionStatus;
-import com.mapr.distiller.server.status.RecordProducerStatus;
-import com.mapr.distiller.server.status.RecordQueueStatus;
 
 //Interface to expose Coordinator methods to outside world - In short for distiller-client
 public interface DistillerMonitor {
