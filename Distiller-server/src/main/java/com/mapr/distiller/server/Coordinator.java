@@ -793,7 +793,7 @@ public class Coordinator implements Runnable, DistillerMonitor {
 	// This method builds a MetricAction from a MetricConfig, e.g. a schedulable
 	// object (MetricAction) from a description of what should be done
 	// (MetricConfig)
-	private static MetricAction createMetricAction(MetricConfig config) throws Exception {
+	private MetricAction createMetricAction(MetricConfig config) throws Exception {
 		MetricAction metricAction = null;
 		boolean initialized=false;
 		
@@ -1039,7 +1039,7 @@ public class Coordinator implements Runnable, DistillerMonitor {
 
 	// This method constructs, registers and schedules (if enabled) MetricConfig
 	// and MetricAction objects based on a provided block of config
-	public static void createMetric(Config configBlock) throws Exception{
+	public void createMetric(Config configBlock) throws Exception{
 		synchronized(coordinatorLock){
 			MetricConfig metricConfig = null;
 			MetricAction metricAction = null;
@@ -1143,7 +1143,7 @@ metricActionsEnableMap.remove(metricConfig.getId());
 	 */
 	// Call this method to enable a metric based on the id parameter of a
 	// MetricConfig
-	private static void enableMetric(String metricName) throws Exception{
+	private void enableMetric(String metricName) throws Exception{
 		synchronized(coordinatorLock){
 			MetricAction metricToEnable = metricActionsIdMap.get(metricName);
 			if(metricToEnable!=null){
@@ -1191,7 +1191,7 @@ metricActionsEnableMap.remove(metricConfig.getId());
 
 	// Call this method to enable a single MetricAction (e.g. schedule it for
 	// execution)
-	private static void enableMetricAction(MetricAction metricAction) throws Exception {
+	private void enableMetricAction(MetricAction metricAction) throws Exception {
 		synchronized(coordinatorLock){
 			metricAction.enableMetric();
 			metricActionsEnableMap.put(metricAction.getId(), new Boolean(true));
@@ -1199,7 +1199,7 @@ metricActionsEnableMap.remove(metricConfig.getId());
 		}
 	}
 	//Call this method to enable MfsGutsRecordProducer
-	private static boolean enableMfsGutsRecordProducer(MetricConfig config){
+	private boolean enableMfsGutsRecordProducer(MetricConfig config){
 		boolean createdQueue=false;
 		if(mfsGutsRecordProducer != null) {
 			if(!mfsGutsRecordProducer.isAlive())
@@ -1258,7 +1258,7 @@ metricActionsEnableMap.remove(metricConfig.getId());
 		}
 	}
 	//Call this method to enable a ProcRecordProducer metric
-	private static boolean enableProcRecordProducerMetric(MetricConfig config){
+	private boolean enableProcRecordProducerMetric(MetricConfig config){
 		boolean createdQueue=false, registeredProducer=false;
 		synchronized(coordinatorLock){
 			if(!ProcRecordProducer.isValidMetricName(config.getProcRecordProducerMetricName())){
@@ -1329,7 +1329,7 @@ metricActionsEnableMap.remove(metricConfig.getId());
 		}
 	}
 	//Call this method to enable stats for a raw record producer (e.g. MfsGutsRecordProducer or ProcRecordProducer)
-	private static boolean enableRawRecordProducerStats(MetricConfig config){
+	private boolean enableRawRecordProducerStats(MetricConfig config){
 		boolean createdQueue = false, registeredProducer = false;
 		synchronized(coordinatorLock){
 			if (!config.getRawRecordProducerName().equals(Constants.PROC_RECORD_PRODUCER_NAME) &&
@@ -1474,7 +1474,7 @@ metricActionsEnableMap.remove(metricConfig.getId());
 		}
 	}
 	// Call this method to disable MfsGutsRecordProducer
-	public void disableMfsGutsRecordProducer throws Exception(MetricConfig config) {
+	public void disableMfsGutsRecordProducer(MetricConfig config) throws Exception{
 		synchronized(coordinatorLock){
 			if(mfsGutsRecordProducer == null){
 				throw new Exception("Failed to disable metric because MfsGutsRecordProducer is not initialized");
@@ -1490,7 +1490,7 @@ metricActionsEnableMap.remove(metricConfig.getId());
 		}
 	}
 	//Call this method to disable a ProcRecordProducer metric 
-	private static void disableProcRecordProducerMetric(MetricConfig config) throws Exception {
+	private void disableProcRecordProducerMetric(MetricConfig config) throws Exception {
 		synchronized(coordinatorLock){
 			if(!ProcRecordProducer.isValidMetricName(config.getProcRecordProducerMetricName())){
 				throw new Exception("Can not disable ProcRecordProducer metric due to invalid metric name: \"" + config.getProcRecordProducerMetricName() + "\"");
@@ -1971,11 +1971,7 @@ metricActionsEnableMap.remove(metricConfig.getId());
 			configLocation = args[0];
 			LOG.debug("Main: Using custom configuration file location: " + configLocation);
 		}
-		File f = new File(configLocation);
-		if(!f.exists()){	
-			LOG.warn("Main: Config file not found: " + configLocation);
-			System.exit(1);
-		}
+		
 		Coordinator coordinator = new Coordinator();
 		coordinator.init(configLocation);
 		Thread coordinatorThread = new Thread(coordinator, "Coordinator");
@@ -1990,6 +1986,12 @@ metricActionsEnableMap.remove(metricConfig.getId());
 		boolean shouldExit = false;
 		long statusInterval = 3000l;
 		long lastStatus = System.currentTimeMillis();
+
+		File configFileHandle = new File(configFileLocation);
+                if (!configFileHandle.exists()) {
+                        LOG.error("FATAL: Config file not found: " + configFileLocation);
+                        System.exit(1);
+                }
 
 		coordinatorLock = new Object();
 
@@ -2056,13 +2058,13 @@ metricActionsEnableMap.remove(metricConfig.getId());
 
 		Config config = null;
 		try {
-			config = ConfigFactory.parseFile(new File(configLocation));
+			config = ConfigFactory.parseFile(configFileHandle);
 		} catch (Exception e){
 			LOG.error("Exception while parsing configuration file", e);
 			config = null;
 		}
 		if (config == null) {
-			LOG.error("Main: Failed to parse config file from " + configLocation);
+			LOG.error("Main: Failed to parse config file from " + configFileLocation);
 			System.exit(1);
 		}
 
