@@ -21,7 +21,6 @@ public class Application implements CommandLineRunner {
 
 	public static void main(String[] args) {
 		// LOG.info("Main: Shutting down.");
-		System.setProperty("app.workdir", "/tmp/distiller/");
 		SpringApplication.run(Application.class, args);
 	}
 

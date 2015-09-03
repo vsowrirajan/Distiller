@@ -12,15 +12,10 @@
 	<artifactId>Distiller-common</artifactId>
 	<name>Distiller-common</name>
 	<url>http://maven.apache.org</url>
-	<packaging>pom</packaging>
+
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<java.version>1.7</java.version>
 	</properties>
-	<dependencies>
-		<dependency>
-			<groupId>junit</groupId>
-			<artifactId>junit</artifactId>
-			<scope>test</scope>
-		</dependency>
-	</dependencies>
+
 </project>
