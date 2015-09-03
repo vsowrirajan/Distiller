@@ -82,9 +82,8 @@ public class SystemCpuRecord extends Record {
 			LinkedList<String[]> cpuLines = new LinkedList<String[]>();
 			String line = null;
 			while((line = proc_stat.readLine()) != null){
-				parts = line.split("\\s+");
-				if(parts[0].startsWith("cpu")){
-					cpuLines.add(parts);
+				if(line.startsWith("cpu")){
+					cpuLines.add(line.split("\\s+"));
 				}
 			}
 			this.acpu_user = new BigInteger[cpuLines.size()];
@@ -97,8 +96,9 @@ public class SystemCpuRecord extends Record {
 			this.acpu_steal = new BigInteger[cpuLines.size()];
 			this.acpu_other = new BigInteger[cpuLines.size()];
 			this.atotal_jiffies = new BigInteger[cpuLines.size()];
-			for(int x=0; x<cpuLines.size(); x++){
-				parts = cpuLines.get(x);
+			int x=0;
+			while(cpuLines.size()!=0){
+				parts = cpuLines.get(0);
 				this.acpu_user[x] = new BigInteger(parts[1]);
 				this.acpu_nice[x] = new BigInteger(parts[2]);
 				this.acpu_sys[x] = new BigInteger(parts[3]);
@@ -121,9 +121,9 @@ public class SystemCpuRecord extends Record {
 						this.acpu_softirq[x].add(
 						this.acpu_steal[x].add(
 						this.acpu_other[x]))))))));
-				
+				x++;
+				cpuLines.remove(0);
 			}
-
 		} catch (Exception e) {
 			throw new Exception("Failed to generate SystemCpuRecord", e);
 		} finally {
