@@ -8,12 +8,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.mapr.distiller.server.queues.RecordQueue;
+import com.mapr.distiller.server.utils.Constants;
 
 public class DiskstatRecord extends Record {
-	
 	private static final Logger LOG = LoggerFactory
 			.getLogger(DiskstatRecord.class);
-	
+	private static final long serialVersionUID = Constants.SVUID_DISK_STAT_RECORD;
 	/**
 	 * DERIVED VALUES
 	 */
@@ -83,6 +83,12 @@ public class DiskstatRecord extends Record {
 														//(such as a block device thats actually a JBOD behind the scenes)
 														//then it's possible that those 10 requests issued at the same time complete in, say,
 														//50ms, with 2 requests completing every 10ms.
+
+	@Override
+	public String getRecordType(){
+		return Constants.DISK_STAT_RECORD;
+	}
+	
 
 	/**
 	 * CONSTRUCTORS

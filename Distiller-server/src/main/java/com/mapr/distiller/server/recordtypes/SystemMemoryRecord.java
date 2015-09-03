@@ -7,12 +7,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.mapr.distiller.server.queues.RecordQueue;
+import com.mapr.distiller.server.utils.Constants;
 
 public class SystemMemoryRecord extends Record {
-	
 	private static final Logger LOG = LoggerFactory
 			.getLogger(SystemMemoryRecord.class);
-	
+	private static final long serialVersionUID = Constants.SVUID_SYSTEM_MEMORY_RECORD;
 	/**
 	 * A general note about this class, if the amount of memory or swap space changes while this process is running, some stats can be inaccurate until the process is restarted.  
 	 */
@@ -25,6 +25,12 @@ public class SystemMemoryRecord extends Record {
 	private double freeMemPct;
 	private BigInteger freeMemByteMilliseconds;
 	
+	@Override
+	public String getRecordType(){
+		return Constants.SYSTEM_MEMORY_RECORD;
+	}
+	
+
 	/**
 	 * RAW VALUES
 	 * These are variables whose values are sourced directly from /proc when produceRecord is called

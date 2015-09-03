@@ -3,6 +3,9 @@ package com.mapr.distiller.server.utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.mapr.distiller.server.persistance.MapRDBSyncPersistanceManager;
+import com.mapr.distiller.server.persistance.LocalFileSystemPersistanceManager;
+
 public class MetricConfig {
 	
 	private static final Logger LOG = LoggerFactory
@@ -45,7 +48,43 @@ public class MetricConfig {
 	private String updatingSubscriptionQueueKey = null;
 	private boolean relatedSelectorEnabled;
 	private boolean metricActionCreated=false;
-
+	private String persistorName = null;
+	private boolean maprdbCreateTables=false;
+	private int myPid=-1;
+	private long myStarttime=-1l;
+	//private MapRDBPersistanceManager maprdbPersistanceManager = null;
+	private MapRDBSyncPersistanceManager maprdbSyncPersistanceManager = null;
+	private LocalFileSystemPersistanceManager localFileSystemPersistanceManager = null;
+	private String inputQueueType = null;
+	private String maprdbInputQueueScanner = null;
+	private String maprdbInputQueueScanStartTime = null;
+	private String maprdbInputQueueScanEndTime = null;
+	private int maprdbAsyncPutTimeout;
+	private long maprdbLocalWorkDirByteLimit;
+	private String maprdbLocalWorkDirPath;
+	private int maprdbWorkDirBatchSize;
+	private boolean maprdbWorkDirEnabled;
+	private String lfspOutputDir;
+	private long lfspMaxOutputDirSize;
+	private int lfspWriteBatchSize;
+	private int lfspFlushFrequency;
+	private int lfspRecordsPerFile;
+	private String localFileInputQueueScanner = null;
+	private long localFileInputQueueStartTimestamp = -1;
+	private long localFileInputQueueEndTimestamp = 0;
+	private String localFileInputMetricName = null;
+	private boolean generateJavaStackTraces = false;
+	
+	//public void setMapRDBPersistanceManager(MapRDBPersistanceManager maprdbPersistanceManager){
+	//	this.maprdbPersistanceManager = maprdbPersistanceManager;
+	//}
+	public void setMapRDBSyncPersistanceManager(MapRDBSyncPersistanceManager maprdbSyncPersistanceManager){
+		this.maprdbSyncPersistanceManager = maprdbSyncPersistanceManager;
+	}
+	public void setLocalFileSystemPersistanceManager(LocalFileSystemPersistanceManager localFileSystemPersistanceManager){
+		this.localFileSystemPersistanceManager = localFileSystemPersistanceManager;
+	}
+	
 	public boolean getMetricActionCreated(){
 		return metricActionCreated;
 	}
@@ -88,8 +127,32 @@ public class MetricConfig {
 		this.updatingSubscriptionQueueKey = metricConfigBuilder.updatingSubscriptionQueueKey;
 		this.relatedSelectorEnabled = metricConfigBuilder.relatedSelectorEnabled;
 		this.metricEnabled = metricConfigBuilder.metricEnabled;
+		this.persistorName = metricConfigBuilder.persistorName;
+		this.maprdbCreateTables = metricConfigBuilder.maprdbCreateTables;
+		this.myPid = metricConfigBuilder.myPid;
+		this.myStarttime = metricConfigBuilder.myStarttime;
+		this.inputQueueType = metricConfigBuilder.inputQueueType;
+		this.maprdbInputQueueScanner = metricConfigBuilder.maprdbInputQueueScanner;
+		this.maprdbInputQueueScanStartTime = metricConfigBuilder.maprdbInputQueueScanStartTime;
+		this.maprdbInputQueueScanEndTime = metricConfigBuilder.maprdbInputQueueScanEndTime;
+		this.maprdbAsyncPutTimeout = metricConfigBuilder.maprdbAsyncPutTimeout;
+		this.maprdbLocalWorkDirByteLimit = metricConfigBuilder.maprdbLocalWorkDirByteLimit;
+		this.maprdbLocalWorkDirPath = metricConfigBuilder.maprdbLocalWorkDirPath;
+		this.maprdbWorkDirBatchSize = metricConfigBuilder.maprdbWorkDirBatchSize;
+		this.maprdbWorkDirEnabled = metricConfigBuilder.maprdbWorkDirEnabled;
+		this.lfspOutputDir = metricConfigBuilder.lfspOutputDir;
+		this.lfspMaxOutputDirSize = metricConfigBuilder.lfspMaxOutputDirSize;
+		this.lfspWriteBatchSize = metricConfigBuilder.lfspWriteBatchSize;
+		this.lfspFlushFrequency = metricConfigBuilder.lfspFlushFrequency;
+		this.lfspRecordsPerFile = metricConfigBuilder.lfspRecordsPerFile;
+		this.localFileInputQueueScanner = metricConfigBuilder.localFileInputQueueScanner;
+		this.localFileInputQueueStartTimestamp = metricConfigBuilder.localFileInputQueueStartTimestamp;
+		this.localFileInputQueueEndTimestamp = metricConfigBuilder.localFileInputQueueEndTimestamp;
+		this.localFileInputMetricName = metricConfigBuilder.localFileInputMetricName;
+		this.generateJavaStackTraces = metricConfigBuilder.generateJavaStackTraces;
 		this.initialized = false;
 	}
+	
 	
 	@Override
 	public String toString(){
@@ -127,10 +190,133 @@ public class MetricConfig {
 				" relatedSelectorMethod:" + ((relatedSelectorMethod==null) ? "null" : relatedSelectorMethod) + 
 				" updatingSubscriptionQueueKey:" + ((updatingSubscriptionQueueKey==null) ? "null" : updatingSubscriptionQueueKey) +
 				" relatedSelectorEnabled:" + relatedSelectorEnabled + 
-				" metricEnabled:" + metricEnabled
+				" metricEnabled:" + metricEnabled + 
+				" persistorName:" + persistorName + 
+				" maprdbCreateTables:" + maprdbCreateTables + 
+				" myPid:" + myPid + 
+				" myStarttime " + myStarttime + 
+				" inputQueueType:" + ((inputQueueType==null) ? "null" : inputQueueType) + 
+				" maprdbInputQueueScanner:" + ((maprdbInputQueueScanner==null) ? "null" : maprdbInputQueueScanner) + 
+				" maprdbInputQueueScanStartTime:" + ((maprdbInputQueueScanStartTime==null) ? "null" : maprdbInputQueueScanStartTime) + 
+				" maprdbInputQueueScanEndTime:" + ((maprdbInputQueueScanEndTime==null) ? "null" : maprdbInputQueueScanEndTime) + 
+				" maprdbAsyncPutTimeout:" +  maprdbAsyncPutTimeout + 
+				" maprdbLocalWorkDirByteLimit:" + maprdbLocalWorkDirByteLimit + 
+				" maprdbLocalWorkDirPath:" +  ((maprdbLocalWorkDirPath==null) ? "null" : maprdbLocalWorkDirPath) + 
+				" maprdbWorkDirBatchSize:" +  maprdbWorkDirBatchSize + 
+				" maprdbWorkDirEnabled:" +  maprdbWorkDirEnabled +
+				" lfspOutputDir:" + lfspOutputDir + 
+				" lfspMaxOutputDirSize:" + lfspMaxOutputDirSize + 
+				" lfspWriteBatchSize:" + lfspWriteBatchSize + 
+				" lfspFlushFrequency:" + lfspFlushFrequency + 
+				" lfspRecordsPerFile:" + lfspRecordsPerFile + 
+				" localFileInputQueueScanner:" + localFileInputQueueScanner + 
+				" localFileInputQueueStartTimestamp:" + localFileInputQueueStartTimestamp + 
+				" localFileInputQueueEndTimestamp:" +  localFileInputQueueEndTimestamp + 
+				" localFileInputMetricName:" + localFileInputMetricName + 
+				" generateJavaStackTraces:" + generateJavaStackTraces
 				);
 	}
 	
+	public boolean getGenerateJavaStackTraces(){
+		return generateJavaStackTraces;
+	}
+	public String getLocalFileInputQueueScanner(){
+		return localFileInputQueueScanner;
+	}
+	
+	public long getLocalFileInputQueueStartTimestamp(){
+		return localFileInputQueueStartTimestamp;
+	}
+	
+	public long getLocalFileInputQueueEndTimestamp(){
+		return localFileInputQueueEndTimestamp;
+	}
+	
+	public String getLocalFileInputMetricName(){
+		return localFileInputMetricName;
+	}
+	
+	public String getLfspOutputDir(){
+		return lfspOutputDir;
+	}
+	
+	public long getLfspMaxOutputDirSize(){
+		return lfspMaxOutputDirSize;
+	}
+	
+	public int getLfspWriteBatchSize(){
+		return lfspWriteBatchSize;
+	}
+	
+	public int getLfspFlushFrequency(){
+		return lfspFlushFrequency;
+	}
+	
+	public int getLfspRecordsPerFile(){
+		return lfspRecordsPerFile;
+	}
+	
+	public int getMapRDBAsyncPutTimeout(){
+		return maprdbAsyncPutTimeout;
+	}
+	
+	public long getMapRDBLocalWorkDirByteLimit(){
+		return maprdbLocalWorkDirByteLimit;
+	}
+	
+	public String getMapRDBLocalWorkDirPath(){
+		return maprdbLocalWorkDirPath;
+	}
+	
+	public int getMapRDBWorkDirBatchSize(){
+		return maprdbWorkDirBatchSize;
+	}
+	
+	public boolean getMapRDBWorkDirEnabled(){
+		return maprdbWorkDirEnabled;
+	}
+	
+	public String getMapRDBInputQueueScanner(){
+		return maprdbInputQueueScanner;
+	}
+	
+	public String getMapRDBInputQueueScanStartTime(){
+		return maprdbInputQueueScanStartTime;
+	}
+	
+	public String getMapRDBInputQueueScanEndTime(){
+		return maprdbInputQueueScanEndTime;
+	}
+	
+	public String getInputQueueType(){
+		return inputQueueType; 
+	}
+	
+	public LocalFileSystemPersistanceManager getLocalFileSystemPersistanceManager(){
+		return localFileSystemPersistanceManager;
+	}
+	
+	//public MapRDBPersistanceManager getMapRDBPersistanceManager(){
+	//	return maprdbPersistanceManager;
+	//}
+	public MapRDBSyncPersistanceManager getMapRDBSyncPersistanceManager(){
+		return maprdbSyncPersistanceManager;
+	}
+	public int getMyPid(){
+		return myPid;
+	}
+	
+	public long getMyStarttime(){
+		return myStarttime;
+	}
+	
+	public boolean getMapRDBCreateTables(){
+		return maprdbCreateTables;
+	}
+	
+	public String getPersistorName() {
+		return persistorName;
+	}
 	public boolean getMetricEnabled(){
 		return metricEnabled;
 	}
@@ -266,9 +452,29 @@ public class MetricConfig {
 		private String updatingSubscriptionQueueKey = null;
 		private boolean relatedSelectorEnabled = false;
 		private boolean metricEnabled = false;
-
-		
-
+		private String persistorName = null;
+		private boolean maprdbCreateTables = false;
+		private int myPid = -1;
+		private long myStarttime=-1;
+		private String inputQueueType;
+		private String maprdbInputQueueScanner = null;
+		private String maprdbInputQueueScanStartTime = null;
+		private String maprdbInputQueueScanEndTime = null;
+		private int maprdbAsyncPutTimeout = -1;
+		private long maprdbLocalWorkDirByteLimit = -1;
+		private String maprdbLocalWorkDirPath = null;
+		private int maprdbWorkDirBatchSize = -1;
+		private boolean maprdbWorkDirEnabled = false;
+		private String lfspOutputDir = null;
+		private long lfspMaxOutputDirSize = -1;
+		private int lfspWriteBatchSize = -1;
+		private int lfspFlushFrequency = -1;
+		private int lfspRecordsPerFile = 0;
+		private String localFileInputQueueScanner = null;
+		private long localFileInputQueueStartTimestamp = -1;
+		private long localFileInputQueueEndTimestamp = 0;
+		private String localFileInputMetricName = null;
+		private boolean generateJavaStackTraces=false;
 		
 		public MetricConfigBuilder(String id, String inputQueue, String outputQueue, int outputQueueRecordCapacity, 
 				int outputQueueTimeCapacity, int outputQueueMaxProducers, int periodicity, String recordType, 
@@ -282,7 +488,15 @@ public class MetricConfig {
 				String updatingSubscriptionQueueKey, String relatedOutputQueueName, 
 				int relatedOutputQueueRecordCapacity, int relatedOutputQueueTimeCapacity, 
 				int relatedOutputQueueMaxProducers, boolean relatedSelectorEnabled,
-				boolean metricEnabled) throws Exception{
+				boolean metricEnabled, String persistorName, boolean maprdbCreateTables,
+				int myPid, long myStarttime, String inputQueueType, String maprdbInputQueueScanner,
+				String maprdbInputQueueScanStartTime, String maprdbInputQueueScanEndTime,
+				int maprdbAsyncPutTimeout, long maprdbLocalWorkDirByteLimit, 
+				String maprdbLocalWorkDirPath, int maprdbWorkDirBatchSize, boolean maprdbWorkDirEnabled, 
+				String lfspOutputDir, long lfspMaxOutputDirSize, int lfspWriteBatchSize, int lfspFlushFrequency, 
+				int lfspRecordsPerFile, String localFileInputQueueScanner, long localFileInputQueueStartTimestamp,
+				long localFileInputQueueEndTimestamp, String localFileInputMetricName, boolean generateJavaStackTraces
+				) throws Exception{
 			
 			this.id = id;
 			this.inputQueue = inputQueue;
@@ -319,6 +533,29 @@ public class MetricConfig {
 			this.updatingSubscriptionQueueKey = updatingSubscriptionQueueKey;
 			this.relatedSelectorEnabled = relatedSelectorEnabled;
 			this.metricEnabled = metricEnabled;
+			this.persistorName = persistorName;
+			this.maprdbCreateTables = maprdbCreateTables;
+			this.myPid = myPid;
+			this.myStarttime = myStarttime;
+			this.inputQueueType = inputQueueType;
+			this.maprdbInputQueueScanner = maprdbInputQueueScanner;
+			this.maprdbInputQueueScanStartTime = maprdbInputQueueScanStartTime;
+			this.maprdbInputQueueScanEndTime = maprdbInputQueueScanEndTime;
+			this.maprdbAsyncPutTimeout = maprdbAsyncPutTimeout;
+			this.maprdbLocalWorkDirByteLimit = maprdbLocalWorkDirByteLimit;
+			this.maprdbLocalWorkDirPath = maprdbLocalWorkDirPath;
+			this.maprdbWorkDirBatchSize = maprdbWorkDirBatchSize;
+			this.maprdbWorkDirEnabled = maprdbWorkDirEnabled;
+			this.lfspOutputDir = lfspOutputDir;
+			this.lfspMaxOutputDirSize = lfspMaxOutputDirSize;
+			this.lfspWriteBatchSize = lfspWriteBatchSize;
+			this.lfspFlushFrequency = lfspFlushFrequency;
+			this.lfspRecordsPerFile = lfspRecordsPerFile;
+			this.localFileInputQueueScanner = localFileInputQueueScanner;
+			this.localFileInputQueueStartTimestamp = localFileInputQueueStartTimestamp;
+			this.localFileInputQueueEndTimestamp = localFileInputQueueEndTimestamp;
+			this.localFileInputMetricName = localFileInputMetricName;
+			this.generateJavaStackTraces = generateJavaStackTraces;
 		}
 
 		public MetricConfig build() {

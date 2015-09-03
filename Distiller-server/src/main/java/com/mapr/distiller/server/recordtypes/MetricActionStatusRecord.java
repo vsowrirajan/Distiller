@@ -2,12 +2,14 @@ package com.mapr.distiller.server.recordtypes;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.mapr.distiller.server.utils.Constants;
 
 public class MetricActionStatusRecord extends Record {
 	
 	private static final Logger LOG = LoggerFactory
 			.getLogger(MetricActionStatusRecord.class);
-
+	private static final long serialVersionUID = Constants.SVUID_METRIC_ACTION_STATUS_RECORD;
+	
 	private String producerId;							//This should uniquely identify what generated this status record (e.g. an instance of ProcRecordProducer)
 	private long 	inputRecords,					//The number of Records taken from the input queue
 					outputRecords,					//The number of Records put to the output queue
@@ -29,6 +31,12 @@ public class MetricActionStatusRecord extends Record {
 		this.runningTimems=runningTimems;
 		this.startTime = startTime;
 	}
+
+	@Override
+	public String getRecordType(){
+		return Constants.METRIC_ACTION_STATUS_RECORD;
+	}
+	
 
 	@Override
 	public String toString(){

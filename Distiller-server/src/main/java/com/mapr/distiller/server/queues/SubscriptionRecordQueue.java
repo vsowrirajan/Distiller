@@ -561,6 +561,8 @@ public class SubscriptionRecordQueue implements RecordQueue {
 	}
 	
 	private void expireRecords(){
+		if(queueTimeCapacity == 0)
+			return;
 		synchronized(lock){
 			//Drop expired records from the queue
 			int expiredRecordCount=0;

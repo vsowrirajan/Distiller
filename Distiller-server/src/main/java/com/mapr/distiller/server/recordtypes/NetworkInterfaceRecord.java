@@ -7,12 +7,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.mapr.distiller.server.queues.RecordQueue;
+import com.mapr.distiller.server.utils.Constants;
 
 public class NetworkInterfaceRecord extends Record {
-	
 	private static final Logger LOG = LoggerFactory
 			.getLogger(NetworkInterfaceRecord.class);
-	
+	private static final long serialVersionUID = Constants.SVUID_NETWORK_INTERFACE_RECORD;
 	/**
 	 * DERIVED VALUES
 	 */
@@ -26,6 +26,12 @@ public class NetworkInterfaceRecord extends Record {
 	private boolean fullDuplex;
 	private int carrier, speed, tx_queue_len;
 	private BigInteger collisions, rx_bytes, rx_dropped, rx_errors, rx_packets, tx_bytes, tx_dropped, tx_errors, tx_packets;	
+
+	@Override
+	public String getRecordType(){
+		return Constants.NETWORK_INTERFACE_RECORD;
+	}
+	
 
 	/**
 	 * CONSTRUCTORS
@@ -133,8 +139,7 @@ public class NetworkInterfaceRecord extends Record {
 		try{
 			record = new NetworkInterfaceRecord(ifName);
 		} catch (Exception e) {
-			LOG.error("Failed to generate a NetworkInterfaceRecord "+e.getMessage());
-			//e.printStackTrace();
+			LOG.error("Failed to generate a NetworkInterfaceRecord", e);
 			ret[2] = 1;
 		}
 		if(record != null && !outputQueue.put(producerName, record)){

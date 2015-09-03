@@ -6,12 +6,15 @@ import java.util.Iterator;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.mapr.distiller.server.utils.Constants;
 
 public class RawRecordProducerStatusRecord extends Record {
 	
 	private static final Logger LOG = LoggerFactory
 			.getLogger(RawRecordProducerStatusRecord.class);
 
+	private static final long serialVersionUID = Constants.SVUID_RAW_RECORD_PRODUCER_STAT_RECORD;
+	
 	private String producerId;							//This should uniquely identify what generated this status record (e.g. an instance of ProcRecordProducer)
 	private long 	recordsCreated,						//The number of Records created by the producer	
 					recordCreationFailures,				//The number of times the producer tried to create a Record and failed
@@ -29,6 +32,12 @@ public class RawRecordProducerStatusRecord extends Record {
 		this.otherFailures=0l;
 		this.runningTimems=0l;
 	}
+	
+	@Override
+	public String getRecordType(){
+		return Constants.RAW_RECORD_PRODUCER_STAT_RECORD;
+	}
+	
 
 	public RawRecordProducerStatusRecord(RawRecordProducerStatusRecord oldRecord) throws Exception{
 		super(System.currentTimeMillis());

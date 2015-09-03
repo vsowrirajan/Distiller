@@ -6,12 +6,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.mapr.distiller.server.queues.RecordQueue;
+import com.mapr.distiller.server.utils.Constants;
 
 public class MfsGutsRecord extends Record {
-	
 	private static final Logger LOG = LoggerFactory
 			.getLogger(MfsGutsRecord.class);
-	
+	private static final long serialVersionUID = Constants.SVUID_MFS_GUTS_RECORD;
 	/**
 	 * DERIVED VALUES
 	 * These are variables that are not sourced directly from guts
@@ -29,6 +29,13 @@ public class MfsGutsRecord extends Record {
 						dbReadOpsInProgress, dbWriteOpsCompleted, dbReadOpsCompleted, dbRowWritesCompleted, 
 						dbRowReadsCompleted, fsWriteOpsCompleted, fsReadOpsCompleted, cleanerOpsCompleted, 
 						kvstoreOpsCompleted, btreeReadOpsCompleted, btreeWriteOpsCompleted, rpcCompleted, pcCompleted;
+	private String rawLine;
+	
+	@Override
+	public String getRecordType(){
+		return Constants.MFS_GUTS_RECORD;
+	}
+	
 
 	/**
 	 * CONSTRUCTORS
@@ -180,9 +187,13 @@ public class MfsGutsRecord extends Record {
 		this.btreeWriteOpsRate=-1d;
 		this.rpcRate=-1d;
 		this.pcRate=-1d;
+		this.rawLine = null;
 		
-		String[] parts = line.trim().split("\\s+");
-		if(version==0){
+		if(version==-1){
+			this.rawLine = line;
+		} else if(version==0){
+			String[] parts = line.trim().split("\\s+");
+			
 			//Guts fields: rsf
 	        this.dbResvFree = new BigInteger(parts[17]);
 
@@ -238,6 +249,8 @@ public class MfsGutsRecord extends Record {
 	        this.fsWriteOpsCompleted = (new BigInteger(parts[55])).add(new BigInteger(parts[56])).add(new BigInteger(parts[57])).add(new BigInteger(parts[59])).add(new BigInteger(parts[60])).add(new BigInteger(parts[61])).add(new BigInteger(parts[62])).add(new BigInteger(parts[64])).add(new BigInteger(parts[69])).add(new BigInteger(parts[70])).add(new BigInteger(parts[71])).add(new BigInteger(parts[72])).add(new BigInteger(parts[73])).add(new BigInteger(parts[134]));		
 
 		} else if (version==1){
+			String[] parts = line.trim().split("\\s+");
+			
 			//Guts fields: rsf
 	        this.dbResvFree = new BigInteger(parts[17]);
 
@@ -292,6 +305,8 @@ public class MfsGutsRecord extends Record {
 	        //Guts fields: cr cdi rdi sl vl ul dvl sa w sf td ksi ksd ltxn
 	        this.fsWriteOpsCompleted = (new BigInteger(parts[55])).add(new BigInteger(parts[56])).add(new BigInteger(parts[57])).add(new BigInteger(parts[59])).add(new BigInteger(parts[60])).add(new BigInteger(parts[61])).add(new BigInteger(parts[62])).add(new BigInteger(parts[64])).add(new BigInteger(parts[69])).add(new BigInteger(parts[70])).add(new BigInteger(parts[71])).add(new BigInteger(parts[72])).add(new BigInteger(parts[73])).add(new BigInteger(parts[137]));		
 
+		} else {
+			throw new Exception("Unknown MFS guts version: " + version);
 		}
 	}
 	

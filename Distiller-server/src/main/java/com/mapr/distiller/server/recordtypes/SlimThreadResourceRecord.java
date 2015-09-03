@@ -9,12 +9,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.mapr.distiller.server.queues.RecordQueue;
+import com.mapr.distiller.server.utils.Constants;
 
 public class SlimThreadResourceRecord extends Record {
-	
 	private static final Logger LOG = LoggerFactory
 			.getLogger(SlimThreadResourceRecord.class);
-	
+	private static final long serialVersionUID = Constants.SVUID_SLIM_THREAD_RESOURCE_RECORD;
 	/**
 	 * DERIVED VALUES
 	 */
@@ -28,6 +28,12 @@ public class SlimThreadResourceRecord extends Record {
 	private long startTime;
 	private BigInteger iowaitTicks, cpuUsageTicks;
 	private BigInteger ioCalls, ioBytesRead, ioBytesWritten;	
+
+	@Override
+	public String getRecordType(){
+		return Constants.SLIM_THREAD_RESOURCE_RECORD;
+	}
+	
 
 	/**
 	 * CONSTRUCTORS

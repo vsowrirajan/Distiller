@@ -12,12 +12,12 @@ public class Schedule {
 	double minWaitPct;
 	
 	
-	public String toString(){
+	public synchronized String toString(){
 		return "lsst:" + lastScheduledStartTime + " lst:" + lastStartTime + " let:" + lastEndTime + 
 				" per:" + periodicity + " mdp:" + maxDurationPct + " mwp:" + minWaitPct + 
 				" delay:" + (lastStartTime + periodicity - lastScheduledStartTime);
 	}
-	public void setTimestamps(long lastStartTime, long lastEndTime){
+	public synchronized void setTimestamps(long lastStartTime, long lastEndTime){
 		this.lastStartTime = lastStartTime;
 		this.lastEndTime = lastEndTime;
 	}
@@ -41,13 +41,13 @@ public class Schedule {
 		this.maxDurationPct = maxDurationPct;
 		this.minWaitPct = minWaitPct;
 	}
-	public long getNextTime() throws Exception{
+	public synchronized long getNextTime() throws Exception{
 		if(lastScheduledStartTime==-1)
 			lastScheduledStartTime = System.currentTimeMillis();
 		return lastScheduledStartTime;
 	}
 	
-	public void advanceSchedule() throws Exception{
+	public synchronized void advanceSchedule() throws Exception{
 		
 		if
 		( ( lastStartTime != -1 || 

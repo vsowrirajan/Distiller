@@ -7,12 +7,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.mapr.distiller.server.queues.RecordQueue;
+import com.mapr.distiller.server.utils.Constants;
 
 public class SystemCpuRecord extends Record {
-	
 	private static final Logger LOG = LoggerFactory
 			.getLogger(SystemCpuRecord.class);
-	
+	private static final long serialVersionUID = Constants.SVUID_SYSTEM_CPU_RECORD;
 	/**
 	 * DERIVED VALUES
 	 * These are variables that are not sourced directly from /proc
@@ -25,6 +25,12 @@ public class SystemCpuRecord extends Record {
 	 */
 	private BigInteger cpu_user, cpu_nice, cpu_sys, cpu_idle, cpu_iowait, cpu_hardirq, cpu_softirq, cpu_steal, cpu_other, total_jiffies;
 	
+	@Override
+	public String getRecordType(){
+		return Constants.SYSTEM_CPU_RECORD;
+	}
+	
+
 	/**
 	 * CONSTRUCTORS
 	 */
@@ -128,8 +134,7 @@ public class SystemCpuRecord extends Record {
 		try {
 			record = new SystemCpuRecord();
 		} catch (Exception e) {
-			LOG.error("Failed to generate a SystemCpuRecord");
-			e.printStackTrace();
+			LOG.error("Failed to generate a SystemCpuRecord", e);
 			ret[2] = 1;
 		}
 		if(record != null && !outputQueue.put(producerName, record)){
