@@ -145,9 +145,9 @@ public class MapRDBPutter extends Thread{
 				maprdbSyncPersistanceManager.getColumnQualifierBytes(),
 				record );
 		//This will either succeed or throw an exception
-		LOG.info("MapRDBSyncPersistor-" + System.identityHashCode(this) + ": Calling put for " + System.identityHashCode(p));
+		//LOG.info("MapRDBSyncPersistor-" + System.identityHashCode(this) + ": Calling put for " + System.identityHashCode(p));
 		persistor.callPut(p);
-		LOG.info("MapRDBSyncPersistor-" + System.identityHashCode(this) + ": Put returned normally for " + System.identityHashCode(p));
+		//LOG.info("MapRDBSyncPersistor-" + System.identityHashCode(this) + ": Put returned normally for " + System.identityHashCode(p));
 		
 	}
 }
