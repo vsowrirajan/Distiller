@@ -2,7 +2,6 @@ package com.mapr.distiller.server.persistance;
 
 import java.util.LinkedList;
 import java.util.concurrent.atomic.AtomicLong;
-import java.io.ObjectOutput;
 import java.io.ObjectOutputStream;
 import java.io.FileOutputStream;
 import java.io.File;
@@ -38,7 +37,7 @@ public class LocalFileSystemPersistor implements Persistor{
   	private long lastFlushTime;
   	private int recordsInCurrentFile;
   	
-  	private ObjectOutput currentOutputFileStream;
+  	private ObjectOutputStream currentOutputFileStream;
   	private File currentOutputFile;
   	
   	private String tempOutputFileName;
@@ -154,6 +153,7 @@ public class LocalFileSystemPersistor implements Persistor{
 		}
 		try {
 			currentOutputFileStream.flush();
+			currentOutputFileStream.reset();
 		} catch (Exception e) {
 			LOG.error("Ouptut records may have been lost, caught exception while flushing output stream to " + tempOutputFilePath, e);
 		}

@@ -2101,9 +2101,10 @@ metricActionsEnableMap.remove(metricConfig.getId());
 					Future<?> future = metricActionsIdFuturesMap.get(nextAction
 							.getId());
 					if (future != null && !future.isDone()) {
-						LOG.info("Main: CRITICAL: Metric "
+						LOG.warn("Metric "
 								+ nextAction.getId()
-								+ " is scheduled to run now but previous run is not done");
+								+ " is scheduled to run now but previous run is not done, advancing it's scheduled start time.");
+						nextAction.advanceSchedule();
 					} else {
 						future = executor.submit(nextAction);
 						metricActionsIdFuturesMap.put(nextAction.getId(),
@@ -2115,19 +2116,70 @@ metricActionsEnableMap.remove(metricConfig.getId());
 							+ " as it was disabled after retrieval from schedule.");
 				}
 			}
-
-			/*
-			 * if (System.currentTimeMillis() >= lastStatus + statusInterval) {
-			 * lastStatus = System.currentTimeMillis();
-			 * LOG.debug("Main: Printing status " + lastStatus); String
-			 * recordProducerStatus = getRecordProducerStatus();
-			 * 
-			 * LOG.debug("Record Queues"); String recordQueues =
-			 * getRecordQueues();
-			 * 
-			 * LOG.debug("Metric Actions"); String metricActions =
-			 * getMetricActions(); }
-			 */
+			/**
+			 * Some status stuff that is useful in debugging
+			if(System.currentTimeMillis() >= lastStatus + statusInterval){
+				lastStatus = System.currentTimeMillis();
+				LOG.info("Main: Printing status at " + lastStatus);
+				synchronized(coordinatorLock){
+					RecordQueue[] queues = recordQueueManager.getQueues();
+					LOG.info("\tMfsGutsRecordProducer is " + 
+							((mfsGutsRecordProducer != null) ? ((mfsGutsRecordProducer.isAlive()) ? "" : "not ") : "not ") + 
+							"running and producer metrics are " + 
+							((mfsGutsRecordProducer != null && mfsGutsRecordProducer.producerMetricsEnabled()) ? "enabled" : "disabled"));
+					LOG.info("\tProcRecordProducer is " + 
+							((procRecordProducer != null) ? ((procRecordProducer.isAlive()) ? "" : "not ") : "not ") + 
+							"running and producer metrics are " + 
+							((procRecordProducer != null && procRecordProducer.producerMetricsEnabled()) ? "enabled" : "disabled"));
+					if(procRecordProducer != null){
+						LOG.info("\tEnabled ProcRecordProducer metrics:");
+						for(String s : procRecordProducer.listEnabledMetrics()){
+							LOG.debug("\t\t" + s);
+						}
+					}
+					LOG.info("\tRecordQueue details:");
+					for(int x=0; x<queues.length; x++){
+						LOG.info("\t\tQueue " + queues[x].getQueueName() + " contains " + queues[x].queueSize() + " records with time capacity " + 
+								queues[x].getQueueTimeCapacity() + " and time usage " + (System.currentTimeMillis() - queues[x].getOldestRecordTimestamp()) + 
+								"ms and record capacity " + queues[x].getQueueRecordCapacity() + " (" + 
+								(((double)queues[x].queueSize())/((double)queues[x].getQueueRecordCapacity())*100d) + "%)" + 
+								" cl:" + queues[x].listConsumers().length +
+								" pl:" + queues[x].listProducers().length);
+						//if(queues[x].getQueueName().equals("HighMfsThreadCpu-1s")){
+						//	LOG.debug(queues[x].printNewestRecords(null, 5));
+						//}
+						//if (queues[x].getQueueName().equals(Constants.RAW_PRODUCER_STATS_QUEUE_NAME) || 
+						//	queues[x].getQueueName().equals(Constants.METRIC_ACTION_STATS_QUEUE_NAME)){
+						//	LOG.debug(queues[x].printNewestRecords(null, 5));
+						//}
+					}
+					LOG.info("\tMetricAction details:");
+					Iterator<Map.Entry<String, MetricAction>> i = metricActionsIdMap.entrySet().iterator();
+					while(i.hasNext()){
+						Map.Entry<String, MetricAction> e = i.next();
+						LOG.info("\t\tID:" + e.getKey() + " enabled:" + e.getValue().getMetricEnabled() + " running:" + ((metricActionsIdFuturesMap.containsKey(e.getValue().getId()) && !metricActionsIdFuturesMap.get(e.getValue().getId()).isDone())) + " inSched:" + metricActionScheduler.contains(e.getValue()) + " sched:" + e.getValue().printSchedule());
+					}
+					i = metricActionsIdMap.entrySet().iterator();
+					LOG.info("\tMetricAction counters:");
+					while(i.hasNext()){
+						Map.Entry<String, MetricAction> e = i.next();
+						long[] counters = e.getValue().getCounters();
+						LOG.info("\t\tID:" + e.getKey() + " inRec:" + counters[0] + " outRec:" + counters[1] + " processingFail:" + counters[2] + " putFail:" + counters[3] + " otherFail:" + counters[4] + " runningTime:" + counters[5] + " startTime:" + counters[6]);
+					}
+					//if(maprdbPersistanceManager != null){
+					//	LOG.info("\tMapRDBPersistanceManager details:");
+					//	maprdbPersistanceManager.logPersistorStatus();
+					if(maprdbSyncPersistanceManager != null){
+						LOG.info("\tMapRDBSyncPersistanceManager details:");
+						maprdbSyncPersistanceManager.logPersistorStatus();
+					}
+					if(localFileSystemPersistanceManager != null){
+						LOG.info("\tLocalFileSystemPersistanceManager details:");
+						localFileSystemPersistanceManager.logPersistorStatus();
+					}
+					
+				}
+			}**/
 		}
 	}
 }

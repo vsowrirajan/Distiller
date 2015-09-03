@@ -97,26 +97,30 @@ public class LocalFileInputRecordQueue implements RecordQueue {
 		//TODO: Make this robust.  Also, make the local file system persistor robust in how it writes the file names.
 		for (String entry : dirEntries){
 			String[] subStr = entry.split("_");
-			if(subStr.length != 8){
+			if(subStr.length != 8  && subStr.length != 4){
 				LOG.info("LocalFileInputRecordQueue-" + System.identityHashCode(this) + ": Ignoring file name with unknown format: " + entry);
 			} else if(subStr[1].equals(this.metricName)){
-				long fileST=-1, fileET=-1;
-				if(this.scannerType.equals(Constants.TIMESTAMP_SCANNER)){
-					fileST = Long.parseLong(subStr[5]);
-					fileET = Long.parseLong(subStr[7]);
-				} else if (this.scannerType.equals(Constants.PREVIOUS_TIMESTAMP_SCANNER)){
-					fileST = Long.parseLong(subStr[4]);
-					fileET = Long.parseLong(subStr[6]);
-				} else {
-					throw new Exception("LocalFileInputRecordQueue-" + System.identityHashCode(this) + ": Unknown scanner type: " + scannerType);
-				}
-				if
-				( ( fileST <= this.endTimestamp && fileST >= this.startTimestamp ) ||
-				  ( fileET <= this.endTimestamp && fileET >= this.startTimestamp )
-				)
-				{
-					LOG.info("LocalFileInputRecordQueue-" + System.identityHashCode(this) + ": Found input file: " + entry);
+				if(subStr.length == 4) {
 					inputFileTree.add(entry);
+				} else {
+					long fileST=-1, fileET=-1;
+					if(this.scannerType.equals(Constants.TIMESTAMP_SCANNER)){
+						fileST = Long.parseLong(subStr[5]);
+						fileET = Long.parseLong(subStr[7]);
+					} else if (this.scannerType.equals(Constants.PREVIOUS_TIMESTAMP_SCANNER)){
+						fileST = Long.parseLong(subStr[4]);
+						fileET = Long.parseLong(subStr[6]);
+					} else {
+						throw new Exception("LocalFileInputRecordQueue-" + System.identityHashCode(this) + ": Unknown scanner type: " + scannerType);
+					}
+					if
+					( ( fileST <= this.endTimestamp && fileST >= this.startTimestamp ) ||
+					  ( fileET <= this.endTimestamp && fileET >= this.startTimestamp )
+					)
+					{
+						LOG.info("LocalFileInputRecordQueue-" + System.identityHashCode(this) + ": Found input file: " + entry);
+						inputFileTree.add(entry);
+					}
 				}
 			}
 		}
