@@ -148,7 +148,7 @@ public class ThreadResourceRecord extends Record {
 			this.majflt = new BigInteger(parts[9]);
 			this.utime = new BigInteger(parts[11]);
 			this.stime = new BigInteger(parts[12]);
-			this.starttime = Integer.parseInt(parts[19]);
+			this.starttime = Long.parseLong(parts[19]);
 			this.delayacct_blkio_ticks = new BigInteger(parts[39]);
 			this.guest_time = new BigInteger(parts[40]);
 			
