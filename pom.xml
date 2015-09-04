@@ -52,5 +52,6 @@
 		<module>Distiller-server</module>
 		<module>Distiller-client</module>
 		<module>Distiller-common</module>
+		<module>Distiller-cli</module>
 	</modules>
 </project>
