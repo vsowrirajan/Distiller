@@ -4,6 +4,14 @@ import java.util.Comparator;
 
 public class TimestampBasedLocalInputFileComparator implements Comparator<String>{
 	public int compare(String s1, String s2) {
+		String[] s1Parts = s1.split("_");
+		String [] s2Parts = s2.split("_");
+		if(s1Parts.length == 4 && s2Parts.length != 4)
+			return 1;
+		else if(s2Parts.length == 4 && s1Parts.length != 4)
+			return -1;
+		else if (s2Parts.length == 4 && s1Parts.length == 4)
+			return 0;
 		long s1T = Long.parseLong(s1.split("_")[7]);
 		long s2T = Long.parseLong(s2.split("_")[7]);
 		long s1PT = Long.parseLong(s1.split("_")[5]);

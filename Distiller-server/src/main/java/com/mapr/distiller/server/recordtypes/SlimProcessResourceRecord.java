@@ -171,7 +171,7 @@ public class SlimProcessResourceRecord extends Record {
 				}
 				this.ppid = Integer.parseInt(parts[1]);
 				this.cpuUsageTicks = new BigInteger(parts[11]).add(new BigInteger(parts[12]));
-				this.startTime = Integer.parseInt(parts[19]);
+				this.startTime = Long.parseLong(parts[19]);
 				this.rss = new BigInteger(parts[21]);
 				this.iowaitTicks = new BigInteger(parts[39]);
 				

@@ -2,6 +2,7 @@ package com.mapr.distiller.server.recordtypes;
 
 import java.math.BigInteger;
 import java.io.RandomAccessFile;
+import java.util.LinkedList;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,8 +24,11 @@ public class SystemCpuRecord extends Record {
 	/**
 	 * RAW VALUES
 	 */
+	//For system aggregate
 	private BigInteger cpu_user, cpu_nice, cpu_sys, cpu_idle, cpu_iowait, cpu_hardirq, cpu_softirq, cpu_steal, cpu_other, total_jiffies;
-	
+	//For single core
+	private BigInteger[] acpu_user, acpu_nice, acpu_sys, acpu_idle, acpu_iowait, acpu_hardirq, acpu_softirq, acpu_steal, acpu_other, atotal_jiffies;
+
 	@Override
 	public String getRecordType(){
 		return Constants.SYSTEM_CPU_RECORD;
@@ -73,6 +77,53 @@ public class SystemCpuRecord extends Record {
 					this.cpu_softirq.add(
 					this.cpu_steal.add(
 					this.cpu_other))))))));
+			
+			//Now process single cpu lines
+			LinkedList<String[]> cpuLines = new LinkedList<String[]>();
+			String line = null;
+			while((line = proc_stat.readLine()) != null){
+				if(line.startsWith("cpu")){
+					cpuLines.add(line.split("\\s+"));
+				}
+			}
+			this.acpu_user = new BigInteger[cpuLines.size()];
+			this.acpu_nice = new BigInteger[cpuLines.size()];
+			this.acpu_sys = new BigInteger[cpuLines.size()];
+			this.acpu_idle = new BigInteger[cpuLines.size()];
+			this.acpu_iowait = new BigInteger[cpuLines.size()];
+			this.acpu_hardirq = new BigInteger[cpuLines.size()];
+			this.acpu_softirq = new BigInteger[cpuLines.size()];
+			this.acpu_steal = new BigInteger[cpuLines.size()];
+			this.acpu_other = new BigInteger[cpuLines.size()];
+			this.atotal_jiffies = new BigInteger[cpuLines.size()];
+			int x=0;
+			while(cpuLines.size()!=0){
+				parts = cpuLines.get(0);
+				this.acpu_user[x] = new BigInteger(parts[1]);
+				this.acpu_nice[x] = new BigInteger(parts[2]);
+				this.acpu_sys[x] = new BigInteger(parts[3]);
+				this.acpu_idle[x] = new BigInteger(parts[4]);
+				this.acpu_iowait[x] = new BigInteger(parts[5]);
+				this.acpu_hardirq[x] = new BigInteger(parts[6]);
+				this.acpu_softirq[x] = new BigInteger(parts[7]);
+				this.acpu_steal[x] = new BigInteger(parts[8]);
+				this.acpu_other[x] = new BigInteger("0");
+				for(int y=9; y<parts.length; y++){
+					this.acpu_other[x] = this.acpu_other[x].add(new BigInteger(parts[y]));
+				}
+				this.atotal_jiffies[x] = 	
+						this.acpu_user[x].add(
+						this.acpu_nice[x].add(
+						this.acpu_sys[x].add(
+						this.acpu_idle[x].add(
+						this.acpu_iowait[x].add(
+						this.acpu_hardirq[x].add(
+						this.acpu_softirq[x].add(
+						this.acpu_steal[x].add(
+						this.acpu_other[x]))))))));
+				x++;
+				cpuLines.remove(0);
+			}
 		} catch (Exception e) {
 			throw new Exception("Failed to generate SystemCpuRecord", e);
 		} finally {

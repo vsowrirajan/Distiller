@@ -206,7 +206,7 @@ public class ProcessResourceRecord extends Record {
 				this.cutime = new BigInteger(parts[13]);
 				this.cstime = new BigInteger(parts[14]);
 				this.num_threads = Integer.parseInt(parts[17]);
-				this.starttime = Integer.parseInt(parts[19]);
+				this.starttime = Long.parseLong(parts[19]);
 				this.vsize = new BigInteger(parts[20]);
 				this.rss = new BigInteger(parts[21]);
 				this.rsslim = new BigInteger(parts[22]);
