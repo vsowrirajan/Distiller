@@ -7,8 +7,8 @@ package com.mapr.distiller.cli.base;
  */
 public class GUICommandOutput extends CommandOutput {
 
-	public GUICommandOutput(byte[] buf) {
-		super(buf);
+	public GUICommandOutput(String response) {
+		super(response);
 	}
 
 	@Override

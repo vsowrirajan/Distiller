@@ -2,8 +2,6 @@ package com.mapr.distiller.cli.base;
 
 /**
  * CLI Framework Exception
- * @author yufeldman
- *
  */
 public class CLIProcessingException extends Exception {
 

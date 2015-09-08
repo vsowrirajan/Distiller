@@ -8,6 +8,5 @@ public abstract class ListCommand extends CLIBaseClass {
 
   public ListCommand(ProcessedInput input, CLICommand cliCommand) {
     super(input, cliCommand);
-    // TODO Auto-generated constructor stub
   }
 }

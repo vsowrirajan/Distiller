@@ -1,0 +1,74 @@
+#!/bin/bash
+
+usage="Usage: distiller [help]"
+if readlink -f "$0" > /dev/null 2>&1
+then
+  CLIBIN=`readlink -f "$0"`
+else
+  CLIBIN="$0"
+fi
+
+# Variables
+if [ ! -z $JAVA_HOME ]; then
+ export PATH=$JAVA_HOME/bin:$PATH
+fi
+
+CLI_HOME="/home/vsowrira/git/Distiller"
+
+CLI_LOG_DIR=${CLI_HOME}/logs
+CLI_LOG_FILE=${CLI_LOG_DIR}/distiller-cli-${CURRENT_USER}-${CURRENT_USER_ID}.log
+
+CLI_CLASSPATH=""
+for i in ${CLI_HOME}/conf/*.conf; do
+  CLI_CLASSPATH=${CLI_CLASSPATH}:$i;
+done
+
+command="DistillerCLI"
+log=${CLI_LOG_DIR}/maprcli.log
+
+CheckForJava() {
+
+  if [ -n "$JAVA_HOME" -a -d "$JAVA_HOME" ]; then
+   if [ -f $JAVA_HOME/bin/java ]; then
+    JAVA=$JAVA_HOME/bin/java
+   fi
+  elif [ "n$JAVA_HOME" = "n" ]; then
+    which java > /dev/null 2>&1
+    if [ $? = 0  ]; then
+     JAVA=java
+    fi
+  fi
+  $JAVA -version > /dev/null 2>&1
+  if [ $? != 0 ]; then
+    echo "Error: JAVA_HOME is not set or Java could not be found"
+    return 1
+  else
+    echo $JAVA
+    return 0
+  fi
+}
+
+CallJavaCmd()
+{
+  JAVA=$(CheckForJava)
+  if [ $? != 0 ]; then
+     echo $JAVA
+     exit 1
+  fi
+
+  #echo "$JAVA -Dlog.file=${CLI_LOG_FILE} \
+    # ${CLI_SUPPORT_OPTS} \
+    # -Djava.library.path=${CLI_JAVA_LIBRARY_PATH} \
+    # -classpath ${CLI_CLASSPATH}\
+    # ${CLI_OPTS} com.mapr.cliframework.driver.CLIMainDriver "$@"
+#"
+
+  PWD=`pwd`
+  echo "$JAVA -cp "$CLI_CLASSPATH:$PWD/Distiller-cli/target/Distiller-cli-0.0.1-SNAPSHOT.jar:$PWD/Distiller-client/target/Distiller-client-0.0.1-SNAPSHOT.jar" com.mapr.distiller.cli.driver.CLIMainDriver "$@""
+  $JAVA -cp "$CLI_CLASSPATH:$PWD/Distiller-cli/target/Distiller-cli-0.0.1-SNAPSHOT.jar:$PWD/Distiller-client/target/Distiller-client-0.0.1-SNAPSHOT.jar" com.mapr.distiller.cli.driver.CLIMainDriver "$@"
+  return $?
+}
+
+CallJavaCmd "$@"
+retcode=$?
+exit ${retcode}

@@ -2,8 +2,6 @@ package com.mapr.distiller.cli.base;
 
 /**
  * Helper command to define when there is no real implementation as it belongs to child commands, but need to have usage separately
- * @author yufeldman
- *
  */
 public class CLIUsageOnlyCommand extends CLIBaseClass implements CLIInterface {
 
@@ -13,7 +11,7 @@ public class CLIUsageOnlyCommand extends CLIBaseClass implements CLIInterface {
 
 	@Override
 	public CommandOutput executeRealCommand() throws CLIProcessingException {
-		return new TextCommandOutput(getCommandUsage().getBytes());
+		return new TextCommandOutput(getCommandUsage());
 	}
 
 	@Override

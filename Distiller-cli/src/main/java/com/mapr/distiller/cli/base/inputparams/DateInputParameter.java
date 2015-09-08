@@ -5,11 +5,14 @@ import java.text.ParseException;
 import java.util.Date;
 import java.util.TimeZone;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class DateInputParameter extends BaseInputParameter {
-  private static final Logger LOG = Logger.getLogger(DateInputParameter.class);
-  
+
+  private static final Logger LOG = LoggerFactory
+      .getLogger(DateInputParameter.class);
+
   public DateInputParameter(String name, String description,
       boolean isRequired, Object defaultValue) {
     super(name, description, isRequired, defaultValue);
@@ -24,12 +27,14 @@ public class DateInputParameter extends BaseInputParameter {
         DateFormat dateInstance = DateFormat.getDateInstance(DateFormat.SHORT);
         dateInstance.setLenient(false);
         dateInstance.setTimeZone(TimeZone.getTimeZone("UTC"));
-        return dateInstance.parse(value); // try if value is a date string (mm/dd/yyyy)
+        return dateInstance.parse(value); // try if value is a date string
+                                          // (mm/dd/yyyy)
       } catch (ParseException pe) {
-        LOG.error("Exception while parsing the value into date. Value: " + value); // log an error and give up!
+        LOG.error("Exception while parsing the value into date. Value: "
+            + value); // log an error and give up!
       }
     }
-    
+
     return null;
   }
 
@@ -40,6 +45,7 @@ public class DateInputParameter extends BaseInputParameter {
 
   @Override
   public String getParameterDefaultValueAsString() {
-    return m_defaultValue != null ? DateFormat.getDateInstance(DateFormat.SHORT).format(m_defaultValue) : null;
+    return m_defaultValue != null ? DateFormat
+        .getDateInstance(DateFormat.SHORT).format(m_defaultValue) : null;
   }
 }

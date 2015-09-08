@@ -6,8 +6,6 @@ import java.util.Map;
 
 /**
  * Registry of all commands that were defined during runtime
- * @author yufeldman
- *
  */
 public class CLICommandRegistry {
 	private static Map<String, CLICommand> commandsRegistry = new HashMap<String, CLICommand>();

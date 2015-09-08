@@ -4,8 +4,6 @@ import java.util.Set;
 
 /**
  * Base CLI Interface to execute any command
- * @author yufeldman
- *
  */
 public interface CLIInterface {
 

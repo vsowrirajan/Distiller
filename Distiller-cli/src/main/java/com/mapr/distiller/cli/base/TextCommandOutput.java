@@ -2,30 +2,28 @@ package com.mapr.distiller.cli.base;
 
 /**
  * Returns string representation of the output
- * @author yufeldman
- *
  */
 public class TextCommandOutput extends CommandOutput {
 
-	
-	public TextCommandOutput(byte[] buf) {
-		super(buf);
-	}
+  public TextCommandOutput(String response) {
+    super(response);
+  }
 
-	public TextCommandOutput() {
-		
-	}
-	@Override
-	public String toString() {
-		if ( buf == null ) {
-			return null;
-		}
-		return new String(buf);
-	}
-	
-	@Override
-	public String toPrettyString() {
-		return toString();
-	}
+  public TextCommandOutput() {
+
+  }
+
+  @Override
+  public String toString() {
+    if (response == null) {
+      return null;
+    }
+    return response;
+  }
+
+  @Override
+  public String toPrettyString() {
+    return CommandOutput.toPrettyStringStatic(response);
+  }
 
 }

@@ -201,4 +201,17 @@ public class CoordinatorClient {
       return false;
     }
   }
+  
+  public String getRecordProducerStatus() {
+    try {
+      URI url = new URI(baseUrl + "/distiller/producerStatus");
+      String response = restTemplate.getForObject(url, String.class);
+      return response;
+    }
+
+    catch (URISyntaxException e) {
+      LOG.error(e.getMessage());
+      return null;
+    }
+  }
 }

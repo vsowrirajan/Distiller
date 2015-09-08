@@ -2,32 +2,30 @@ package com.mapr.distiller.cli.base.inputparams;
 
 /**
  * Text input parameter
- * @author yufeldman
- *
  */
 public class TextInputParameter extends BaseInputParameter {
 
-	public TextInputParameter(String name, String description,
-			boolean isRequired, String defaultValue) {
-		super(name, description, isRequired, defaultValue);
-	}
+  public TextInputParameter(String name, String description,
+      boolean isRequired, String defaultValue) {
+    super(name, description, isRequired, defaultValue);
+  }
 
-	@Override
-	public String getBasicDataType() {
-		return "String";
-	}
+  @Override
+  public String getBasicDataType() {
+    return "String";
+  }
 
-	@Override
-	public Object valueOf(String value) {
-		return value;
-	}
+  @Override
+  public Object valueOf(String value) {
+    return value;
+  }
 
-	@Override
-	public String getParameterDefaultValueAsString() {
-		if ( m_defaultValue != null ) {
-			return (String) m_defaultValue;
-		}
-		return null;
-	}
+  @Override
+  public String getParameterDefaultValueAsString() {
+    if (m_defaultValue != null) {
+      return (String) m_defaultValue;
+    }
+    return null;
+  }
 
 }

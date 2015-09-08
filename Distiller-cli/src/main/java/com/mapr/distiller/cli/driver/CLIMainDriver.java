@@ -1,8 +1,5 @@
 package com.mapr.distiller.cli.driver;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
@@ -12,7 +9,6 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.mapr.distiller.cli.base.common.Errno;
 import com.mapr.distiller.cli.base.CLICommand;
 import com.mapr.distiller.cli.base.CLICommandFactory;
 import com.mapr.distiller.cli.base.CLIInterface;
@@ -23,8 +19,9 @@ import com.mapr.distiller.cli.base.CommandOutput;
 import com.mapr.distiller.cli.base.CommandOutput.OutputHierarchy;
 import com.mapr.distiller.cli.base.CommandOutput.OutputHierarchy.OutputError;
 import com.mapr.distiller.cli.base.ProcessedInput;
-import com.mapr.distiller.cli.base.TextCommandOutput;
 import com.mapr.distiller.cli.base.ProcessedInput.Parameter;
+import com.mapr.distiller.cli.base.TextCommandOutput;
+import com.mapr.distiller.cli.base.common.Errno;
 
 public class CLIMainDriver {
 
@@ -43,25 +40,18 @@ public class CLIMainDriver {
    */
   public static void main(String[] args) throws CLIProcessingException {
 
-    BufferedReader inputR = new BufferedReader(new InputStreamReader(
-        CLIMainDriver.class.getResourceAsStream("/cliregistry")));
-    String line;
+    String line = "com.mapr.distiller.cli.DistillerRegistry";
 
     try {
-      while ((line = inputR.readLine()) != null) {
-        System.out.println(line);
-        Class<CLIRegistryInterface> registryClass = (Class<CLIRegistryInterface>) Class
-            .forName(line);
-        Method getInstancemethod = registryClass.getMethod("getInstance");
-        CLIRegistryInterface retObj = (CLIRegistryInterface) getInstancemethod
-            .invoke(null);
-        retObj.register();
-      }
+      Class<CLIRegistryInterface> registryClass = (Class<CLIRegistryInterface>) Class
+          .forName(line);
+      Method getInstancemethod = registryClass.getMethod("getInstance");
+      CLIRegistryInterface retObj = (CLIRegistryInterface) getInstancemethod
+          .invoke(null);
+      retObj.register();
     } catch (SecurityException e1) {
       throw new CLIProcessingException(e1);
     } catch (IllegalArgumentException e1) {
-      throw new CLIProcessingException(e1);
-    } catch (IOException e1) {
       throw new CLIProcessingException(e1);
     } catch (ClassNotFoundException e1) {
       throw new CLIProcessingException(e1);

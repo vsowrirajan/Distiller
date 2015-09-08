@@ -12,7 +12,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.mapr.distiller.cli.base.CommandOutput.OutputHierarchy.OutputError;
 import com.mapr.distiller.cli.base.ProcessedInput.Parameter;
@@ -22,12 +23,10 @@ import com.mapr.distiller.cli.base.inputparams.BaseInputParameter;
 /**
  * Base abstract class in case common functionality is needed
  * 
- * @author yufeldman
- *
  */
 public abstract class CLIBaseClass implements CLIInterface {
 
-  private static final Logger LOG = Logger.getLogger(CLIBaseClass.class);
+  private static final Logger LOG = LoggerFactory.getLogger(CLIBaseClass.class);
 
   // cache users info but need to invalidate cache from time to time, as groups
   // may change in between
@@ -45,7 +44,7 @@ public abstract class CLIBaseClass implements CLIInterface {
   public CLIBaseClass(ProcessedInput input, CLICommand cliCommand) {
     this.input = input;
     this.cliCommand = cliCommand;
-    //setUserCredentials();
+    // setUserCredentials();
   }
 
   public ProcessedInput getInput() {
@@ -204,8 +203,8 @@ public abstract class CLIBaseClass implements CLIInterface {
     for (String subcommand : input.getSubCommandNames()) {
       if (HELP_PARAM.equalsIgnoreCase(subcommand)) {
         if (cliCommand != null) {
-          return new TextCommandOutput(cliCommand
-              .getUsageFromParametersOfCommandsTree().getBytes());
+          return new TextCommandOutput(
+              cliCommand.getUsageFromParametersOfCommandsTree());
         }
       }
     }
@@ -525,28 +524,33 @@ public abstract class CLIBaseClass implements CLIInterface {
    * Get current user credentials from the system and set uid and gids from it
    */
   private void setUserCredentials() {
-    throw new UnsupportedOperationException("Not a valid method in Distiller-cli");
+    throw new UnsupportedOperationException(
+        "Not a valid method in Distiller-cli");
   }
 
   @Override
   public void setUserCredentials(String userLoginName)
       throws CLIProcessingException {
-    throw new UnsupportedOperationException("Not a valid method in Distiller-cli");
+    throw new UnsupportedOperationException(
+        "Not a valid method in Distiller-cli");
   }
 
   @Override
   public long getUserId() {
-    throw new UnsupportedOperationException("Not a valid method in Distiller-cli");
+    throw new UnsupportedOperationException(
+        "Not a valid method in Distiller-cli");
   }
 
   @Override
   public String getUserLoginId() {
-    throw new UnsupportedOperationException("Not a valid method in Distiller-cli");
+    throw new UnsupportedOperationException(
+        "Not a valid method in Distiller-cli");
   }
 
   @Override
   public Set<Long> getGIds() {
-    throw new UnsupportedOperationException("Not a valid method in Distiller-cli");
+    throw new UnsupportedOperationException(
+        "Not a valid method in Distiller-cli");
   }
 
   /*
