@@ -1,4 +1,4 @@
-package com.mapr.distiller.server.status;
+package com.mapr.distiller.common.status;
 
 public class RecordProducerStatus {
 	private boolean isMfsGutsRecordProducerRunning;
