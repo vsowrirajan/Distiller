@@ -13,7 +13,7 @@ public interface Constants {
 	public static final String MAPRDB_INPUT_QUEUE_SCANNER				= "maprdb.input.queue.scanner";
 	public static final String MAPRDB_INPUT_QUEUE_SCAN_START_TIME 		= "maprdb.input.queue.scan.start.time";
 	public static final String MAPRDB_INPUT_QUEUE_SCAN_END_TIME			= "maprdb.input.queue.scan.end.time";
-	public static final String MAPRDB_ASYNC_PUT_TIMEOUT					= "maprdb.async.put.timeout";
+	public static final String MAPRDB_PUT_TIMEOUT						= "maprdb.put.timeout";
 	public static final String MAPRDB_LOCAL_WORK_DIR_PATH				= "maprdb.local.work.dir.path";
 	public static final String MAPRDB_LOCAL_WORK_DIR_BYTE_LIMIT			= "maprdb.local.work.dir.byte.limit";
 	public static final String MAPRDB_ENABLE_WORK_DIR					= "maprdb.enable.work.dir";

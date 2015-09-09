@@ -288,12 +288,12 @@ public class Coordinator implements Runnable, DistillerMonitor {
 			maprdbCreateTables=false;	//Default to false
 		}
 		try {
-			maprdbAsyncPutTimeout = configBlock.getInt(Constants.MAPRDB_ASYNC_PUT_TIMEOUT);
+			maprdbAsyncPutTimeout = configBlock.getInt(Constants.MAPRDB_PUT_TIMEOUT);
 		} catch (Exception e) {
-			maprdbAsyncPutTimeout = 60000;	//Default to 1 minute
+			maprdbAsyncPutTimeout = 60;	//Default to 1 minute
 		}
-		if(maprdbAsyncPutTimeout < 5000){
-			throw new Exception("Value of " + Constants.MAPRDB_ASYNC_PUT_TIMEOUT + " must be >= 5000, value: " + maprdbAsyncPutTimeout);
+		if(maprdbAsyncPutTimeout < 30){
+			throw new Exception("Value of " + Constants.MAPRDB_PUT_TIMEOUT + " must be >= 30, value: " + maprdbAsyncPutTimeout);
 		}
 		try {
 			maprdbLocalWorkDirByteLimit = configBlock.getLong(Constants.MAPRDB_LOCAL_WORK_DIR_BYTE_LIMIT);
@@ -2170,7 +2170,7 @@ metricActionsEnableMap.remove(metricConfig.getId());
 				}
 			}
 
-			/**
+			
 			//Some status stuff that is useful in debugging
 			if(System.currentTimeMillis() >= lastStatus + statusInterval){
 				lastStatus = System.currentTimeMillis();
@@ -2240,7 +2240,7 @@ metricActionsEnableMap.remove(metricConfig.getId());
 					
 				}
 			}
-			**/
+			
 		}
 		
 		synchronized(coordinatorLock){
@@ -2249,6 +2249,15 @@ metricActionsEnableMap.remove(metricConfig.getId());
 			boolean cleanShutdown = true;
 			
 			//Step 1 of shutdown, stop all raw record producers that no new Records are being generate
+			for(MetricConfig c : metricConfigMap.values()){
+				if(isRawRecordType(c.getRecordType()))
+					try {
+						disableMetric(c.getId());
+					} catch (Exception e) {
+						LOG.error("Failed to disable ProcRecordProducer metric " + c.getId(), e);
+						System.exit(1);
+					}
+			}
 			if(procRecordProducer != null && procRecordProducer.isAlive()){
 				LOG.info("Stopping ProcRecordProducer");
 				procRecordProducer.requestExit();
@@ -2357,7 +2366,9 @@ metricActionsEnableMap.remove(metricConfig.getId());
 			 * MetricActions are deleted and the loop is repeated until all MetricActions have been
 			 * disabled/deleted.
 			 */
-			while(metricActionsIdMap.size() != 0){
+			int consecutiveIterationsWithNoChanges=0;
+			int maxIterationsWithNoChanges=3;
+			while(metricActionsIdMap.size() != 0 && consecutiveIterationsWithNoChanges<maxIterationsWithNoChanges){
 				LOG.debug("Beginning flush attempt with " + metricActionsIdMap.size() + " MetricActions left to disable/delete");
 				long counterSum = 0, newCounterSum = 0;
 				int consecutiveIterationsWithSameSum=0;
@@ -2365,10 +2376,7 @@ metricActionsEnableMap.remove(metricConfig.getId());
 				while(consecutiveIterationsWithSameSum < maxIterationsWithSameSum){
 					counterSum = newCounterSum;
 					newCounterSum = 0;
-					Iterator<Map.Entry<String, MetricAction>> maI = metricActionsIdMap.entrySet().iterator();
-					while(maI.hasNext()){
-						Map.Entry<String, MetricAction> e = maI.next();
-						MetricAction ma = e.getValue();
+					for(MetricAction ma : metricActionsIdMap.values()){
 						metricActionScheduler.unschedule(ma);
 						ma.run();
 						ma.flushRelatedSelection();
@@ -2382,9 +2390,13 @@ metricActionsEnableMap.remove(metricConfig.getId());
 					} else {
 						consecutiveIterationsWithSameSum=0;
 					}
+					LOG.info("Finished running " + metricActionsIdMap.size() + " metric actions with ncs: " + newCounterSum + " and ocs: " + counterSum + 
+							" ciwss: " + consecutiveIterationsWithSameSum + " miwss: " + maxIterationsWithSameSum);
+					
 				}
 				Iterator<Map.Entry<String, MetricAction>> maI = metricActionsIdMap.entrySet().iterator();
 				LinkedList<MetricAction> maToDelete = new LinkedList<MetricAction>();
+				boolean disabledAMetric=false;
 				while(maI.hasNext()){
 					Map.Entry<String, MetricAction> e = maI.next();
 					MetricAction ma = e.getValue();
@@ -2395,6 +2407,12 @@ metricActionsEnableMap.remove(metricConfig.getId());
 					   )
 					{
 						maToDelete.add(ma);
+					} else {
+						LOG.info("Not deleting " + ma.getId() + 
+								" inQ: " + ma.getConfig().getInputQueue() +
+								" inQP: " + recordQueueManager.getQueueProducers(ma.getConfig().getInputQueue()).length + 
+								" riQ: " + ma.getConfig().getRelatedInputQueueName() + 
+								" riQP: " + ((ma.getConfig().getRelatedInputQueueName()==null) ? "null" : recordQueueManager.getQueueProducers(ma.getConfig().getRelatedInputQueueName()).length));
 					}
 				}
 				for(MetricAction ma : maToDelete){
@@ -2402,11 +2420,16 @@ metricActionsEnableMap.remove(metricConfig.getId());
 					try {
 						disableMetricAction(ma);
 						deleteMetric(ma.getId());
+						disabledAMetric=true;
 						LOG.debug("Disabled and deleted MetricAction with no input queue producers: " + ma.getId());
 					} catch (Exception e) {
 						LOG.warn("Failed to disable/delete MetricAction " + ma.getId(), e);
 					}
 				}
+				if(disabledAMetric)
+					consecutiveIterationsWithNoChanges=0;
+				else
+					consecutiveIterationsWithNoChanges++;
 			}
 			
 			//Step 5, shutdown any persistance managers, which will force them to flush persisted records.
