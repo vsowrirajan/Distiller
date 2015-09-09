@@ -1,4 +1,4 @@
-package com.mapr.distiller.server.status;
+package com.mapr.distiller.common.status;
 
 public class RecordQueueStatus {
 	private String name;
@@ -12,6 +12,10 @@ public class RecordQueueStatus {
 	private String[] producers;
 
 	private String[] consumers;
+	
+	public RecordQueueStatus() {
+	  
+	}	    
 
 	public RecordQueueStatus(String name, String type, int recordCapacity,
 			int queueSize, String[] producers, String[] consumers) {
