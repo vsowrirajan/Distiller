@@ -13,7 +13,7 @@ public interface Constants {
 	public static final String MAPRDB_INPUT_QUEUE_SCANNER				= "maprdb.input.queue.scanner";
 	public static final String MAPRDB_INPUT_QUEUE_SCAN_START_TIME 		= "maprdb.input.queue.scan.start.time";
 	public static final String MAPRDB_INPUT_QUEUE_SCAN_END_TIME			= "maprdb.input.queue.scan.end.time";
-	public static final String MAPRDB_ASYNC_PUT_TIMEOUT					= "maprdb.async.put.timeout";
+	public static final String MAPRDB_PUT_TIMEOUT						= "maprdb.put.timeout";
 	public static final String MAPRDB_LOCAL_WORK_DIR_PATH				= "maprdb.local.work.dir.path";
 	public static final String MAPRDB_LOCAL_WORK_DIR_BYTE_LIMIT			= "maprdb.local.work.dir.byte.limit";
 	public static final String MAPRDB_ENABLE_WORK_DIR					= "maprdb.enable.work.dir";
@@ -84,12 +84,14 @@ public interface Constants {
 	
 
 	// Allowable values for input.record.processor.method
-	public static final String MERGE_RECORDS 	= "merge";
-	public static final String IS_BELOW 		= "isBelow";
-	public static final String IS_ABOVE 		= "isAbove";
-	public static final String IS_EQUAL 		= "isEqual";
-	public static final String IS_NOT_EQUAL 	= "isNotEqual";
-	public static final String DIFFERENTIAL 	= "differentialValue";
+	public static final String MERGE_RECORDS 						= "merge";
+	public static final String IS_BELOW 							= "isBelow";
+	public static final String IS_ABOVE 							= "isAbove";
+	public static final String IS_EQUAL 							= "isEqual";
+	public static final String IS_NOT_EQUAL 						= "isNotEqual";
+	public static final String DIFFERENTIAL 						= "differentialValue";
+	public static final String CONVERT								= "convert";
+	public static final String MERGE_CHRONOLOGICALLY_CONSECUTIVE 	= 	"mergeChronologicallyConsecutive";
 
 	
 	// Allowable values for input.record.selector
@@ -118,6 +120,7 @@ public interface Constants {
 	public static final String METRIC_ACTION_STATUS_RECORD			= "MetricActionStatus";
 	public static final String MAPRDB_PERSISTED_META_INFO_RECORD	= "MapRDBPersistedMetaInfo";
 	public static final String LOAD_AVERAGE_RECORD					= "LoadAverage";
+	public static final String PROCESS_EFFICIENCY_RECORD			= "ProcessEfficiency";
 	public static final String RECORD								= "Record";
 	
 	// serialVersionUID values for each Record type
@@ -145,6 +148,7 @@ public interface Constants {
 	public static final long SVUID_MAPRDB_COORDINATOR_META_RECORD		= SVUID_BASE + 18;
 	public static final long SVUID_MAPRDB_DISK_BUFFERED_RECORD_META_INFO= SVUID_BASE + 19;
 	public static final long SVUID_LOAD_AVERAGE_RECORD					= SVUID_BASE + 20;
+	public static final long SVUID_PROCESS_EFFICIENCY_RECORD			= SVUID_BASE + 21;
 	
 	// Allowable values for input.record.processor.name
 	public static final String DISKSTAT_RECORD_PROCESSOR 				= "DiskstatRecordProcessor";
@@ -160,6 +164,7 @@ public interface Constants {
 	public static final String DIFFERENTIAL_VALUE_RECORD_PROCESSOR 		= "DifferentialValueRecordProcessor";
 	public static final String PASSTHROUGH_RECORD_PROCESSOR 			= "PassthroughRecordProcessor";
 	public static final String LOAD_AVERAGE_RECORD_PROCESSOR			= "LoadAverageRecordProcessor";
+	public static final String PROCESS_EFFICIENCY_RECORD_PROCESSOR		= "ProcessEfficiencyRecordProcessor";
 	
 	// Raw record producer names (e.g. names that will show up as producers in output record queues)
 	public static final String PROC_RECORD_PRODUCER_NAME 		= "ProcRecordProducer";

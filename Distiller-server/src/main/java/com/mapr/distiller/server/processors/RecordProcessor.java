@@ -5,7 +5,8 @@ import com.mapr.distiller.server.recordtypes.Record;
 public interface RecordProcessor<T extends Record> extends 
 															Thresholdable<T>,
 															Mergeable<T>,
-															Diffable<T>
+															Diffable<T>,
+															Convertable<T>
 {
 	public String getName();
 }

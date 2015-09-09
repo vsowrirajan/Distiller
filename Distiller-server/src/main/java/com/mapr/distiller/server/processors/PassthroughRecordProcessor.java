@@ -1,13 +1,21 @@
 package com.mapr.distiller.server.processors;
 
 import com.mapr.distiller.server.recordtypes.DifferentialValueRecord;
-
 import com.mapr.distiller.server.recordtypes.Record;
-import com.mapr.distiller.server.recordtypes.SlimProcessResourceRecord;
 import com.mapr.distiller.server.utils.Constants;
 
 public class PassthroughRecordProcessor implements RecordProcessor<Record> {
 
+	@Override
+	public Record[] mergeChronologicallyConsecutive(Record oldRecord, Record newRecord) throws Exception{
+		throw new Exception("not implemented");
+	}
+
+	@Override
+	public Record convert(Record record) throws Exception{
+		throw new Exception("Not implemented");
+	}
+	
 	@Override
 	public DifferentialValueRecord diff(Record rec1, Record rec2, String metric) throws Exception {
 		throw new Exception("Not implemented.");
@@ -40,7 +48,7 @@ public class PassthroughRecordProcessor implements RecordProcessor<Record> {
 	}
 
 	@Override
-	public SlimProcessResourceRecord merge(Record rec1, Record rec2)
+	public Record merge(Record rec1, Record rec2)
 			throws Exception {
 		throw new Exception("Not implemented.");
 	}

@@ -57,7 +57,48 @@ public class LoadAverageRecord extends Record {
 			} catch (Exception e) {}
 		}
 	}
-
+	public LoadAverageRecord(LoadAverageRecord rec1, LoadAverageRecord rec2) throws Exception {
+		//Figure out the time sequence of the records
+		LoadAverageRecord oldRecord, newRecord;
+		if(rec1.getTimestamp() < rec2.getTimestamp()){
+			oldRecord = rec1;
+			newRecord = rec2;
+		} else {
+			oldRecord = rec2;
+			newRecord = rec1;
+		}
+		if(oldRecord.getPreviousTimestamp()==-1 && newRecord.getPreviousTimestamp()==-1){
+			this.setTimestamp(newRecord.getTimestamp());
+			this.setPreviousTimestamp(oldRecord.getTimestamp());
+			this.loadAverage1Min = newRecord.getLoadAverage1Min();
+			this.loadAverage5Min = newRecord.getLoadAverage5Min();
+			this.loadAverage15Min = newRecord.getLoadAverage15Min();
+		} else if(oldRecord.getTimestamp() != newRecord.getPreviousTimestamp()){
+			throw new Exception("Can not merge non-chronologically consecutive LoadAverageRecords");
+		} else {
+			this.setTimestamp(newRecord.getTimestamp());
+			this.setPreviousTimestamp(oldRecord.getPreviousTimestamp());
+			this.loadAverage1Min = ( ( newRecord.getLoadAverage1Min() * (double)newRecord.getDurationms() ) + 
+								     ( oldRecord.getLoadAverage1Min() * (double)oldRecord.getDurationms() )
+								   )
+								   /
+								   ((double)( newRecord.getDurationms() + oldRecord.getDurationms()));
+			this.loadAverage5Min = ( ( newRecord.getLoadAverage5Min() * (double)newRecord.getDurationms() ) + 
+				     				 ( oldRecord.getLoadAverage5Min() * (double)oldRecord.getDurationms() )
+								   )
+								   /
+								   ((double)( newRecord.getDurationms() + oldRecord.getDurationms()));
+			this.loadAverage15Min = ( ( newRecord.getLoadAverage15Min() * (double)newRecord.getDurationms() ) + 
+				     				  ( oldRecord.getLoadAverage15Min() * (double)oldRecord.getDurationms() )
+									)
+									/
+									((double)( newRecord.getDurationms() + oldRecord.getDurationms()));
+		}
+		this.lastPid = newRecord.getLastPid();
+		this.numSchedulableEntities = newRecord.getNumSchedulableEntities();
+		this.numExecutingEntities = newRecord.getNumExecutingEntities();
+		
+	}
 	/**
 	 * PRODUCE RECORD METHODS
 	 */
@@ -91,27 +132,27 @@ public class LoadAverageRecord extends Record {
 				" schedulable: " + numSchedulableEntities + " lastPid:" + lastPid;
 	}
 	
-	private double getLoadAverage1Min(){
+	public double getLoadAverage1Min(){
 		return loadAverage1Min;
 	}
 
-	private double getLoadAverage5Min(){
+	public double getLoadAverage5Min(){
 		return loadAverage5Min;
 	}
 
-	private double getLoadAverage15Min(){
+	public double getLoadAverage15Min(){
 		return loadAverage15Min;
 	}
 
-	private int getNumExecutingEntities(){
+	public int getNumExecutingEntities(){
 		return numExecutingEntities;
 	}
 	
-	private int getNumSchedulableEntities(){
+	public int getNumSchedulableEntities(){
 		return numSchedulableEntities;
 	}
 	
-	private int getLastPid(){
+	public int getLastPid(){
 		return lastPid;
 	}
 

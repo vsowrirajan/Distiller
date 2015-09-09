@@ -115,9 +115,11 @@ public class MapRDBSyncPersistor implements Persistor {
 	}
 	
 	public void callPut(Put p) throws Exception{
-		LOG.debug("MapRDBSyncPersistor-" + System.identityHashCode(this) + ": Calling put to table " + System.identityHashCode(table) + " and put " + System.identityHashCode(p));
+		if(LOG.isDebugEnabled())
+			LOG.debug("MapRDBSyncPersistor-" + System.identityHashCode(this) + ": Calling put to table " + System.identityHashCode(table) + " and put " + System.identityHashCode(p));
 		table.put(p);
-		LOG.debug("MapRDBSyncPersistor-" + System.identityHashCode(this) + ": returning normally after put");
+		if(LOG.isDebugEnabled())
+			LOG.debug("MapRDBSyncPersistor-" + System.identityHashCode(this) + ": returning normally after put");
 	}
 	
 	public int getNumDiskBoundRecords(){

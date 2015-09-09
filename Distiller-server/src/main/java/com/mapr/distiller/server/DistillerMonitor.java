@@ -30,5 +30,7 @@ public interface DistillerMonitor {
 	public Record[] getRecords(String queueName, int count) throws Exception;
 
 	public MetricActionStatus getMetricAction(String metricActionName) throws Exception;
+	
+	public boolean requestShutdown();
 
 }

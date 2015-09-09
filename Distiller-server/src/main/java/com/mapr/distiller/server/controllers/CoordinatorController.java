@@ -109,4 +109,11 @@ public class CoordinatorController {
 	   LOG.info("Is Running for " + name);
 	   return monitor.isRunningMetricAction(name);
 	}
+
+	@RequestMapping(value = "/requestShutdown", method = RequestMethod.GET)
+	public boolean requestShutdown() {
+		LOG.info("Request to shutdown");
+		return monitor.requestShutdown();
+	}
+
 }

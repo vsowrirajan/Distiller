@@ -255,12 +255,17 @@ public class SlimThreadResourceRecord extends Record {
 	public BigInteger getIoBytesWritten(){
 		return ioBytesWritten;
 	}
+	public String get_upid(){
+		return pid + "_" + startTime;
+	}
 	
 	@Override
 	public String getValueForQualifier(String qualifier) throws Exception {
 		switch(qualifier){
 		case "pid":
 			return Integer.toString(pid);
+		case "upid":
+			return get_upid();
 		default:
 			throw new Exception("Qualifier " + qualifier + " is not valid for this record type");
 		}

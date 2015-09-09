@@ -2,22 +2,22 @@ package com.mapr.distiller.server.queues;
 
 import java.util.Iterator;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.HashMap;
+import java.util.TreeMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.mapr.distiller.server.recordtypes.Record;
 import com.mapr.distiller.server.utils.Constants;
-import com.mapr.distiller.server.utils.TimestampBasedLocalInputFileComparator;
-import com.mapr.distiller.server.utils.PreviousTimestampBasedLocalInputFileComparator;
 
 import java.io.ObjectInputStream;
 import java.io.FileInputStream;
 import java.io.File;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.zip.GZIPInputStream;
-
+import java.io.EOFException;
 
 public class LocalFileInputRecordQueue implements RecordQueue {
 	
@@ -30,8 +30,10 @@ public class LocalFileInputRecordQueue implements RecordQueue {
 			.getLogger(LocalFileInputRecordQueue.class);
 	
 	protected String id;
-	private ConcurrentHashMap<String, ConsumerInputPosition> consumers;
-	private ConcurrentHashMap<String, Record> consumerPeekRecord;
+	private HashMap<String, ConsumerInputPosition> consumers;
+	private HashMap<String, Record> consumerPeekRecord;
+	private HashMap<String, Long> consumerLastReturnedRecordTimestamp;
+	private TreeSet<String> consumerFinished;
 	private String metricName;
 	private String inputDirPath;
 	private File inputDir;
@@ -39,19 +41,51 @@ public class LocalFileInputRecordQueue implements RecordQueue {
 	private String scannerType;
 	private long startTimestamp;
 	private long endTimestamp;
+	private AtomicLong skippedRecords;
+	private AtomicLong returnedRecords;
 	private Object lock = new Object();	
 
+	public long getSkippedRecords(){
+		return skippedRecords.get();
+	}
+	
+	public long getReturnedRecords(){
+		return returnedRecords.get();
+	}
+	
 	public boolean isValidScannerType(String scannerType){
 		if(scannerType==null)
 			return false;
-		if (scannerType.equals(Constants.TIMESTAMP_SCANNER) || 
-			scannerType.equals(Constants.PREVIOUS_TIMESTAMP_SCANNER))
+		//if (scannerType.equals(Constants.TIMESTAMP_SCANNER) || 
+		//	scannerType.equals(Constants.PREVIOUS_TIMESTAMP_SCANNER))
+		if (scannerType.equals(Constants.TIMESTAMP_SCANNER))
 			return true;
 		return false;
 	}
 	public LocalFileInputRecordQueue(String id, String metricName, String inputDirPath, String scannerType, long startTimestamp, long endTimestamp) throws Exception{
-		this.consumers = new ConcurrentHashMap<String, ConsumerInputPosition>();
-		this.consumerPeekRecord = new ConcurrentHashMap<String, Record>();
+		this.consumers = new HashMap<String, ConsumerInputPosition>();
+		this.consumerPeekRecord = new HashMap<String, Record>();
+		this.consumerLastReturnedRecordTimestamp = new HashMap<String, Long>();
+		this.consumerFinished = new TreeSet<String>();
+		this.skippedRecords = new AtomicLong(0);
+		this.returnedRecords = new AtomicLong(0);
+		
+		if(scannerType == null){
+			this.scannerType = Constants.TIMESTAMP_SCANNER;
+		} else if(isValidScannerType(scannerType)){
+			this.scannerType = scannerType;
+		} else {
+			throw new Exception("Unknown scanner type: " + scannerType);
+		}
+		if(endTimestamp < 1)
+			this.endTimestamp = Long.MAX_VALUE;
+		else
+			this.endTimestamp = endTimestamp;
+		if(startTimestamp > this.endTimestamp){
+			throw new Exception("Start timestamp for scanner is greater than end timestamp. start: " + startTimestamp + " end: " + endTimestamp);
+		}
+		this.startTimestamp = startTimestamp;
+		
 		
 		this.id = id;
 		this.metricName = metricName;
@@ -63,28 +97,7 @@ public class LocalFileInputRecordQueue implements RecordQueue {
 			throw new Exception("LocalFileInputRecordQueue-" + System.identityHashCode(this) + ": Input path is not a directory: " + inputDirPath);
 		}
 		
-		if(scannerType==null){
-			this.scannerType = Constants.TIMESTAMP_SCANNER;
-		} else if(isValidScannerType(scannerType)){
-			this.scannerType = scannerType;
-		} else {
-			throw new Exception("LocalFileInputRecordQueue-" + System.identityHashCode(this) + ": Unknown scanner type: " + scannerType);
-		}
-		
-		TreeSet<String> inputFileTree = null;
-		if(this.scannerType.equals(Constants.TIMESTAMP_SCANNER)){
-			inputFileTree  = new TreeSet<String>(new TimestampBasedLocalInputFileComparator());
-		} else if (this.scannerType.equals(Constants.PREVIOUS_TIMESTAMP_SCANNER)){
-			inputFileTree = new TreeSet<String>(new PreviousTimestampBasedLocalInputFileComparator());
-		} else {
-			throw new Exception("LocalFileInputRecordQueue-" + System.identityHashCode(this) + ": Unknown scanner type: " + scannerType);
-		}
-		
-		this.startTimestamp = startTimestamp;
-		if(endTimestamp == -1)
-			this.endTimestamp = Long.MAX_VALUE;
-		else
-			this.endTimestamp = endTimestamp;
+		TreeMap<Long, String> inputFileMap = new TreeMap<Long, String>();
 		
 		String[] dirEntries = null;
 		try {
@@ -92,43 +105,37 @@ public class LocalFileInputRecordQueue implements RecordQueue {
 		} catch (Exception e){
 			throw new Exception("LocalFileInputRecordQueue-" + System.identityHashCode(this) + ": Failed to retrieve directory list for " + inputDirPath, e);
 		}
-		//Note that the structure of this code doesn't work if the producer id used to persist the metric to the input files had underscores in the string.
-		//Also this doesn't prevent double replay, e.g. two instances of LocalFileSystemPersistor writing the same metric for overlapping periods of time.  This code will end up reading those records from both inputs.
-		//TODO: Make this robust.  Also, make the local file system persistor robust in how it writes the file names.
+		
+		/**
+		 * Make a TreeMap<long, String>() to map timestamp of first record in a file to it's filename.
+		 * As records are read, keep track of the timestamp from the most recently read record
+		 * When the last record is read from some particular file and the input file needs to be advanced,
+		 * open the next file and skip records in the file until a record is found with a timestamp 
+		 * greater than that of the last record retrieved.
+		 */
 		for (String entry : dirEntries){
 			String[] subStr = entry.split("_");
-			if(subStr.length != 8  && subStr.length != 4){
-				LOG.info("LocalFileInputRecordQueue-" + System.identityHashCode(this) + ": Ignoring file name with unknown format: " + entry);
-			} else if(subStr[1].equals(this.metricName)){
-				if(subStr.length == 4) {
-					inputFileTree.add(entry);
-				} else {
-					long fileST=-1, fileET=-1;
-					if(this.scannerType.equals(Constants.TIMESTAMP_SCANNER)){
-						fileST = Long.parseLong(subStr[5]);
-						fileET = Long.parseLong(subStr[7]);
-					} else if (this.scannerType.equals(Constants.PREVIOUS_TIMESTAMP_SCANNER)){
-						fileST = Long.parseLong(subStr[4]);
-						fileET = Long.parseLong(subStr[6]);
-					} else {
-						throw new Exception("LocalFileInputRecordQueue-" + System.identityHashCode(this) + ": Unknown scanner type: " + scannerType);
-					}
-					if
-					( ( fileST <= this.endTimestamp && fileST >= this.startTimestamp ) ||
-					  ( fileET <= this.endTimestamp && fileET >= this.startTimestamp )
-					)
-					{
-						LOG.info("LocalFileInputRecordQueue-" + System.identityHashCode(this) + ": Found input file: " + entry);
-						inputFileTree.add(entry);
-					}
+			if((subStr.length != 8  && subStr.length != 4) || !subStr[1].equals(this.metricName)){
+				LOG.debug("LocalFileInputRecordQueue-" + System.identityHashCode(this) + ": Ignoring file: " + entry);
+			} else {
+				ObjectInputStream s = null;
+				try {
+					s = new ObjectInputStream(new GZIPInputStream(new FileInputStream(inputDirPath + "/" + entry)));
+					Record r = ((Record)(s.readObject()));
+					inputFileMap.put(new Long(r.getTimestamp()), entry);
+					LOG.info("LocalFileInputRecordQueue-" + System.identityHashCode(this) + ": Adding input file " + entry + " with timestamp " + r.getTimestamp());
+				} catch (Exception e){
+					LOG.warn("LocalFileInputRecordQueue-" + System.identityHashCode(this) + ": Failed to read file " + entry + ", omitting it from further processing.", e);
 				}
 			}
 		}
-		if(inputFileTree.size()==0){
-			throw new Exception("LocalFileInputRecordQueue-" + System.identityHashCode(this) + ": Did not find any input files matching " + 
-					this.metricName + " " + this.scannerType + " " + this.startTimestamp + " " + this.endTimestamp + " " + this.inputDirPath);
+		/**
+		if(inputFileMap.size()==0){
+			throw new Exception("LocalFileInputRecordQueue-" + System.identityHashCode(this) + ": Did not find any input files matching metric " + 
+					this.metricName + " in input dir " + this.inputDirPath);
 		}
-		this.inputFiles = inputFileTree.toArray(new String[0]);
+		**/
+		this.inputFiles = inputFileMap.values().toArray(new String[0]);
 	}
 	
 	//Return the type of the RecordQueue
@@ -161,6 +168,10 @@ public class LocalFileInputRecordQueue implements RecordQueue {
 		return -1;
 	}
 
+	public int queueSize(String subscriber){
+		return -1;
+	}
+	
 	//Add a Record onto the end of the queue
 	public boolean put(String producer, Record record){
 		return false;
@@ -169,7 +180,7 @@ public class LocalFileInputRecordQueue implements RecordQueue {
 	//Perform a blocking get for the next sequential Record for the specific subscriber
 	public Record get(String subscriber) throws Exception{
 		return get(subscriber, true);
-	}
+	} 
 
 	//Perform a get for the next sequential Record for the specific consumer, either blocking or non blocking as specified, return null for non-blocking requests where no records are available
 	public Record get(String subscriber, boolean blocking) throws Exception{
@@ -177,19 +188,47 @@ public class LocalFileInputRecordQueue implements RecordQueue {
 			if(consumerPeekRecord.get(subscriber) != null){
 				return consumerPeekRecord.remove(subscriber);
 			}
+			if(consumerFinished.contains(subscriber)){
+				if(blocking){
+					throw new Exception("LocalFileInputRecordQueue-" + System.identityHashCode(this) + ": Consumer " + subscriber + " has read all input records.");
+				}
+				return null;
+			}
 			Record recordToReturn = null;
 			while(recordToReturn == null){
 				ConsumerInputPosition pos = consumers.get(subscriber);
 				try {
-					recordToReturn = (Record)(pos.inputStream.readObject());
+					while(true){
+						recordToReturn = (Record)(pos.inputStream.readObject());
+						if 
+						(
+							recordToReturn.getTimestamp() >= consumerLastReturnedRecordTimestamp.get(subscriber).longValue()
+							&&
+							recordToReturn.getTimestamp() >= startTimestamp
+							&&
+							recordToReturn.getTimestamp() <= endTimestamp
+						)
+						{
+							returnedRecords.incrementAndGet();
+							consumerLastReturnedRecordTimestamp.put(subscriber,  new Long(recordToReturn.getTimestamp()));
+							break;
+						} else {
+							skippedRecords.incrementAndGet();
+						}
+					}
+				} catch (EOFException eof) {
+					//Do nothing, the file will be rotated to the next one.
 				} catch (Exception e){
 					recordToReturn = null;
+					LOG.debug("Exception while reading object for consumer " + subscriber + " from file " + ((inputFiles.length > pos.fileNum && pos.fileNum != -1) ? inputFiles[pos.fileNum] : "null"));
 				}
 				if(recordToReturn == null){
 					boolean openedNewFile = false;
 					while(!openedNewFile){
 						if(pos.fileNum + 1 == inputFiles.length){
 							consumers.put(subscriber, pos);
+							consumerFinished.add(subscriber);
+							LOG.info("LocalFileInputRecordQueue-" + System.identityHashCode(this) + ": Consumer " + subscriber + " has read all input records.");
 							if(blocking){
 								throw new Exception("LocalFileInputRecordQueue-" + System.identityHashCode(this) + ": Consumer " + subscriber + " has read all input records.");
 							} else {
@@ -211,6 +250,8 @@ public class LocalFileInputRecordQueue implements RecordQueue {
 							LOG.error("LocalFileInputRecordQueue-" + System.identityHashCode(this) + ": Failed to open input file, skipping it", e);
 						}
 					}
+					LOG.debug("LocalFileInputRecordQueue-" + System.identityHashCode(this) + ": Consumer " + subscriber + 
+							" has begun processing file " + pos.fileNum + ": "+ inputFiles[pos.fileNum]);
 					consumers.put(subscriber, pos);
 				}
 			}
@@ -220,6 +261,12 @@ public class LocalFileInputRecordQueue implements RecordQueue {
 	
 	//Perform a peek at the next sequential Record for the specific consumer, either blocking or non blocking as specified, return null for non-blocking requests where no records are available
 	public Record peek(String subscriber, boolean blocking) throws Exception{
+		if(consumerFinished.contains(subscriber)){
+			if(blocking){
+				throw new Exception("LocalFileInputRecordQueue-" + System.identityHashCode(this) + ": Consumer " + subscriber + " has read all input records.");
+			}
+			return null;
+		}
 		Record recordToReturn = null;
 		synchronized(lock){
 			if(consumerPeekRecord.get(subscriber) != null){
@@ -228,7 +275,26 @@ public class LocalFileInputRecordQueue implements RecordQueue {
 			while(recordToReturn == null){
 				ConsumerInputPosition pos = consumers.get(subscriber);
 				try {
-					recordToReturn = (Record)(pos.inputStream.readObject());
+					while(true){
+						recordToReturn = (Record)(pos.inputStream.readObject());
+						if 
+						(
+							recordToReturn.getTimestamp() >= consumerLastReturnedRecordTimestamp.get(subscriber).longValue()
+							&&
+							recordToReturn.getTimestamp() >= startTimestamp
+							&&
+							recordToReturn.getTimestamp() <= endTimestamp
+						)
+						{
+							returnedRecords.incrementAndGet();
+							consumerLastReturnedRecordTimestamp.put(subscriber,  new Long(recordToReturn.getTimestamp()));
+							break;
+						} else {
+							skippedRecords.incrementAndGet();
+						}
+					}
+				} catch (EOFException eof) {
+					//Do nothing, the file will be rotated to the next one.
 				} catch (Exception e){
 					recordToReturn = null;
 				}
@@ -237,6 +303,8 @@ public class LocalFileInputRecordQueue implements RecordQueue {
 					while(!openedNewFile){
 						if(pos.fileNum + 1 == inputFiles.length){
 							consumers.put(subscriber, pos);
+							consumerFinished.add(subscriber);
+							LOG.info("LocalFileInputRecordQueue-" + System.identityHashCode(this) + ": Consumer " + subscriber + " has read all input records.");
 							if(blocking){
 								throw new Exception("LocalFileInputRecordQueue-" + System.identityHashCode(this) + ": Consumer " + subscriber + " has read all input records.");
 							} else {
@@ -308,7 +376,7 @@ public class LocalFileInputRecordQueue implements RecordQueue {
 		try {
 			return new ObjectInputStream(new GZIPInputStream(new FileInputStream(inputDirPath + "/" + inputFiles[fileNum])));
 		} catch (Exception e){
-			throw new Exception("Failed to create an ObjectInputStream for " + inputDirPath + "/" + inputFiles[fileNum], e);
+			throw new Exception("LocalFileInputRecordQueue-" + System.identityHashCode(this) + ": Failed to create an ObjectInputStream for " + inputDirPath + "/" + inputFiles[fileNum], e);
 		}
 	}
 	//Returns true if the consumer with the given name is successfully registered as a consumer
@@ -321,6 +389,7 @@ public class LocalFileInputRecordQueue implements RecordQueue {
 			synchronized (lock) {
 				if (!consumers.containsKey(consumer)) {
 					ConsumerInputPosition pos = new ConsumerInputPosition();
+					/**
 					pos.fileNum = 0;
 					try {
 						pos.inputStream = getLocalFileInputStream(pos.fileNum);
@@ -329,6 +398,11 @@ public class LocalFileInputRecordQueue implements RecordQueue {
 						return false;
 					}
 					consumers.put(consumer, pos);
+					**/
+					pos.fileNum = -1;
+					pos.inputStream = null;
+					consumers.put(consumer, pos);
+					consumerLastReturnedRecordTimestamp.put(consumer, new Long(-1));
 					return true;
 				} else {
 					LOG.error("LocalFileInputRecordQueue-" + System.identityHashCode(this) + ": Duplicate subscription request received for "
@@ -354,6 +428,8 @@ public class LocalFileInputRecordQueue implements RecordQueue {
 				pos.inputStream.close();
 			} catch (Exception e){}
 			consumerPeekRecord.remove(consumer);
+			consumerFinished.remove(consumer);
+			consumerLastReturnedRecordTimestamp.remove(consumer);
 			return true;
 		}
 	}

@@ -48,19 +48,6 @@ public class Schedule {
 	}
 	
 	public synchronized void advanceSchedule() throws Exception{
-		
-		if
-		( ( lastStartTime != -1 || 
-			lastEndTime != -1
-		  ) 
-		  &&
-		  ( lastStartTime < lastScheduledStartTime || 
-			lastEndTime < lastStartTime
-		  )
-		)
-			throw new Exception("Invalid timestamps.  lastScheduledStartTime:" + lastScheduledStartTime + 
-								" lastStartTime:" + lastStartTime + " lastEndTime:" + lastEndTime);
-		
 		long duration = lastEndTime - lastStartTime;
 		long idealNextScheduledStartTime = lastScheduledStartTime + periodicity;
 		long waitTimeForIdealStartTime = idealNextScheduledStartTime - System.currentTimeMillis();

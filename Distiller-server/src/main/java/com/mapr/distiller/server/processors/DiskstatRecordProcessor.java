@@ -12,6 +12,25 @@ public class DiskstatRecordProcessor implements RecordProcessor<Record> {
 	private static final Logger LOG = LoggerFactory
 			.getLogger(DiskstatRecordProcessor.class);
 	
+	@Override
+	public Record[] mergeChronologicallyConsecutive(Record oldRecord, Record newRecord) throws Exception{
+		Record[] ret = new Record[2];
+		if(oldRecord.getTimestamp() == newRecord.getPreviousTimestamp()){
+			ret[0] = new DiskstatRecord((DiskstatRecord)oldRecord, (DiskstatRecord)newRecord);
+			ret[1] = null;
+		} else {
+			ret[0] = newRecord;
+			ret[1] = oldRecord;
+		}
+		return ret;
+	}
+	
+	
+	@Override
+	public Record convert(Record record) throws Exception{
+		throw new Exception("Not implemented");
+	}
+	
 	public String getName(){
 		return "DiskstatRecordProcessor";
 	}

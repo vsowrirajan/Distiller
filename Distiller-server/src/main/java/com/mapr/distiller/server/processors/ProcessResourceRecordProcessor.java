@@ -14,7 +14,25 @@ public class ProcessResourceRecordProcessor implements RecordProcessor<Record> {
 	
 	private static final Logger LOG = LoggerFactory
 			.getLogger(ProcessResourceRecordProcessor.class);
+	
+	@Override
+	public Record[] mergeChronologicallyConsecutive(Record oldRecord, Record newRecord) throws Exception{
+		Record[] ret = new Record[2];
+		if(oldRecord.getTimestamp() == newRecord.getPreviousTimestamp()){
+			ret[0] = new ProcessResourceRecord((ProcessResourceRecord)oldRecord, (ProcessResourceRecord)newRecord);
+			ret[1] = null;
+		} else {
+			ret[0] = newRecord;
+			ret[1] = oldRecord;
+		}
+		return ret;
+	}
 
+	@Override
+	public Record convert(Record record) throws Exception{
+		throw new Exception("Not implemented");
+	}
+	
 	@Override
 	public DifferentialValueRecord diff(Record rec1, Record rec2, String metric) throws Exception {
 		if( rec1.getPreviousTimestamp()==-1l ||
@@ -338,6 +356,9 @@ public class ProcessResourceRecordProcessor implements RecordProcessor<Record> {
 
 		case "pid":
 			return currentRecord.get_pid() == Integer.parseInt(thresholdValue);
+
+		case "upid":
+			return currentRecord.get_upid().equals(thresholdValue);
 
 		case "ppid":
 			return currentRecord.get_ppid() == Integer.parseInt(thresholdValue);

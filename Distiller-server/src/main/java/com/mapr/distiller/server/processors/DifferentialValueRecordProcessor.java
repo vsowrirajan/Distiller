@@ -14,6 +14,16 @@ public class DifferentialValueRecordProcessor implements RecordProcessor<Record>
 			.getLogger(DifferentialValueRecordProcessor.class);
 	
 	@Override
+	public Record[] mergeChronologicallyConsecutive(Record oldRecord, Record newRecord) throws Exception{
+		throw new Exception("not implemented");
+	}
+
+	@Override
+	public DifferentialValueRecord convert(Record record) throws Exception{
+		throw new Exception("Not implemented");
+	}
+	
+	@Override
 	public String getName(){
 		return "DifferentialValueRecordProcessor";
 	}
