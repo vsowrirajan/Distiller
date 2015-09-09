@@ -2,6 +2,7 @@ package com.mapr.distiller.server.recordtypes;
 
 import java.io.RandomAccessFile;
 import java.math.BigInteger;
+import java.text.DecimalFormat;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -125,6 +126,16 @@ public class SystemMemoryRecord extends Record {
 		
 		//Check if these are raw SystemMemoryRecords
 		if(rec1.getFreeMemPct()==-1d && rec2.getFreeMemPct()==-1d){
+			//Check if any counters have rolled over, if so, skip this record.
+			if (newRecord.get_pgmajfault().compareTo(oldRecord.get_pgmajfault()) == -1 ||
+				newRecord.get_pswpin().compareTo(oldRecord.get_pswpin()) == -1 ||
+				newRecord.get_pswpout().compareTo(oldRecord.get_pswpout()) == -1 ||
+				newRecord.get_allocstall().compareTo(oldRecord.get_allocstall()) == -1 )
+			{
+				throw new Exception("Can not generate differential record from raw input records where counters have rolled over between samples. " + 
+						" old: " + oldRecord.toString() + " new: " + newRecord.toString());
+			}
+			
 			//Copied values
 			setTimestamp(newRecord.getTimestamp());				//Set the end timestamp for this record to the timestamp of the newer record
 			setPreviousTimestamp(oldRecord.getTimestamp());		//Set the start timestamp for this record to the timestamp of the older record.
@@ -337,8 +348,9 @@ public class SystemMemoryRecord extends Record {
  		return allocstall;
  	}
  	public String toString(){
+ 		DecimalFormat doubleDisplayFormat = new DecimalFormat("#0.00");
  		if(getPreviousTimestamp()==-1)
- 			return super.toString() + " Free:" + MemFree +
+ 			return super.toString() + " " + Constants.SYSTEM_MEMORY_RECORD + " Free:" + MemFree +
 				" Mem:" + MemTotal +
 				" SwapUsed:" + SwapTotal.subtract(SwapFree) + 
 				" nr_dirty:" + nr_dirty + 
@@ -346,7 +358,7 @@ public class SystemMemoryRecord extends Record {
 				" pswpout:" + pswpout + 
 				" allocstall:" + allocstall;
  		else
- 			return super.toString() + " Free:" + MemFree + "/" + freeMemPct + "%" + 
+ 			return super.toString() + " " + Constants.SYSTEM_MEMORY_RECORD + " Free:" + MemFree + " " + doubleDisplayFormat.format(freeMemPct) + "%" + 
  				" Mem:" + MemTotal +
  				" SwapUsed:" + SwapTotal.subtract(SwapFree) + 
  				" nr_dirty:" + nr_dirty + 

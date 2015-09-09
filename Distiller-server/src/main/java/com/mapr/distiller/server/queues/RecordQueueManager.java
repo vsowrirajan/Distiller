@@ -74,12 +74,21 @@ public class RecordQueueManager {
 			LOG.warn("RecordQueueManager-" + System.identityHashCode(this) + ": Request to delete non-existant queue " + queueName);
 			return true;
 		}
-		LOG.error("RecordQueueManager-" + System.identityHashCode(this) + ": Failed to delete queue " + queueName);
+		LOG.info("RecordQueueManager-" + System.identityHashCode(this) + ": Skipping delete for queue that still has subscribers: " + queueName + " consumers: " + 
+				getQueue(queueName).listConsumers().length + " producers: " + getQueue(queueName).listProducers().length );
 		return false;
 	}
 	
 	public RecordQueue getQueue(String name) {
 		return nameToRecordQueueMap.get(name);
+	}
+	
+	public int getQueueSize(String queueName){
+		return nameToRecordQueueMap.get(queueName).queueSize();
+	}
+	
+	public int getQueueSize(String queueName, String subscriberName){
+		return nameToRecordQueueMap.get(queueName).queueSize(subscriberName);
 	}
 	
 	public RecordQueue[] getQueues() {
@@ -181,7 +190,8 @@ public class RecordQueueManager {
 		LOG.info("RecordQueueManager-" + System.identityHashCode(this) + ": Request to unregister consumer " + consumerName + " from queue " + queueName);
 		if(queueExists(queueName) && checkForQueueConsumer(queueName, consumerName))
 			return getQueue(queueName).unregisterConsumer(consumerName);
-		LOG.error("RecordQueueManager-" + System.identityHashCode(this) + ": Failed to unregister consumer " + consumerName + " from queue " + queueName);
+		LOG.error("RecordQueueManager-" + System.identityHashCode(this) + ": Failed to unregister consumer " + consumerName + " from queue " + queueName + 
+					" queueExists: " + queueExists(queueName) + " isConsumer: " + checkForQueueConsumer(queueName, consumerName));
 		return false;
 	}
 }

@@ -1,19 +1,38 @@
 package com.mapr.distiller.server.processors;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+//import org.slf4j.Logger;
+//import org.slf4j.LoggerFactory;
 
 import com.mapr.distiller.server.recordtypes.Record;
 import com.mapr.distiller.server.recordtypes.DifferentialValueRecord;
 import com.mapr.distiller.server.recordtypes.SystemCpuRecord;
+import com.mapr.distiller.server.utils.Constants;
 
 public class SystemCpuRecordProcessor implements RecordProcessor<Record> {
 	
-	private static final Logger LOG = LoggerFactory
-			.getLogger(SystemCpuRecordProcessor.class);
+	//private static final Logger LOG = LoggerFactory
+	//		.getLogger(SystemCpuRecordProcessor.class);
 
+	@Override
+	public Record[] mergeChronologicallyConsecutive(Record oldRecord, Record newRecord) throws Exception{
+		Record[] ret = new Record[2];
+		if(oldRecord.getTimestamp() == newRecord.getPreviousTimestamp()){
+			ret[0] = new SystemCpuRecord((SystemCpuRecord)oldRecord, (SystemCpuRecord)newRecord);
+			ret[1] = null;
+		} else {
+			ret[0] = newRecord;
+			ret[1] = oldRecord;
+		}
+		return ret;
+	}
+
+	@Override
+	public Record convert(Record record) throws Exception{
+		throw new Exception("Not implemented");
+	}
+	
 	public String getName(){
-		return "SystemCpuRecordProcessor";
+		return Constants.SYSTEM_CPU_RECORD_PROCESSOR;
 	}
 	
 	public boolean isNotEqual(Record record, String metric,
@@ -44,6 +63,38 @@ public class SystemCpuRecordProcessor implements RecordProcessor<Record> {
 				return currentRecord.getIowaitCpuUtilPct() == Double
 						.parseDouble(thresholdValue);
 
+		case "%idleEx2":
+			if (currentRecord.getIdleCpuUtilPctExcluding2() == -1d)
+				throw new Exception(
+						"Can not compare raw SystemCpuRecord to value");
+			else
+				return currentRecord.getIdleCpuUtilPctExcluding2() == Double
+						.parseDouble(thresholdValue);
+
+		case "%iowaitEx2":
+			if (currentRecord.getIowaitCpuUtilPctExcluding2() == -1d)
+				throw new Exception(
+						"Can not compare raw SystemCpuRecord to value");
+			else
+				return currentRecord.getIowaitCpuUtilPctExcluding2() == Double
+						.parseDouble(thresholdValue);
+
+		case "%idleEx4":
+			if (currentRecord.getIdleCpuUtilPctExcluding4() == -1d)
+				throw new Exception(
+						"Can not compare raw SystemCpuRecord to value");
+			else
+				return currentRecord.getIdleCpuUtilPctExcluding4() == Double
+						.parseDouble(thresholdValue);
+
+		case "%iowaitEx4":
+			if (currentRecord.getIowaitCpuUtilPctExcluding4() == -1d)
+				throw new Exception(
+						"Can not compare raw SystemCpuRecord to value");
+			else
+				return currentRecord.getIowaitCpuUtilPctExcluding4() == Double
+						.parseDouble(thresholdValue);
+
 		default:
 			throw new Exception("Metric " + metric
 					+ " is not Thresholdable in SystemCpuRecord");
@@ -72,6 +123,38 @@ public class SystemCpuRecordProcessor implements RecordProcessor<Record> {
 			else
 				return currentRecord.getIowaitCpuUtilPct() > Double
 						.parseDouble(thresholdValue);
+				
+		case "%idleEx2":
+			if (currentRecord.getIdleCpuUtilPctExcluding2() == -1d)
+				throw new Exception(
+						"Can not compare raw SystemCpuRecord to value");
+			else
+				return currentRecord.getIdleCpuUtilPctExcluding2() > Double
+						.parseDouble(thresholdValue);
+
+		case "%iowaitEx2":
+			if (currentRecord.getIowaitCpuUtilPctExcluding2() == -1d)
+				throw new Exception(
+						"Can not compare raw SystemCpuRecord to value");
+			else
+				return currentRecord.getIowaitCpuUtilPctExcluding2() > Double
+						.parseDouble(thresholdValue);
+
+		case "%idleEx4":
+			if (currentRecord.getIdleCpuUtilPctExcluding4() == -1d)
+				throw new Exception(
+						"Can not compare raw SystemCpuRecord to value");
+			else
+				return currentRecord.getIdleCpuUtilPctExcluding4() > Double
+						.parseDouble(thresholdValue);
+
+		case "%iowaitEx4":
+			if (currentRecord.getIowaitCpuUtilPctExcluding4() == -1d)
+				throw new Exception(
+						"Can not compare raw SystemCpuRecord to value");
+			else
+				return currentRecord.getIowaitCpuUtilPctExcluding4() > Double
+						.parseDouble(thresholdValue);
 
 		default:
 			throw new Exception("Metric " + metric
@@ -99,6 +182,37 @@ public class SystemCpuRecordProcessor implements RecordProcessor<Record> {
 						"Can not compare raw SystemCpuRecord to threshold");
 			else
 				return currentRecord.getIowaitCpuUtilPct() < Double
+						.parseDouble(thresholdValue);
+		case "%idleEx2":
+			if (currentRecord.getIdleCpuUtilPctExcluding2() == -1d)
+				throw new Exception(
+						"Can not compare raw SystemCpuRecord to value");
+			else
+				return currentRecord.getIdleCpuUtilPctExcluding2() < Double
+						.parseDouble(thresholdValue);
+
+		case "%iowaitEx2":
+			if (currentRecord.getIowaitCpuUtilPctExcluding2() == -1d)
+				throw new Exception(
+						"Can not compare raw SystemCpuRecord to value");
+			else
+				return currentRecord.getIowaitCpuUtilPctExcluding2() < Double
+						.parseDouble(thresholdValue);
+
+		case "%idleEx4":
+			if (currentRecord.getIdleCpuUtilPctExcluding4() == -1d)
+				throw new Exception(
+						"Can not compare raw SystemCpuRecord to value");
+			else
+				return currentRecord.getIdleCpuUtilPctExcluding4() < Double
+						.parseDouble(thresholdValue);
+
+		case "%iowaitEx4":
+			if (currentRecord.getIowaitCpuUtilPctExcluding4() == -1d)
+				throw new Exception(
+						"Can not compare raw SystemCpuRecord to value");
+			else
+				return currentRecord.getIowaitCpuUtilPctExcluding4() < Double
 						.parseDouble(thresholdValue);
 
 		default:
@@ -138,7 +252,7 @@ public class SystemCpuRecordProcessor implements RecordProcessor<Record> {
 												oldRecord.getTimestamp(),
 												newRecord.getPreviousTimestamp(),
 												newRecord.getTimestamp(),
-												getName(),
+												Constants.SYSTEM_CPU_RECORD,
 												metric,
 												"double",
 												newRecord.getIdleCpuUtilPct() - oldRecord.getIdleCpuUtilPct() );
@@ -148,7 +262,7 @@ public class SystemCpuRecordProcessor implements RecordProcessor<Record> {
 												oldRecord.getTimestamp(),
 												newRecord.getPreviousTimestamp(),
 												newRecord.getTimestamp(),
-												getName(),
+												Constants.SYSTEM_CPU_RECORD,
 												metric,
 												"double",
 												newRecord.getIowaitCpuUtilPct() - oldRecord.getIowaitCpuUtilPct() );

@@ -17,6 +17,24 @@ public class SlimProcessResourceRecordProcessor implements RecordProcessor<Recor
 			.getLogger(SlimProcessResourceRecordProcessor.class);
 
 	@Override
+	public Record[] mergeChronologicallyConsecutive(Record oldRecord, Record newRecord) throws Exception{
+		Record[] ret = new Record[2];
+		if(oldRecord.getTimestamp() == newRecord.getPreviousTimestamp()){
+			ret[0] = new SlimProcessResourceRecord((SlimProcessResourceRecord)oldRecord, (SlimProcessResourceRecord)newRecord);
+			ret[1] = null;
+		} else {
+			ret[0] = newRecord;
+			ret[1] = oldRecord;
+		}
+		return ret;
+	}
+
+	@Override
+	public Record convert(Record record) throws Exception{
+		throw new Exception("Not implemented");
+	}
+	
+	@Override
 	public DifferentialValueRecord diff(Record rec1, Record rec2, String metric) throws Exception {
 		if( rec1.getPreviousTimestamp()==-1l ||
 			rec2.getPreviousTimestamp()==-1l )
@@ -188,6 +206,9 @@ public class SlimProcessResourceRecordProcessor implements RecordProcessor<Recor
 		case "pid":
 			return currentRecord.getPid() == Integer.parseInt(thresholdValue);
 			
+		case "upid":
+			return currentRecord.get_upid().equals(thresholdValue);
+
 		case "ppid":
 			return currentRecord.getPpid() == Integer.parseInt(thresholdValue);
 			

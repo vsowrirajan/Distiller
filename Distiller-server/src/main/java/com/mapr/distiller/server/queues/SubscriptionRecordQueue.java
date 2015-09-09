@@ -1,5 +1,6 @@
 package com.mapr.distiller.server.queues;
 
+import java.util.LinkedList;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.ListIterator;
@@ -30,8 +31,11 @@ public class SubscriptionRecordQueue implements RecordQueue {
 	public SubscriptionRecordQueue(String id, int queueRecordCapacity, int queueTimeCapacity) {
 		this.consumers = new ConcurrentHashMap<String, Integer>(10, 0.75f, 4);
 		this.producers = new ConcurrentHashMap<String, Integer>(10, 0.75f, 4);
-		this.subscriptionRecordQueue = Collections
-				.synchronizedList(new ArrayList<Record>(queueRecordCapacity));
+		if(queueRecordCapacity<=0){
+			this.subscriptionRecordQueue = Collections.synchronizedList(new LinkedList<Record>());
+		} else {
+			this.subscriptionRecordQueue = Collections.synchronizedList(new ArrayList<Record>(queueRecordCapacity));
+		}
 		this.queueRecordCapacity = queueRecordCapacity;
 		this.queueTimeCapacity = queueTimeCapacity;
 		this.id = id;
@@ -49,7 +53,7 @@ public class SubscriptionRecordQueue implements RecordQueue {
 		synchronized(lock){
 			if(subscriptionRecordQueue.size()>0)
 				return subscriptionRecordQueue.get(0).getTimestamp();
-			return System.currentTimeMillis();
+			return -1;
 		}
 	}
 	
@@ -130,9 +134,19 @@ public class SubscriptionRecordQueue implements RecordQueue {
 	}
 
 	public int queueSize() {
-		return subscriptionRecordQueue.size();
+			return subscriptionRecordQueue.size();
 	}
 
+	public int queueSize(String subscriber){
+		synchronized(lock){
+			if(!consumers.containsKey(subscriber))
+				return -1;
+			int consumerPos = consumers.get(subscriber).intValue();
+			return subscriptionRecordQueue.size() - consumerPos;
+		}
+		
+	}
+	
 	public String[] listProducers() {
 		synchronized (lock) {
 			String[] ret = new String[producers.size()];
@@ -286,14 +300,29 @@ public class SubscriptionRecordQueue implements RecordQueue {
 	}
 
 	public boolean put(String producerName, Record record) {
+		if(producerName.equals("ddDiffProcessEfficiencyRecords-1sW")){
+			LOG.info("Put to " + id + " from " + producerName + " " + record.toString());
+		}
 		if(!producers.containsKey(producerName))
 			return false;
 		synchronized (lock) {
-			if(subscriptionRecordQueue.contains(record))
+			//This check is expensive...
+			//At the time this was added, I was trying to figure out how to check multiple values/conditions in an input record.
+			//I figured I could use multiple MetricActions connected to the same input and output queues, with each MetricAction
+			//checking a different value/condition in the input record.  When a single input record meets multiple of those
+			//conditions checked by the MetricActions, each match will result in the record being put to the output queue.
+			//It would be better/more efficient to have a single MetricAction do multiple conditional checks on the input record.
+			//But... thats not implemented yet.
+			//TODO: implement this.
+			if (queueRecordCapacity>0 &&
+				subscriptionRecordQueue.contains(record))
 				return true;
 			expireRecords();
+			//If the queue should not be bounded by number of records
+			if (queueRecordCapacity<=0){
+				subscriptionRecordQueue.add(record);
 			//If the queue is at capacity and requires dropping an old record before adding a new one...
-			if (subscriptionRecordQueue.size() == queueRecordCapacity) {
+			} else if (subscriptionRecordQueue.size() == queueRecordCapacity) {
 				int positionToRemove = (queueRecordCapacity / 2);
 				//If needed, put a log message here that triggers only once every so often for queues that have reached their max size and require records to be dropped.
 				//Also, keep a counter of dropped records per producer.
@@ -399,12 +428,21 @@ public class SubscriptionRecordQueue implements RecordQueue {
 				int positionToRead = consumers.get(subscriberName).intValue();
 				// Check if we can read a value based on queue size and
 				// subscriber position.
-				if (positionToRead == queueRecordCapacity
-						|| positionToRead == subscriptionRecordQueue.size()) {
+				if ( ( queueRecordCapacity<=0 &&
+					   positionToRead == subscriptionRecordQueue.size()
+					 )
+					 ||
+					 ( queueRecordCapacity >0 &&
+					   ( positionToRead == queueRecordCapacity ||
+						 positionToRead == subscriptionRecordQueue.size()
+					   )
+					 )
+				   )
+			    {
 					needToWaitForRecord = true;
+				} else {
 					// If we have a value we can read, then read it and adjust
 					// the positions.
-				} else {
 					record = subscriptionRecordQueue.get(positionToRead);
 					positionToRead++;
 					consumers
@@ -466,11 +504,18 @@ public class SubscriptionRecordQueue implements RecordQueue {
 			expireRecords();
 			int positionToRead = consumers.get(subscriberName).intValue();
 			// Check if we can read a value based on queue size and subscriber position.
-			if (positionToRead == queueRecordCapacity
-					|| positionToRead == subscriptionRecordQueue.size()) {
+			if ( ( queueRecordCapacity<=0 &&
+				   positionToRead == subscriptionRecordQueue.size()
+				 )
+				 ||
+				 ( queueRecordCapacity >0 &&
+				   ( positionToRead == queueRecordCapacity ||
+					 positionToRead == subscriptionRecordQueue.size()
+				   )
+				 )
+			   )
+			{
 				return null;
-				// If we have a value we can read, then read it and adjust
-				// the positions.
 			} else {
 				record = subscriptionRecordQueue.get(positionToRead);
 				positionToRead++;
@@ -516,11 +561,18 @@ public class SubscriptionRecordQueue implements RecordQueue {
 				int positionToRead = consumers.get(subscriberName).intValue();
 				// Check if we can read a value based on queue size and
 				// subscriber position.
-				if (positionToRead == queueRecordCapacity
-						|| positionToRead == subscriptionRecordQueue.size()) {
+				if ( ( queueRecordCapacity<=0 &&
+					   positionToRead == subscriptionRecordQueue.size()
+					 )
+					 ||
+					 ( queueRecordCapacity >0 &&
+					   ( positionToRead == queueRecordCapacity ||
+						 positionToRead == subscriptionRecordQueue.size()
+					   )
+					 )
+				   )
+				{
 					needToWaitForRecord = true;
-					// If we have a value we can read, then read it and adjust
-					// the positions.
 				} else {
 					return subscriptionRecordQueue.get(positionToRead);
 				}
@@ -549,11 +601,18 @@ public class SubscriptionRecordQueue implements RecordQueue {
 			expireRecords();
 			int positionToRead = consumers.get(subscriberName).intValue();
 			// Check if we can read a value based on queue size and subscriber position.
-			if (positionToRead == queueRecordCapacity
-					|| positionToRead == subscriptionRecordQueue.size()) {
+			if ( ( queueRecordCapacity<=0 &&
+				   positionToRead == subscriptionRecordQueue.size()
+				 )
+				 ||
+				 ( queueRecordCapacity >0 &&
+				   ( positionToRead == queueRecordCapacity ||
+					 positionToRead == subscriptionRecordQueue.size()
+				   )
+				 )
+			   )
+			{
 				return null;
-				// If we have a value we can read, then read it and adjust
-				// the positions.
 			} else {
 				return subscriptionRecordQueue.get(positionToRead);
 			}

@@ -21,6 +21,9 @@ public interface RecordQueue {
 	//Return the number of elements in the queue.
 	public int queueSize();
 
+	//Return the number of elements in the queue available for the specific subscriber to get
+	public int queueSize(String subscriber);
+	
 	//Add a Record onto the end of the queue
 	public boolean put(String producer, Record record);
 

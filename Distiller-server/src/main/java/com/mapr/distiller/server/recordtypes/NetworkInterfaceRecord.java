@@ -1,5 +1,6 @@
 package com.mapr.distiller.server.recordtypes;
 
+import java.text.DecimalFormat;
 import java.io.RandomAccessFile;
 import java.math.BigInteger;
 
@@ -13,6 +14,7 @@ public class NetworkInterfaceRecord extends Record {
 	private static final Logger LOG = LoggerFactory
 			.getLogger(NetworkInterfaceRecord.class);
 	private static final long serialVersionUID = Constants.SVUID_NETWORK_INTERFACE_RECORD;
+	
 	/**
 	 * DERIVED VALUES
 	 */
@@ -40,18 +42,14 @@ public class NetworkInterfaceRecord extends Record {
 		NetworkInterfaceRecord oldRecord, newRecord;
 		
 		//Check the input records to ensure they can be diff'd.
-		if(rec1.getRxPacketsPerSecond()!=-1d || rec2.getRxPacketsPerSecond()!=-1d || rec1.getPreviousTimestamp()!=-1l || rec2.getPreviousTimestamp()!=-1l)
-			throw new Exception("Differential DiskstatRecord can only be generated from raw DiskstatRecords");
 		if(rec1.getTimestamp() == rec2.getTimestamp())
-			throw new Exception("Can not generate differential DiskstatRecord from input records with matching timestamp values");
-		//if(rec1.getCarrier()!=1 || rec2.getCarrier()!=1)
-		//	throw new Exception("Can not generate differential DiskstatRecord from input records where carrier was not detected");
+			throw new Exception("Can not generate differential record from input records with matching timestamp values");
 		if(rec1.getSpeed() != rec2.getSpeed() || rec1.getSpeed()<1)
-			throw new Exception("Can not generate differential DiskstatRecord from input records where speed does not match");
+			throw new Exception("Can not generate differential record from input records where speed does not match");
 		if(rec1.getFullDuplex() != rec2.getFullDuplex())
-			throw new Exception("Can not generate differential DiskstatRecord from input records where duplex does not match");
+			throw new Exception("Can not generate differential record from input records where duplex does not match");
 		if(!rec1.getName().equals(rec2.getName()))
-			throw new Exception("Can not generate differential DiskstatRecord from input records where interface name does not match");
+			throw new Exception("Can not generate differential record from input records where interface name does not match");
 		
 		//Organize the input records.
 		if(rec1.getTimestamp() < rec2.getTimestamp()){
@@ -62,26 +60,53 @@ public class NetworkInterfaceRecord extends Record {
 			newRecord = rec1;
 		}
 		
-		//Copied values:
-		this.setTimestamp(newRecord.getTimestamp());
-		this.setPreviousTimestamp(oldRecord.getTimestamp());
+		if(oldRecord.getPreviousTimestamp() != -1 && newRecord.getPreviousTimestamp() != -1 && oldRecord.getTimestamp() != newRecord.getPreviousTimestamp())
+			throw new Exception("Can not generate differential SystemCpuRecords from non-chronologically consecutive differential input records");
+
 		this.name = newRecord.getName();
 		this.duplex = newRecord.getDuplex();
 		this.fullDuplex = newRecord.getFullDuplex();
 		this.carrier = newRecord.getCarrier();
 		this.speed = newRecord.getSpeed();
 		this.tx_queue_len = newRecord.get_tx_queue_len();
+		this.setTimestamp(newRecord.getTimestamp());
+		if(oldRecord.getTimestamp() == newRecord.getPreviousTimestamp()){
+			this.setPreviousTimestamp(oldRecord.getPreviousTimestamp());
+			this.collisions = newRecord.get_collisions().add(oldRecord.get_collisions());
+			this.rx_bytes = newRecord.get_rx_bytes().add(oldRecord.get_rx_bytes());
+			this.rx_errors = newRecord.get_rx_errors().add(oldRecord.get_rx_errors());
+			this.rx_dropped = newRecord.get_rx_dropped().add(oldRecord.get_rx_dropped());
+			this.rx_packets = newRecord.get_rx_packets().add(oldRecord.get_rx_packets());
+			this.tx_bytes = newRecord.get_tx_bytes().add(oldRecord.get_tx_bytes());
+			this.tx_errors = newRecord.get_tx_errors().add(oldRecord.get_tx_errors());
+			this.tx_dropped = newRecord.get_tx_dropped().add(oldRecord.get_tx_dropped());
+			this.tx_packets = newRecord.get_tx_packets().add(oldRecord.get_tx_packets());
+		} else {
+			if (newRecord.get_collisions().compareTo(oldRecord.get_collisions()) == -1 || 
+				newRecord.get_rx_bytes().compareTo(oldRecord.get_rx_bytes()) == -1 || 
+				newRecord.get_rx_errors().compareTo(oldRecord.get_rx_errors()) == -1 || 
+				newRecord.get_rx_dropped().compareTo(oldRecord.get_rx_dropped()) == -1 || 
+				newRecord.get_rx_packets().compareTo(oldRecord.get_rx_packets()) == -1 || 
+				newRecord.get_tx_bytes().compareTo(oldRecord.get_tx_bytes()) == -1 || 
+				newRecord.get_tx_errors().compareTo(oldRecord.get_tx_errors()) == -1 || 
+				newRecord.get_tx_dropped().compareTo(oldRecord.get_tx_dropped()) == -1 || 
+				newRecord.get_tx_packets().compareTo(oldRecord.get_tx_packets()) == -1 ) {
+				throw new Exception("Can not generate differential record from raw input records where counters have rolled over between samples. " + 
+						" old: " + oldRecord.toString() + " new: " + newRecord.toString());
+			}
+					
+			this.setPreviousTimestamp(oldRecord.getTimestamp());
+			this.collisions = newRecord.get_collisions().subtract(oldRecord.get_collisions());
+			this.rx_bytes = newRecord.get_rx_bytes().subtract(oldRecord.get_rx_bytes());
+			this.rx_errors = newRecord.get_rx_errors().subtract(oldRecord.get_rx_errors());
+			this.rx_dropped = newRecord.get_rx_dropped().subtract(oldRecord.get_rx_dropped());
+			this.rx_packets = newRecord.get_rx_packets().subtract(oldRecord.get_rx_packets());
+			this.tx_bytes = newRecord.get_tx_bytes().subtract(oldRecord.get_tx_bytes());
+			this.tx_errors = newRecord.get_tx_errors().subtract(oldRecord.get_tx_errors());
+			this.tx_dropped = newRecord.get_tx_dropped().subtract(oldRecord.get_tx_dropped());
+			this.tx_packets = newRecord.get_tx_packets().subtract(oldRecord.get_tx_packets());
+		}
 		
-		//Differential values:
-		this.collisions = newRecord.get_collisions().subtract(oldRecord.get_collisions());
-		this.rx_bytes = newRecord.get_rx_bytes().subtract(oldRecord.get_rx_bytes());
-		this.rx_errors = newRecord.get_rx_errors().subtract(oldRecord.get_rx_errors());
-		this.rx_dropped = newRecord.get_rx_dropped().subtract(oldRecord.get_rx_dropped());
-		this.rx_packets = newRecord.get_rx_packets().subtract(oldRecord.get_rx_packets());
-		this.tx_bytes = newRecord.get_tx_bytes().subtract(oldRecord.get_tx_bytes());
-		this.tx_errors = newRecord.get_tx_errors().subtract(oldRecord.get_tx_errors());
-		this.tx_dropped = newRecord.get_tx_dropped().subtract(oldRecord.get_tx_dropped());
-		this.tx_packets = newRecord.get_tx_packets().subtract(oldRecord.get_tx_packets());
 		
 		//Derived values:
 		this.rxPacketsPerSecond = 1000d * this.rx_packets.doubleValue() / this.getDurationms();
@@ -199,10 +224,22 @@ public class NetworkInterfaceRecord extends Record {
 		}
 	}
 	public String toString() {
-		return super.toString() + " network.interface name:" + name + " dup:" + fullDuplex + 
-				" car:" + carrier + " sp:" + speed + " ql:" + tx_queue_len + " co:" + collisions + 
-				" rx b:" + rx_bytes + " d:" + rx_dropped + " e:" + rx_errors + " p:" + rx_packets + 
-				" tx b:" + tx_bytes + " d:" + tx_dropped + " e:" + tx_errors + " p:" + tx_packets;
+		DecimalFormat doubleDisplayFormat = new DecimalFormat("#0.00");
+		if(rxPacketsPerSecond == -1){
+			return super.toString() + " network.interface name:" + name + " dup:" + fullDuplex + 
+					" car:" + carrier + " sp:" + speed + " ql:" + tx_queue_len + " co:" + collisions + 
+					" rx b:" + rx_bytes + " d:" + rx_dropped + " e:" + rx_errors + " p:" + rx_packets + 
+					" tx b:" + tx_bytes + " d:" + tx_dropped + " e:" + tx_errors + " p:" + tx_packets;
+		} else {
+			return super.toString() + " network.interface name:" + name + " dup:" + fullDuplex + 
+					" car:" + carrier + " sp:" + speed + " ql:" + tx_queue_len + " co:" + collisions + 
+					" rx pps:" + doubleDisplayFormat.format(rxPacketsPerSecond) + 
+					" bps:" + doubleDisplayFormat.format(rxBytesPerSecond) + 
+					" u%:" + doubleDisplayFormat.format(rxUtilizationPct) + 
+					" tx pps:" + doubleDisplayFormat.format(txPacketsPerSecond) + 
+					" bps:" + doubleDisplayFormat.format(txBytesPerSecond) + 
+					" u%:" + doubleDisplayFormat.format(txUtilizationPct) ;
+		}
 	}
 	public double getRxPacketsPerSecond(){
 		return rxPacketsPerSecond;

@@ -4,6 +4,7 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Paths;
+import java.text.DecimalFormat;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,7 +20,7 @@ public class ProcessResourceRecord extends Record {
 	 * DERIVED VALUES
 	 */
 	private double cpuUtilPct, iowaitUtilPct, readIoCallRate, writeIoCallRate, readIoCharRate, writeIoCharRate, readIoByteRate, writeIoByteRate, cancelledWriteIoByteRate;
-	
+	private int averageIoWriteSize, averageIoReadSize, averageIoSize;
 	/**
 	 * RAW VALUES
 	 */
@@ -135,20 +136,25 @@ public class ProcessResourceRecord extends Record {
 				(((double)(this.clockTick * this.getDurationms())) / 1000d);			//The number of jiffies that went by over the duration
 		this.iowaitUtilPct = this.delayacct_blkio_ticks.doubleValue() / 				//The number of jiffies the process waited for IO over the duration
 				(((double)(this.clockTick * this.getDurationms())) / 1000d);			//The number of jiffies that went by over the duration
-		this.readIoCallRate = this.syscr.doubleValue() / 
-				(((double)(this.clockTick * this.getDurationms())) / 1000d);
-		this.writeIoCallRate = this.syscw.doubleValue() / 
-				(((double)(this.clockTick * this.getDurationms())) / 1000d);
-		this.readIoCharRate = this.rchar.doubleValue() / 
-				(((double)(this.clockTick * this.getDurationms())) / 1000d);
-		this.writeIoCharRate = this.wchar.doubleValue() / 
-				(((double)(this.clockTick * this.getDurationms())) / 1000d);
-		this.readIoByteRate = this.read_bytes.doubleValue() / 
-				(((double)(this.clockTick * this.getDurationms())) / 1000d);
-		this.writeIoByteRate = this.write_bytes.doubleValue() / 
-				(((double)(this.clockTick * this.getDurationms())) / 1000d);
-		this.cancelledWriteIoByteRate = this.cancelled_write_bytes.doubleValue() / 
-				(((double)(this.clockTick * this.getDurationms())) / 1000d);
+		this.readIoCallRate = this.syscr.doubleValue() / ((double)(this.getDurationms())) / 1000d;
+		this.writeIoCallRate = this.syscw.doubleValue() / ((double)(this.getDurationms())) / 1000d;
+		this.readIoCharRate = this.rchar.doubleValue() / ((double)(this.getDurationms())) / 1000d;
+		this.writeIoCharRate = this.wchar.doubleValue() / ((double)(this.getDurationms())) / 1000d;
+		this.readIoByteRate = this.read_bytes.doubleValue() / ((double)(this.getDurationms())) / 1000d;
+		this.writeIoByteRate = this.write_bytes.doubleValue() / ((double)(this.getDurationms())) / 1000d;
+		this.cancelledWriteIoByteRate = this.cancelled_write_bytes.doubleValue() / ((double)(this.getDurationms())) / 1000d;
+		
+		this.averageIoReadSize = ((this.syscr.equals(new BigInteger("0"))) ? -1 : this.read_bytes.divide(this.syscr).intValue());
+		this.averageIoWriteSize = ((this.syscw.equals(new BigInteger("0"))) ? -1 : this.write_bytes.divide(this.syscw).intValue());
+		if(this.averageIoReadSize==-1 && this.averageIoWriteSize!=-1){
+			this.averageIoSize = this.averageIoWriteSize;
+		} else if (this.averageIoWriteSize==-1 && this.averageIoReadSize!=-1){
+			this.averageIoSize = this.averageIoReadSize;
+		} else if (this.averageIoReadSize != -1 && this.averageIoWriteSize != -1) {
+			this.averageIoSize = this.read_bytes.add(this.write_bytes).divide(this.syscr.add(this.syscw)).intValue();
+		} else {
+			this.averageIoSize=-1;
+		}
 	}
 	
 	public ProcessResourceRecord(String statpath, String iopath, int clockTick) throws Exception {
@@ -190,7 +196,7 @@ public class ProcessResourceRecord extends Record {
 				this.comm = tempStr.split("\\(", 2)[1].split("\\)", 2)[0];
 				parts = tempStr.split("\\)", 2)[1].trim().split("\\s+");
 				//Expect 44 values in /proc/[pid]/stat based on Linux kernel version used for this dev.
-				//Note that 42 is used in below check because 
+				//Note that 42 is used in below check because the first two fields are already parsed out.
 				if(parts.length<42){ 
 					throw new Exception("Failed to produce a ProcessResourceRecord due to unexpected format of stat file, found " + parts.length + " fields");
 				}
@@ -229,7 +235,7 @@ public class ProcessResourceRecord extends Record {
 					throw new Exception("Failed to produce a ProcessResourceRecord from io file due to read response length, br:" + br + " bs:" + iobs);
 				}
 				parts = line.trim().split("\\s+");
-				if(parts.length<14){ //Expect 14 values in /proc/[pid]/task/[tid]/io based on Linux kernel version used for this dev.
+				if(parts.length<14){ //Expect 14 values in /proc/[pid]/io based on Linux kernel version used for this dev.
 					throw new Exception("Failed to produce a ProcessResourceRecord due to unexpected format of io file, found " + parts.length + " fields");
 				}
 				this.rchar = new BigInteger(parts[1]);
@@ -282,8 +288,24 @@ public class ProcessResourceRecord extends Record {
 	 * OTHER METHODS
 	 */
 	public String toString(){
-		return super.toString() + " process.resources: " + pid + " " + comm + " " + state + " " + ppid + " " + num_threads;
+		DecimalFormat ddf = new DecimalFormat("#0.00");
+		if(getPreviousTimestamp() == -1) {
+			return super.toString() + " " + Constants.PROCESS_RESOURCE_RECORD + " " + pid + " " + comm + " " + state + " " + ppid + " " + starttime;
+		} else {
+			return super.toString() + " " + Constants.PROCESS_RESOURCE_RECORD + " " + pid + "/" + starttime + "/" + comm + "/" + ppid +
+					" numThreads: " + num_threads + 
+					" cpu%: " + ddf.format(cpuUtilPct) + 
+					" iow%: " + ddf.format(iowaitUtilPct) + 
+					" rcRate: " + ddf.format(readIoCallRate) + 
+					" wcRate: " + ddf.format(writeIoCallRate) + 
+					" rMBps: " + ddf.format(readIoByteRate / 1048576) + 
+					" wMBps: " + ddf.format(writeIoByteRate / 1048576) + 
+					" aws: " + averageIoWriteSize + 
+					" ars: " + averageIoReadSize + 
+					" aios:" + averageIoSize;
+		}
 	}
+
 	public String get_comm(){
 		return comm;
 	}
@@ -356,17 +378,26 @@ public class ProcessResourceRecord extends Record {
 	public BigInteger get_wchar(){
 		return wchar;
 	}
+	public BigInteger get_io_char(){
+		return rchar.add(wchar);
+	}
 	public BigInteger get_syscr(){
 		return syscr;
 	}
 	public BigInteger get_syscw(){
 		return syscw;
 	}
+	public BigInteger get_io_calls(){
+		return syscr.add(syscw);
+	}
 	public BigInteger get_read_bytes(){
 		return read_bytes;
 	}
 	public BigInteger get_write_bytes(){
 		return write_bytes;
+	}
+	public BigInteger get_io_bytes(){
+		return read_bytes.add(write_bytes);
 	}
 	public BigInteger get_cancelled_write_bytes(){
 		return cancelled_write_bytes;
@@ -395,15 +426,41 @@ public class ProcessResourceRecord extends Record {
 	public double getWriteIoByteRate(){
 		return writeIoByteRate;
 	}
+	public double getIoCallRate(){
+		return readIoCallRate + writeIoCallRate;
+	}
+	public double getIoCharRate(){
+		return readIoCharRate + writeIoCharRate;
+	}
+	public double getIoByteRate(){
+		return readIoByteRate + writeIoByteRate;
+	}
 	public double getCancelledWriteIoByteRate(){
 		return cancelledWriteIoByteRate;
 	}
-	
+	public BigInteger getCpuTicks(){
+		return utime.add(stime);
+	}
+	public int getAverageIOReadSize(){
+		return averageIoReadSize;
+	}
+	public int getAverageIOWriteSize(){
+		return averageIoWriteSize;
+	}
+	public int getAverageIOSize(){
+		return averageIoSize;
+	}
+	public String get_upid(){
+		return pid + "_" + starttime;
+	}
+
 	@Override
 	public String getValueForQualifier(String qualifier) throws Exception {
 		switch(qualifier){
 		case "pid":
 			return Integer.toString(pid);
+		case "upid":
+			return get_upid();
 		default:
 			throw new Exception("Qualifier " + qualifier + " is not valid for this record type");
 		}

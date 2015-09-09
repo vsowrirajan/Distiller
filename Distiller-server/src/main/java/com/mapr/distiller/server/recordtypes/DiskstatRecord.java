@@ -3,6 +3,7 @@ package com.mapr.distiller.server.recordtypes;
 import java.io.File;
 import java.io.RandomAccessFile;
 import java.math.BigInteger;
+import java.text.DecimalFormat;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -97,13 +98,16 @@ public class DiskstatRecord extends Record {
 		DiskstatRecord oldRecord, newRecord;
 		
 		//Check the input records to ensure they can be diff'd.
-		if(	rec1.getReadOperationRate()!=-1d || rec2.getReadOperationRate()!=-1d || rec1.getPreviousTimestamp()!=-1l || rec2.getPreviousTimestamp()!=-1l)
-			throw new Exception("Differential DiskstatRecord can only be generated from raw DiskstatRecords");
+		if ( (rec1.getPreviousTimestamp() != -1 && rec2.getPreviousTimestamp() == -1) ||
+			 (rec2.getPreviousTimestamp() != -1 && rec1.getPreviousTimestamp() == -1) ) 
+		{
+			throw new Exception("Can not generate differential DiskstatRecord from one raw record and one differential record");
+		}
 		if(rec1.getTimestamp() == rec2.getTimestamp())
 			throw new Exception("Can not generate differential DiskstatRecord from input records with matching timestamp values");
 		if(		rec1.get_major_number() != rec2.get_major_number() || rec1.get_minor_number() != rec2.get_minor_number() || 
 				rec1.get_hw_sector_size() != rec2.get_hw_sector_size() || !rec1.get_device_name().equals(rec2.get_device_name()) )
-			throw new Exception("Can not generate differential DiskstatRecord from DiskstatRecords form different devices");
+			throw new Exception("Can not generate differential DiskstatRecord from DiskstatRecords from different devices");
 		
 		//Organize the input records.
 		if(rec1.getTimestamp() < rec2.getTimestamp()){
@@ -113,28 +117,56 @@ public class DiskstatRecord extends Record {
 			oldRecord = rec2;
 			newRecord = rec1;
 		}
-		
-		//Copied values:
+		if(oldRecord.getPreviousTimestamp() != -1 && newRecord.getPreviousTimestamp() != -1 && oldRecord.getTimestamp() != newRecord.getPreviousTimestamp())
+			throw new Exception("Can not generate differential DiskstatRecord from non-chronologically consecutive differential input records");
+
 		this.setTimestamp(newRecord.getTimestamp());
-		this.setPreviousTimestamp(oldRecord.getTimestamp());
-		this.major_number = rec1.get_major_number();
-		this.minor_number = rec1.get_minor_number();
-		this.hw_sector_size = rec1.get_hw_sector_size();
-		this.device_name = rec1.get_device_name();
-		this.IOs_currently_in_progress = rec1.get_IOs_currently_in_progress();
-		
-		//Differential values:
-		this.reads_completed_successfully = newRecord.get_reads_completed_successfully().subtract(oldRecord.get_reads_completed_successfully());
-		this.reads_merged = newRecord.get_reads_merged().subtract(oldRecord.get_reads_merged());
-		this.sectors_read = newRecord.get_sectors_read().subtract(oldRecord.get_sectors_read());
-		this.time_spent_reading = newRecord.get_time_spent_reading().subtract(oldRecord.get_time_spent_reading());
-		this.writes_completed = newRecord.get_writes_completed().subtract(oldRecord.get_writes_completed());
-		this.writes_merged = newRecord.get_writes_merged().subtract(oldRecord.get_writes_merged());
-		this.sectors_written = newRecord.get_sectors_written().subtract(oldRecord.get_sectors_written());
-		this.time_spent_writing = newRecord.get_time_spent_writing().subtract(oldRecord.get_time_spent_writing());
-		this.time_spent_doing_IOs = newRecord.get_time_spent_doing_IOs().subtract(oldRecord.get_time_spent_doing_IOs());
-		this.weighted_time_spent_doing_IOs = newRecord.get_weighted_time_spent_doing_IOs().subtract(oldRecord.get_weighted_time_spent_doing_IOs());
-		
+		if(oldRecord.getTimestamp() == newRecord.getPreviousTimestamp()){
+			this.setPreviousTimestamp(oldRecord.getPreviousTimestamp());
+			//Differential values:
+			this.reads_completed_successfully = newRecord.get_reads_completed_successfully().add(oldRecord.get_reads_completed_successfully());
+			this.reads_merged = newRecord.get_reads_merged().add(oldRecord.get_reads_merged());
+			this.sectors_read = newRecord.get_sectors_read().add(oldRecord.get_sectors_read());
+			this.time_spent_reading = newRecord.get_time_spent_reading().add(oldRecord.get_time_spent_reading());
+			this.writes_completed = newRecord.get_writes_completed().add(oldRecord.get_writes_completed());
+			this.writes_merged = newRecord.get_writes_merged().add(oldRecord.get_writes_merged());
+			this.sectors_written = newRecord.get_sectors_written().add(oldRecord.get_sectors_written());
+			this.time_spent_writing = newRecord.get_time_spent_writing().add(oldRecord.get_time_spent_writing());
+			this.time_spent_doing_IOs = newRecord.get_time_spent_doing_IOs().add(oldRecord.get_time_spent_doing_IOs());
+			this.weighted_time_spent_doing_IOs = newRecord.get_weighted_time_spent_doing_IOs().add(oldRecord.get_weighted_time_spent_doing_IOs());
+		} else {
+			this.setPreviousTimestamp(oldRecord.getTimestamp());
+			if (newRecord.get_reads_completed_successfully().compareTo(oldRecord.get_reads_completed_successfully()) == -1 ||
+				newRecord.get_reads_merged().compareTo(oldRecord.get_reads_merged()) == -1 ||
+				newRecord.get_sectors_read().compareTo(oldRecord.get_sectors_read()) == -1 ||
+				newRecord.get_time_spent_reading().compareTo(oldRecord.get_time_spent_reading()) == -1 ||
+				newRecord.get_writes_completed().compareTo(oldRecord.get_writes_completed()) == -1 ||
+				newRecord.get_writes_merged().compareTo(oldRecord.get_writes_merged()) == -1 ||
+				newRecord.get_sectors_written().compareTo(oldRecord.get_sectors_written()) == -1 ||
+				newRecord.get_time_spent_writing().compareTo(oldRecord.get_time_spent_writing()) == -1 ||
+				newRecord.get_time_spent_doing_IOs().compareTo(oldRecord.get_time_spent_doing_IOs()) == -1 ||
+				newRecord.get_weighted_time_spent_doing_IOs().compareTo(oldRecord.get_weighted_time_spent_doing_IOs()) == -1 ) {
+				throw new Exception("Can not generate differential record from raw input records where counters have rolled over between samples. " + 
+									" old: " + oldRecord.toString() + " new: " + newRecord.toString());
+			}
+			//Differential values:
+			this.reads_completed_successfully = newRecord.get_reads_completed_successfully().subtract(oldRecord.get_reads_completed_successfully());
+			this.reads_merged = newRecord.get_reads_merged().subtract(oldRecord.get_reads_merged());
+			this.sectors_read = newRecord.get_sectors_read().subtract(oldRecord.get_sectors_read());
+			this.time_spent_reading = newRecord.get_time_spent_reading().subtract(oldRecord.get_time_spent_reading());
+			this.writes_completed = newRecord.get_writes_completed().subtract(oldRecord.get_writes_completed());
+			this.writes_merged = newRecord.get_writes_merged().subtract(oldRecord.get_writes_merged());
+			this.sectors_written = newRecord.get_sectors_written().subtract(oldRecord.get_sectors_written());
+			this.time_spent_writing = newRecord.get_time_spent_writing().subtract(oldRecord.get_time_spent_writing());
+			this.time_spent_doing_IOs = newRecord.get_time_spent_doing_IOs().subtract(oldRecord.get_time_spent_doing_IOs());
+			this.weighted_time_spent_doing_IOs = newRecord.get_weighted_time_spent_doing_IOs().subtract(oldRecord.get_weighted_time_spent_doing_IOs());
+		}
+		this.major_number = newRecord.get_major_number();
+		this.minor_number = newRecord.get_minor_number();
+		this.hw_sector_size = newRecord.get_hw_sector_size();
+		this.device_name = newRecord.get_device_name();
+		this.IOs_currently_in_progress = newRecord.get_IOs_currently_in_progress();
+			
 		//Derived values:
 		this.readOperationRate = this.reads_completed_successfully.doubleValue() * 1000d / ((double)this.getDurationms()); 
 		this.diskReadOperationRate = this.reads_completed_successfully.subtract(this.reads_merged).doubleValue() * 1000d / ((double)this.getDurationms());
@@ -275,7 +307,22 @@ public class DiskstatRecord extends Record {
 	 * OTHER METHODS
 	 */
 	public String toString(){
-		return super.toString() + " Diskstat dev:" + device_name + 
+		DecimalFormat doubleDisplayFormat = new DecimalFormat("#0.00");
+		if(getPreviousTimestamp()!=-1){
+			return super.toString() + " " + Constants.DISK_STAT_RECORD +
+					" rOpRate: " + doubleDisplayFormat.format(readOperationRate) + 
+					" drOpRate: " + doubleDisplayFormat.format(diskReadOperationRate) + 
+					" rMBRate: " + doubleDisplayFormat.format(readByteRate / 1048576) + 
+					" wOpRate: " + doubleDisplayFormat.format(writeOperationRate) + 
+					" dwOpRate: " + doubleDisplayFormat.format(diskWriteOperationRate) + 
+					" wMBRate: " + doubleDisplayFormat.format(writeByteRate / 1048576) + 
+					" u%: " + doubleDisplayFormat.format(utilizationPct) + 
+					" opsIP: " + doubleDisplayFormat.format(averageOperationsInProgress) + 
+					" aWait: " + doubleDisplayFormat.format(averageWaitTime) + 
+					" aServT:" + doubleDisplayFormat.format(averageServiceTime);
+					
+		} else {
+			return super.toString() + " Diskstat dev:" + device_name + 
 				" rcs " + reads_completed_successfully + 
 				" rm " + reads_merged + 
 				" sr " + sectors_read + 
@@ -287,6 +334,7 @@ public class DiskstatRecord extends Record {
 				" cip " + IOs_currently_in_progress + 
 				" ts " + time_spent_doing_IOs + 
 				" wts " + weighted_time_spent_doing_IOs;
+		}
 	}
 	public BigInteger get_IOs_currently_in_progress(){
 		return IOs_currently_in_progress;

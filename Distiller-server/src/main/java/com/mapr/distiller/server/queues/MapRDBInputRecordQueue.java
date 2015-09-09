@@ -130,6 +130,10 @@ public class MapRDBInputRecordQueue implements RecordQueue {
 		return -1;
 	}
 
+	public int queueSize(String subscriber){
+		return -1;
+	}
+	
 	//Add a Record onto the end of the queue
 	public boolean put(String producer, Record record){
 		return false;
