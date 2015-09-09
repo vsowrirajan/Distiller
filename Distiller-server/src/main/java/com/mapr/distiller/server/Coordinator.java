@@ -1,5 +1,24 @@
 package com.mapr.distiller.server;
 
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
+
+import com.mapr.distiller.common.status.MetricActionStatus;
+import com.mapr.distiller.common.status.RecordProducerStatus;
+import com.mapr.distiller.common.status.RecordQueueStatus;
+
 import com.mapr.distiller.server.metricactions.MetricAction;
 import com.mapr.distiller.server.persistance.LocalFileSystemPersistanceManager;
 import com.mapr.distiller.server.persistance.MapRDBSyncPersistanceManager;
@@ -11,9 +30,6 @@ import com.mapr.distiller.server.queues.SubscriptionRecordQueue;
 import com.mapr.distiller.server.recordtypes.ProcessResourceRecord;
 import com.mapr.distiller.server.recordtypes.Record;
 import com.mapr.distiller.server.scheduler.MetricActionScheduler;
-import com.mapr.distiller.server.status.MetricActionStatus;
-import com.mapr.distiller.server.status.RecordProducerStatus;
-import com.mapr.distiller.server.status.RecordQueueStatus;
 import com.mapr.distiller.server.utils.Constants;
 import com.mapr.distiller.server.utils.MetricConfig.MetricConfigBuilder;
 import com.mapr.distiller.server.utils.MetricConfig;
@@ -1763,30 +1779,25 @@ metricActionsEnableMap.remove(metricConfig.getId());
 				isProcRecordProducerRunning,
 				isProcRecordProducerMetricsEnabled,
 				procRecordProducer.listEnabledMetrics());
-		
-		/*StringBuffer status = new StringBuffer();
-		LOG.debug("\tMfsGutsRecordProducer is "
-				+ ((mfsGutsRecordProducer != null) ? ((mfsGutsRecordProducer
-						.isAlive()) ? "" : "not ") : "not ")
-				+ "running and producer metrics are "
-				+ ((mfsGutsRecordProducer != null && mfsGutsRecordProducer
-						.producerMetricsEnabled()) ? "enabled" : "disabled"));
-		LOG.debug("\tProcRecordProducer is "
-				+ ((procRecordProducer != null) ? ((procRecordProducer
-						.isAlive()) ? "" : "not ") : "not ")
-				+ "running and producer metrics are "
-				+ ((procRecordProducer != null && procRecordProducer
-						.producerMetricsEnabled()) ? "enabled" : "disabled"));
-		if (procRecordProducer != null) {
-			LOG.debug("\tEnabled ProcRecordProducer metrics:");
 
-			for (String s : procRecordProducer.listEnabledMetrics()) {
-				status.append("\t\t");
-				status.append(s);
-				status.append("\n");
-				LOG.debug("\t\t" + s);
-			}
-		}*/
+		/*
+		 * StringBuffer status = new StringBuffer();
+		 * LOG.debug("\tMfsGutsRecordProducer is " + ((mfsGutsRecordProducer !=
+		 * null) ? ((mfsGutsRecordProducer .isAlive()) ? "" : "not ") : "not ")
+		 * + "running and producer metrics are " + ((mfsGutsRecordProducer !=
+		 * null && mfsGutsRecordProducer .producerMetricsEnabled()) ? "enabled"
+		 * : "disabled")); LOG.debug("\tProcRecordProducer is " +
+		 * ((procRecordProducer != null) ? ((procRecordProducer .isAlive()) ? ""
+		 * : "not ") : "not ") + "running and producer metrics are " +
+		 * ((procRecordProducer != null && procRecordProducer
+		 * .producerMetricsEnabled()) ? "enabled" : "disabled")); if
+		 * (procRecordProducer != null) {
+		 * LOG.debug("\tEnabled ProcRecordProducer metrics:");
+		 * 
+		 * for (String s : procRecordProducer.listEnabledMetrics()) {
+		 * status.append("\t\t"); status.append(s); status.append("\n");
+		 * LOG.debug("\t\t" + s); } }
+		 */
 		return producerStatus;
 	}
 
@@ -1832,11 +1843,31 @@ metricActionsEnableMap.remove(metricConfig.getId());
 		 * " sched:" + e.getValue().printSchedule()); } return
 		 * status.toString();
 		 */
+	}
+	
+	@Override
+	public MetricActionStatus getMetricAction(String metricActionName) throws Exception {
+		if (metricActionsIdMap.containsKey(metricActionName)) {
+			MetricAction metricAction = metricActionsIdMap
+					.get(metricActionName);
+			MetricActionStatus metricActionStatus;
 
+			boolean isRunning = metricActionsIdFuturesMap
+					.containsKey(metricAction.getId())
+					&& !metricActionsIdFuturesMap.get(metricAction.getId())
+							.isDone();
+			boolean isScheduled = metricActionScheduler.contains(metricAction);
+			metricActionStatus = new MetricActionStatus(metricAction.getId(),
+					metricAction.getMetricEnabled(), isRunning, isScheduled,
+					metricAction.printSchedule());
+			return metricActionStatus;
+		}
+		
+		throw new Exception("Not a valid MetricAction " + metricActionName);
 	}
 
 	@Override
-	public boolean metricDisable(String metricName) {
+	public boolean metricDisable(String metricName) throws Exception {
 		try {
 			disableMetric(metricName);
 			return true;
@@ -1845,12 +1876,12 @@ metricActionsEnableMap.remove(metricConfig.getId());
 		catch (Exception e) {
 			LOG.error("Metric " + metricName + " cannot be disabled - "
 					+ e.getMessage());
+			throw e;
 		}
-		return false;
 	}
 
 	@Override
-	public boolean metricEnable(String metricName) {
+	public boolean metricEnable(String metricName) throws Exception {
 		try {
 			enableMetric(metricName);
 			return true;
@@ -1859,12 +1890,12 @@ metricActionsEnableMap.remove(metricConfig.getId());
 		catch (Exception e) {
 			LOG.error("Metric " + metricName + " cannot be enabled - "
 					+ e.getMessage());
+			throw e;
 		}
-		return false;
 	}
 
 	@Override
-	public boolean metricDelete(String metricName) {
+	public boolean metricDelete(String metricName) throws Exception {
 		try {
 			deleteMetric(metricName);
 			return true;
@@ -1873,8 +1904,8 @@ metricActionsEnableMap.remove(metricConfig.getId());
 		catch (Exception e) {
 			LOG.error("Metric " + metricName + " cannot be deleted - "
 					+ e.getMessage());
+			throw e;
 		}
-		return false;
 	}
 
 	@Override
@@ -1928,33 +1959,49 @@ metricActionsEnableMap.remove(metricConfig.getId());
 	}
 
 	@Override
-	public RecordQueueStatus getQueueStatus(String queueName) {
-		RecordQueue queue = recordQueueManager.getQueue(queueName);
-		RecordQueueStatus queueStatus = new RecordQueueStatus(
-				queue.getQueueName(), queue.getQueueType(),
-				queue.getQueueRecordCapacity(), queue.queueSize(),
-				queue.listProducers(), queue.listConsumers());
-		return queueStatus;
+	public RecordQueueStatus getQueueStatus(String queueName) throws Exception {
+		if (recordQueueManager.queueExists(queueName)) {
+			RecordQueue queue = recordQueueManager.getQueue(queueName);
+			RecordQueueStatus queueStatus = new RecordQueueStatus(
+					queue.getQueueName(), queue.getQueueType(),
+					queue.getQueueRecordCapacity(), queue.queueSize(),
+					queue.listProducers(), queue.listConsumers());
+			return queueStatus;
+		}
+		
+		throw new Exception("Not a valid queue " + queueName);
 	}
 
 	@Override
-	public Record[] getRecords(String queueName, int count) {
-		SubscriptionRecordQueue queue = (SubscriptionRecordQueue) recordQueueManager
-				.getQueue(queueName);
-		return queue.dumpNewestRecords(count);
+	public Record[] getRecords(String queueName, int count) throws Exception {
+		if (recordQueueManager.queueExists(queueName)) {
+			SubscriptionRecordQueue queue = (SubscriptionRecordQueue) recordQueueManager
+					.getQueue(queueName);
+			return queue.dumpNewestRecords(count);
+		}
+
+		throw new Exception("Not a valid queue " + queueName);
 	}
 
 	@Override
-	public boolean isScheduledMetricAction(String metricAction) {
-		MetricAction action = metricActionsIdMap.get(metricAction);
-		return metricActionScheduler.contains(action);
+	public boolean isScheduledMetricAction(String metricAction) throws Exception {
+		if (metricActionsIdMap.containsKey(metricAction)) {
+			MetricAction action = metricActionsIdMap.get(metricAction);
+			return metricActionScheduler.contains(action);
+		}
+		
+		throw new Exception("Not a valid MetricAction " + metricAction);
 	}
 
 	@Override
-	public boolean isRunningMetricAction(String metricAction) {
-		MetricAction action = metricActionsIdMap.get(metricAction);
-		return metricActionsIdFuturesMap.containsKey(action)
-				&& !metricActionsIdFuturesMap.get(action).isDone();
+	public boolean isRunningMetricAction(String metricAction) throws Exception {
+		if (metricActionsIdMap.containsKey(metricAction)) {
+		  LOG.error("Found in Map "+metricAction);
+			return metricActionsIdFuturesMap.containsKey(metricAction)
+					&& !metricActionsIdFuturesMap.get(metricAction).isDone();
+		}
+		
+		throw new Exception("Not a valid MetricAction " + metricAction);
 	}
 
 	public void init(String configLocation) {
