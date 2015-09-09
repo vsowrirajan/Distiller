@@ -14,7 +14,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.io.File;
 import java.util.zip.GZIPOutputStream;
 
-
 import com.mapr.distiller.server.persistance.MapRDBSyncPersistor;
 import com.mapr.distiller.server.recordtypes.Record;
 
@@ -96,6 +95,9 @@ public class MapRDBSyncPersistanceManager extends Thread{
 		return hbaseConfiguration;
 	}
 	
+	public List<MapRDBSyncPersistor> getPersistors(){
+		return persistors;
+	}
 	public boolean hasPersistor(MapRDBSyncPersistor persistor) {
 		synchronized(persistors){
 			return persistors.contains(persistor);
@@ -349,6 +351,10 @@ public class MapRDBSyncPersistanceManager extends Thread{
 			return null;
 		}		
 	}
+	
+	public void requestShutdown(){
+		shouldExit = true;
+	}
   	
 	public void run(){
 		//Hard coding 32 threads here for now, should be adaptive though...
@@ -380,5 +386,57 @@ public class MapRDBSyncPersistanceManager extends Thread{
 				Thread.sleep(5000);
 			} catch (Exception e){}
 		}
+		LOG.info("Received shutdown request");
+		LOG.info("Stopping MapRDBReplayer");
+		maprdbReplayer.requestExit();
+		
+		for (MapRDBSyncPersistor p : persistors){
+			while(p.getNumRecordsToBePut() != 0 && p.getNumRecordsInFlight() != 0){
+				try {
+					Thread.sleep(1000);
+				} catch (Exception e){}
+				LOG.info("Waiting for " + p.getId() + " to put " + p.getNumRecordsToBePut() + " records and complete " +
+						p.getNumRecordsInFlight() + " in flight put requests");
+			}
+		}
+		LOG.info("Stopping MapRDBPutter threads");
+		for (MapRDBPutter putter : putters){
+			putter.requestExit();
+		}
+		newRecordToBePut.notifyAll();
+		
+		for(MapRDBSyncPersistor p : persistors){
+			LOG.info("Writing " + p.getNumDiskBoundRecords() + " records to disk for " + p.getId());
+			writeRecordsToDisk(p, true);
+		}
+		boolean threadsStillRunning=true;
+		int numThreadsRunning;
+		while(threadsStillRunning){
+			if(maprdbReplayer.isAlive()){
+				LOG.info("Waiting for MapRDBReplayer thread to exit");
+				numThreadsRunning=1;
+			} else {
+				numThreadsRunning=0;
+			}
+			for(MapRDBPutter putter : putters){
+				if(putter.isAlive()){
+					numThreadsRunning++;
+				}
+			}
+			if(numThreadsRunning==0){
+				threadsStillRunning=false;
+			} else {
+				LOG.info("Waiting for " + numThreadsRunning + " child threads to exit.");
+				try {
+					Thread.sleep(1000);
+				} catch (Exception e){}
+			}
+		}
+		for(MapRDBSyncPersistor p : persistors){
+			LOG.info("Persistor end state: " + p.getId() + " diskBoundRecords: " + p.getNumDiskBoundRecords() + 
+					" recordsToBePut: " + p.getNumRecordsToBePut() + " recordsInFlight: " + p.getNumRecordsInFlight());
+		}
+		persistors.clear();
+		LOG.info("Exiting.");
 	}
 }

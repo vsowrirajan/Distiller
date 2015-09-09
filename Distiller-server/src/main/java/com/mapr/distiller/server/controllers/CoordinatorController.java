@@ -98,4 +98,12 @@ public class CoordinatorController {
 		LOG.info("Disable metric " + name);
 		return monitor.metricDisable(name);
 	}
+
+	@RequestMapping(value = "/requestShutdown", method = RequestMethod.GET)
+	@ResponseBody
+	public boolean requestShutdown() {
+		LOG.info("Request to shutdown");
+		return monitor.requestShutdown();
+	}
+
 }

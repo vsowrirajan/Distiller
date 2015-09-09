@@ -28,5 +28,7 @@ public interface DistillerMonitor {
 	public RecordQueueStatus getQueueStatus(String queueName);
 
 	public Record[] getRecords(String queueName, int count);
+	
+	public boolean requestShutdown();
 
 }

@@ -4,6 +4,7 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Paths;
+import java.text.DecimalFormat;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,9 +45,10 @@ public class ThreadResourceRecord extends Record {
 		
 		//Check the input records to ensure they can be diff'd.
 		if(rec1.get_starttime() != rec2.get_starttime() || rec1.get_pid() != rec2.get_pid())
-			throw new Exception("Differential ThreadResourceRecord can only be generated from input records from the same process");
-		if(rec1.getCpuUtilPct()!=-1d || rec2.getCpuUtilPct()!=-1d || rec1.getPreviousTimestamp()!=-1l || rec2.getPreviousTimestamp()!=-1l)
-			throw new Exception("Differential ThreadResourceRecord can only be generated from raw ThreadResourceRecords");
+			throw new Exception("Differential ThreadResourceRecord can only be generated from input records from the same process, rec1: " + rec1.toString() + " rec2: " + rec2.toString());
+		if ((rec1.getPreviousTimestamp()==-1 && rec2.getPreviousTimestamp()!=-1) || 
+			(rec1.getPreviousTimestamp()!=-1 && rec2.getPreviousTimestamp()==-1))
+			throw new Exception("Differential ThreadResourceRecord can not be generated from one differential record and one raw record");
 		if(rec1.getTimestamp() == rec2.getTimestamp())
 			throw new Exception("Can not generate differential ThreadResourceRecord from input records with matching timestamp values");
 		
@@ -59,9 +61,13 @@ public class ThreadResourceRecord extends Record {
 			newRecord = rec1;
 		}
 		
+		if (oldRecord.getPreviousTimestamp() != -1 && 
+			newRecord.getPreviousTimestamp() != -1 && 
+			oldRecord.getTimestamp() != newRecord.getPreviousTimestamp())
+			throw new Exception("Can not generate differential record from non-chronologically consecutive differential input records");
+
 		//Copied values:
 		this.setTimestamp(newRecord.getTimestamp());
-		this.setPreviousTimestamp(oldRecord.getTimestamp());
 		this.comm = newRecord.get_comm();
 		this.state = newRecord.get_state();
 		this.pid = newRecord.get_pid();
@@ -69,20 +75,37 @@ public class ThreadResourceRecord extends Record {
 		this.clockTick = newRecord.getClockTick();
 		this.starttime = newRecord.get_starttime();
 		
-		//Differential values:
-		this.delayacct_blkio_ticks = newRecord.get_delayacct_blkio_ticks().subtract(oldRecord.get_delayacct_blkio_ticks());
-		this.guest_time = newRecord.get_guest_time().subtract(oldRecord.get_guest_time());
-		this.majflt = newRecord.get_majflt().subtract(oldRecord.get_majflt());
-		this.minflt = newRecord.get_minflt().subtract(oldRecord.get_minflt());
-		this.stime = newRecord.get_stime().subtract(oldRecord.get_stime());
-		this.utime = newRecord.get_utime().subtract(oldRecord.get_utime());
-		this.rchar = newRecord.get_rchar().subtract(oldRecord.get_rchar());
-		this.wchar = newRecord.get_wchar().subtract(oldRecord.get_wchar());
-		this.syscr = newRecord.get_syscr().subtract(oldRecord.get_syscr());
-		this.syscw = newRecord.get_syscw().subtract(oldRecord.get_syscw());
-		this.read_bytes = newRecord.get_read_bytes().subtract(oldRecord.get_read_bytes());
-		this.write_bytes = newRecord.get_write_bytes().subtract(oldRecord.get_write_bytes());
-		this.cancelled_write_bytes = newRecord.get_cancelled_write_bytes().subtract(oldRecord.get_cancelled_write_bytes());
+		if(oldRecord.getPreviousTimestamp() == -1){
+			this.setPreviousTimestamp(oldRecord.getTimestamp());
+			this.delayacct_blkio_ticks = newRecord.get_delayacct_blkio_ticks().subtract(oldRecord.get_delayacct_blkio_ticks());
+			this.guest_time = newRecord.get_guest_time().subtract(oldRecord.get_guest_time());
+			this.majflt = newRecord.get_majflt().subtract(oldRecord.get_majflt());
+			this.minflt = newRecord.get_minflt().subtract(oldRecord.get_minflt());
+			this.stime = newRecord.get_stime().subtract(oldRecord.get_stime());
+			this.utime = newRecord.get_utime().subtract(oldRecord.get_utime());
+			this.rchar = newRecord.get_rchar().subtract(oldRecord.get_rchar());
+			this.wchar = newRecord.get_wchar().subtract(oldRecord.get_wchar());
+			this.syscr = newRecord.get_syscr().subtract(oldRecord.get_syscr());
+			this.syscw = newRecord.get_syscw().subtract(oldRecord.get_syscw());
+			this.read_bytes = newRecord.get_read_bytes().subtract(oldRecord.get_read_bytes());
+			this.write_bytes = newRecord.get_write_bytes().subtract(oldRecord.get_write_bytes());
+			this.cancelled_write_bytes = newRecord.get_cancelled_write_bytes().subtract(oldRecord.get_cancelled_write_bytes());
+		} else {
+			this.setPreviousTimestamp(oldRecord.getPreviousTimestamp());
+			this.delayacct_blkio_ticks = newRecord.get_delayacct_blkio_ticks().add(oldRecord.get_delayacct_blkio_ticks());
+			this.guest_time = newRecord.get_guest_time().add(oldRecord.get_guest_time());
+			this.majflt = newRecord.get_majflt().add(oldRecord.get_majflt());
+			this.minflt = newRecord.get_minflt().add(oldRecord.get_minflt());
+			this.stime = newRecord.get_stime().add(oldRecord.get_stime());
+			this.utime = newRecord.get_utime().add(oldRecord.get_utime());
+			this.rchar = newRecord.get_rchar().add(oldRecord.get_rchar());
+			this.wchar = newRecord.get_wchar().add(oldRecord.get_wchar());
+			this.syscr = newRecord.get_syscr().add(oldRecord.get_syscr());
+			this.syscw = newRecord.get_syscw().add(oldRecord.get_syscw());
+			this.read_bytes = newRecord.get_read_bytes().add(oldRecord.get_read_bytes());
+			this.write_bytes = newRecord.get_write_bytes().add(oldRecord.get_write_bytes());
+			this.cancelled_write_bytes = newRecord.get_cancelled_write_bytes().add(oldRecord.get_cancelled_write_bytes());
+		}
 
 		//Derived values:
 		this.cpuUtilPct = this.utime.add(this.stime).doubleValue() / 					//The number of jiffies used by the process over the duration
@@ -218,7 +241,18 @@ public class ThreadResourceRecord extends Record {
 	 * OTHER METHODS
 	 */
 	public String toString(){
-		return super.toString() + " thread.resources: " + pid + " " + comm + " " + state + " " + ppid;
+		DecimalFormat ddf = new DecimalFormat("#0.00");
+		if(getPreviousTimestamp() == -1) {
+			return super.toString() + " " + Constants.THREAD_RESOURCE_RECORD + " " + pid + " " + comm + " " + state + " " + ppid + " " + starttime;
+		} else {
+			return super.toString() + " " + Constants.THREAD_RESOURCE_RECORD + " " + pid + "/" + starttime + "/" + comm + "/" + ppid +
+					" cpu%: " + ddf.format(cpuUtilPct) + 
+					" iow%: " + ddf.format(iowaitUtilPct) + 
+					" rcRate: " + ddf.format(readCallRate) + 
+					" wcRate: " + ddf.format(writeCallRate) + 
+					" rMBps: " + ddf.format(readByteRate / 1048576) + 
+					" wMBps: " + ddf.format(writeByteRate / 1048576);
+		}
 	}
 	public String get_comm(){
 		return comm;
@@ -304,12 +338,17 @@ public class ThreadResourceRecord extends Record {
 	public double getCancelledWriteByteRate(){
 		return cancelledWriteByteRate;
 	}
+	public String get_upid(){
+		return pid + "_" + starttime;
+	}
 	
 	@Override
 	public String getValueForQualifier(String qualifier) throws Exception {
 		switch(qualifier){
 		case "pid":
 			return Integer.toString(pid);
+		case "upid":
+			return get_upid();
 		default:
 			throw new Exception("Qualifier " + qualifier + " is not valid for this record type");
 		}

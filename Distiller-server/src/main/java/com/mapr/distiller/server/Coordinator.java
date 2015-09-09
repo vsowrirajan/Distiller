@@ -17,7 +17,6 @@ import com.mapr.distiller.server.status.RecordQueueStatus;
 import com.mapr.distiller.server.utils.Constants;
 import com.mapr.distiller.server.utils.MetricConfig.MetricConfigBuilder;
 import com.mapr.distiller.server.utils.MetricConfig;
-
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import com.typesafe.config.ConfigObject;
@@ -30,6 +29,7 @@ import java.io.RandomAccessFile;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.LinkedList;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
@@ -69,6 +69,8 @@ public class Coordinator implements Runnable, DistillerMonitor {
 	//private static MapRDBPersistanceManager maprdbPersistanceManager;
 	private static MapRDBSyncPersistanceManager maprdbSyncPersistanceManager;
 	private static LocalFileSystemPersistanceManager localFileSystemPersistanceManager;
+	
+	private static boolean shouldExit;
 
 	// Constructor
 	public Coordinator() {
@@ -286,12 +288,12 @@ public class Coordinator implements Runnable, DistillerMonitor {
 			maprdbCreateTables=false;	//Default to false
 		}
 		try {
-			maprdbAsyncPutTimeout = configBlock.getInt(Constants.MAPRDB_ASYNC_PUT_TIMEOUT);
+			maprdbAsyncPutTimeout = configBlock.getInt(Constants.MAPRDB_PUT_TIMEOUT);
 		} catch (Exception e) {
-			maprdbAsyncPutTimeout = 60000;	//Default to 1 minute
+			maprdbAsyncPutTimeout = 60;	//Default to 1 minute
 		}
-		if(maprdbAsyncPutTimeout < 5000){
-			throw new Exception("Value of " + Constants.MAPRDB_ASYNC_PUT_TIMEOUT + " must be >= 5000, value: " + maprdbAsyncPutTimeout);
+		if(maprdbAsyncPutTimeout < 30){
+			throw new Exception("Value of " + Constants.MAPRDB_PUT_TIMEOUT + " must be >= 30, value: " + maprdbAsyncPutTimeout);
 		}
 		try {
 			maprdbLocalWorkDirByteLimit = configBlock.getLong(Constants.MAPRDB_LOCAL_WORK_DIR_BYTE_LIMIT);
@@ -393,7 +395,6 @@ public class Coordinator implements Runnable, DistillerMonitor {
 		}
 		try {
 			outputQueueRecordCapacity = configBlock.getInt(Constants.OUTPUT_QUEUE_CAPACITY_RECORDS);
-			if(outputQueueRecordCapacity < 1) throw new Exception();
 		} catch (Exception e) {
 			if(!recordType.equals(Constants.RAW_RECORD_PRODUCER_STAT_RECORD)){
 				boolean gotSelector = false;
@@ -607,28 +608,28 @@ public class Coordinator implements Runnable, DistillerMonitor {
 		}
 		try {
 			relatedOutputQueueRecordCapacity = configBlock.getInt(Constants.RELATED_OUTPUT_QUEUE_CAPACITY_RECORDS);
-			if(relatedOutputQueueRecordCapacity < 1) 
-				throw new Exception("A value > 0 must be specified for " + Constants.RELATED_OUTPUT_QUEUE_CAPACITY_RECORDS + 
+			if(relatedOutputQueueRecordCapacity < 0) 
+				throw new Exception("A value >= 0 must be specified for " + Constants.RELATED_OUTPUT_QUEUE_CAPACITY_RECORDS + 
 				" - value: " + relatedOutputQueueRecordCapacity);
 		} catch (Exception e) {
 			if(relatedSelectorEnabled)
-				throw new Exception("A value > 0 is required for " + Constants.RELATED_OUTPUT_QUEUE_CAPACITY_RECORDS +
+				throw new Exception("A value >= 0 is required for " + Constants.RELATED_OUTPUT_QUEUE_CAPACITY_RECORDS +
 									" when " + Constants.RELATED_SELECTOR_ENABLED + "=true", e);
 		}
 		try {
 			relatedOutputQueueTimeCapacity = configBlock.getInt(Constants.RELATED_OUTPUT_QUEUE_CAPACITY_SECONDS);
-			if(relatedOutputQueueTimeCapacity < 1)
-				throw new Exception("A value > 0 must be specified for " + Constants.RELATED_OUTPUT_QUEUE_CAPACITY_SECONDS + 
+			if(relatedOutputQueueTimeCapacity < 0)
+				throw new Exception("A value >= 0 must be specified for " + Constants.RELATED_OUTPUT_QUEUE_CAPACITY_SECONDS + 
 									" - value: " + relatedOutputQueueTimeCapacity);
 		} catch (Exception e) {
 			if(relatedSelectorEnabled)
-				throw new Exception("A value > 0 is required for " + Constants.RELATED_OUTPUT_QUEUE_CAPACITY_SECONDS +
+				throw new Exception("A value >= 0 is required for " + Constants.RELATED_OUTPUT_QUEUE_CAPACITY_SECONDS +
 									" when " + Constants.RELATED_SELECTOR_ENABLED + "=true", e);
 		}
 		try {
 			relatedOutputQueueMaxProducers = configBlock.getInt(Constants.RELATED_OUTPUT_QUEUE_MAX_PRODUCERS);
 			if(relatedOutputQueueMaxProducers < 0)
-				throw new Exception("A value > 0 must be specified for " + Constants.RELATED_OUTPUT_QUEUE_MAX_PRODUCERS + 
+				throw new Exception("A value >= 0 must be specified for " + Constants.RELATED_OUTPUT_QUEUE_MAX_PRODUCERS + 
 									" - value: " + relatedOutputQueueMaxProducers);
 		} catch (Exception e) {
 			if(relatedSelectorEnabled)
@@ -975,6 +976,20 @@ public class Coordinator implements Runnable, DistillerMonitor {
 			break;
 
 		case Constants.DIFFERENTIAL_VALUE_RECORD:
+			metricAction = null;
+			try {
+				metricAction = MetricAction.getInstance(config, recordQueueManager, metricActionScheduler);
+			} catch (Exception e) {
+				LOG.error("Failed to enable metric: " + config.toString());
+				e.printStackTrace();
+			}
+			if(metricAction != null){
+				metricActionsIdMap.put(metricAction.getId(), metricAction);
+				initialized=true;
+			}
+			break;
+
+		case Constants.PROCESS_EFFICIENCY_RECORD:
 			metricAction = null;
 			try {
 				metricAction = MetricAction.getInstance(config, recordQueueManager, metricActionScheduler);
@@ -1530,6 +1545,7 @@ metricActionsEnableMap.remove(metricConfig.getId());
 	 * Method to delete a metric
 	 */
 	public void deleteMetric(String metricName) throws Exception {
+		LOG.info("Request to delete metric " + metricName);
 		synchronized(coordinatorLock){
 			MetricConfig config = metricConfigMap.get(metricName);
 			if(config == null){
@@ -1552,6 +1568,7 @@ metricActionsEnableMap.remove(metricConfig.getId());
 			metricActionsEnableMap.remove(config.getId());
 			metricActionsIdMap.remove(config.getId());
 			metricConfigMap.remove(config.getId());
+			LOG.info("Deleted metric " + metricName);
 		}
 	}
 
@@ -1617,7 +1634,9 @@ metricActionsEnableMap.remove(metricConfig.getId());
 			name.equals(Constants.IS_EQUAL) ||
 			name.equals(Constants.IS_NOT_EQUAL) ||
 			name.equals(Constants.MERGE_RECORDS) ||
-			name.equals(Constants.DIFFERENTIAL)
+			name.equals(Constants.DIFFERENTIAL) ||
+			name.equals(Constants.CONVERT) || 
+			name.equals(Constants.MERGE_CHRONOLOGICALLY_CONSECUTIVE)
 		)
 			return true;
 		return false;
@@ -1635,7 +1654,9 @@ metricActionsEnableMap.remove(metricConfig.getId());
 			name.equals(Constants.SLIM_PROCESS_RESOURCE_RECORD_PROCESSOR) ||
 			name.equals(Constants.SLIM_THREAD_RESOURCE_RECORD_PROCESSOR) ||
 			name.equals(Constants.DIFFERENTIAL_VALUE_RECORD_PROCESSOR) ||
-			name.equals(Constants.PASSTHROUGH_RECORD_PROCESSOR)
+			name.equals(Constants.PASSTHROUGH_RECORD_PROCESSOR) || 
+			name.equals(Constants.PROCESS_EFFICIENCY_RECORD_PROCESSOR) ||
+			name.equals(Constants.LOAD_AVERAGE_RECORD_PROCESSOR)
 		)
 			return true;
 		return false;
@@ -1668,7 +1689,8 @@ metricActionsEnableMap.remove(metricConfig.getId());
 			name.equals(Constants.MFS_GUTS_RECORD_PRODUCER_RECORD) ||
 			name.equals(Constants.RAW_RECORD_PRODUCER_STAT_RECORD) ||
 			name.equals(Constants.DIFFERENTIAL_VALUE_RECORD) || 
-			name.equals(Constants.LOAD_AVERAGE_RECORD)
+			name.equals(Constants.LOAD_AVERAGE_RECORD) ||
+			name.equals(Constants.PROCESS_EFFICIENCY_RECORD)
 		)
 			return true;
 		return false;
@@ -1688,8 +1710,12 @@ metricActionsEnableMap.remove(metricConfig.getId());
 		return false;
 	}
 	public static boolean selectorSupportsMethod(String selector, String method){
+		//Persisting selection does not apply any processing to records so this always returns true
+		//All processing of records should be done prior to passing to persisting selector.
 		if(selector.equals(Constants.PERSISTING_SELECTOR))
 			return true;
+		
+		//Something is wrong in this case, probably a bad configuration from the user.
 		if(selector==null || method==null) return false;
 		
 		if (selector.equals(Constants.SEQUENTIAL_SELECTOR)){
@@ -1698,13 +1724,16 @@ metricActionsEnableMap.remove(metricConfig.getId());
 				method.equals(Constants.IS_EQUAL) ||
 				method.equals(Constants.IS_NOT_EQUAL) ||
 				method.equals(Constants.MERGE_RECORDS) ||
-				method.equals(Constants.DIFFERENTIAL)
+				method.equals(Constants.DIFFERENTIAL) ||
+				method.equals(Constants.CONVERT) || 
+				method.equals(Constants.MERGE_CHRONOLOGICALLY_CONSECUTIVE)
 			){
 				return true;
 			}
 		} else if(selector.equals(Constants.SEQUENTIAL_WITH_QUALIFIER_SELECTOR)){
 			if (method.equals(Constants.MERGE_RECORDS) ||
-				method.equals(Constants.DIFFERENTIAL) ){
+				method.equals(Constants.DIFFERENTIAL) ||
+				method.equals(Constants.MERGE_CHRONOLOGICALLY_CONSECUTIVE)){
 				return true;
 			}
 		} else if(selector.equals(Constants.CUMULATIVE_SELECTOR)){
@@ -1730,10 +1759,15 @@ metricActionsEnableMap.remove(metricConfig.getId());
 		if(inputQueueType == null){
 			return true;
 		}
-		if (inputQueueType.equals(Constants.MAPRDB_INPUT_RECORD_QUEUE) || 
-			inputQueueType.equals(Constants.LOCAL_FILE_INPUT_RECORD_QUEUE))
+		if (isPersistanceInputQueueType(inputQueueType))
 			return false;
 		return true;
+	}
+	public static boolean isPersistanceInputQueueType(String inputQueueType){
+		if (inputQueueType.equals(Constants.MAPRDB_INPUT_RECORD_QUEUE) ||
+			inputQueueType.equals(Constants.LOCAL_FILE_INPUT_RECORD_QUEUE))
+			return true;
+		return false;
 	}
 	public static boolean isValidPersistor(String name){
 		if(name == null)
@@ -1936,6 +1970,13 @@ metricActionsEnableMap.remove(metricConfig.getId());
 				queue.listProducers(), queue.listConsumers());
 		return queueStatus;
 	}
+	
+	@Override
+	public boolean requestShutdown(){
+		shouldExit = true; 
+		LOG.info("Coordinator received shutdown request.");
+		return true;
+	}
 
 	@Override
 	public Record[] getRecords(String queueName, int count) {
@@ -1963,7 +2004,6 @@ metricActionsEnableMap.remove(metricConfig.getId());
 
 	public static void main(String[] args) throws IOException,
 			InterruptedException {
-		boolean shouldExit = false;
 		String configLocation = "/opt/mapr/conf/distiller.conf";
 		if(args.length == 0){
 			LOG.debug("Main: Using default configuration file location: " + configLocation);
@@ -1978,12 +2018,11 @@ metricActionsEnableMap.remove(metricConfig.getId());
 		coordinatorThread.start();
 
 		LOG.info("Main: Shutting down.");
-		// Do shutdown stuff here...
 	}			
 
 	@Override
 	public void run() {
-		boolean shouldExit = false;
+		shouldExit=false;
 		long statusInterval = 3000l;
 		long lastStatus = System.currentTimeMillis();
 
@@ -2091,33 +2130,48 @@ metricActionsEnableMap.remove(metricConfig.getId());
 				nextAction = metricActionScheduler
 						.getNextScheduledMetricAction(true);
 			} catch (Exception e) {
-				LOG.error("Main: FATAL: Failed to retrieve net scheduled metric action");
+				LOG.error("Main: FATAL: Failed to retrieve next scheduled metric action");
 				e.printStackTrace();
 				System.exit(1);
 			}
 			synchronized (coordinatorLock) {
 				if (metricActionsEnableMap.containsKey(nextAction.getId())
 						&& metricActionsEnableMap.get(nextAction.getId())) {
+					/**
 					Future<?> future = metricActionsIdFuturesMap.get(nextAction
 							.getId());
+					
 					if (future != null && !future.isDone()) {
-						LOG.warn("Metric "
+						LOG.warn(System.currentTimeMillis() + " Metric "
 								+ nextAction.getId()
-								+ " is scheduled to run now but previous run is not done, advancing it's scheduled start time.");
+								+ " is scheduled to run now but previous run is not done, advancing it's scheduled start time " 
+								+ nextAction.printSchedule());
 						nextAction.advanceSchedule();
+						try {
+							metricActionScheduler.schedule(nextAction);
+							LOG.info(System.currentTimeMillis() + " Rescheduled " + nextAction.getId() + " to run " + nextAction.printSchedule());
+						} catch (Exception e) {
+							//We should never be here
+							LOG.error("MetricAction-" + System.identityHashCode(this) + ": Unhandled exception", e);
+							System.exit(1);
+						}
 					} else {
 						future = executor.submit(nextAction);
+						LOG.info(System.currentTimeMillis() + " Started " + nextAction.getId());
 						metricActionsIdFuturesMap.put(nextAction.getId(),
 								((Future<MetricAction>) future));
 					}
+					**/
+					metricActionsIdFuturesMap.put(nextAction.getId(), ((Future<MetricAction>)executor.submit(nextAction)));
 				} else {
 					LOG.info("Main: dropping metric "
 							+ nextAction.getId()
 							+ " as it was disabled after retrieval from schedule.");
 				}
 			}
-			/**
-			 * Some status stuff that is useful in debugging
+
+			
+			//Some status stuff that is useful in debugging
 			if(System.currentTimeMillis() >= lastStatus + statusInterval){
 				lastStatus = System.currentTimeMillis();
 				LOG.info("Main: Printing status at " + lastStatus);
@@ -2158,6 +2212,12 @@ metricActionsEnableMap.remove(metricConfig.getId());
 					while(i.hasNext()){
 						Map.Entry<String, MetricAction> e = i.next();
 						LOG.info("\t\tID:" + e.getKey() + " enabled:" + e.getValue().getMetricEnabled() + " running:" + ((metricActionsIdFuturesMap.containsKey(e.getValue().getId()) && !metricActionsIdFuturesMap.get(e.getValue().getId()).isDone())) + " inSched:" + metricActionScheduler.contains(e.getValue()) + " sched:" + e.getValue().printSchedule());
+						if( e.getValue().getMetricEnabled() &&
+						   !((metricActionsIdFuturesMap.containsKey(e.getValue().getId()) && !metricActionsIdFuturesMap.get(e.getValue().getId()).isDone())) &&
+						   !metricActionScheduler.contains(e.getValue()) ){
+							LOG.error("Metric is in inconsistent state.");
+							System.exit(1);
+						}
 					}
 					i = metricActionsIdMap.entrySet().iterator();
 					LOG.info("\tMetricAction counters:");
@@ -2179,7 +2239,245 @@ metricActionsEnableMap.remove(metricConfig.getId());
 					}
 					
 				}
-			}**/
+			}
+			
+		}
+		
+		synchronized(coordinatorLock){
+			LOG.info("Beginning shutdown");
+			
+			boolean cleanShutdown = true;
+			
+			//Step 1 of shutdown, stop all raw record producers that no new Records are being generate
+			for(MetricConfig c : metricConfigMap.values()){
+				if(isRawRecordType(c.getRecordType()))
+					try {
+						disableMetric(c.getId());
+					} catch (Exception e) {
+						LOG.error("Failed to disable ProcRecordProducer metric " + c.getId(), e);
+						System.exit(1);
+					}
+			}
+			if(procRecordProducer != null && procRecordProducer.isAlive()){
+				LOG.info("Stopping ProcRecordProducer");
+				procRecordProducer.requestExit();
+			}
+			//Just null check here because it's possible MfsGutsRecordProducer thread stopped but MfsGutsStdoutRecordProducer thread is still running
+			if(mfsGutsRecordProducer != null){
+				LOG.info("Stopping MfsGutsRecordProducer");
+				mfsGutsRecordProducer.requestExit();
+			}
+			while
+			( ( procRecordProducer != null && procRecordProducer.isAlive() )
+			  ||
+			  ( mfsGutsRecordProducer != null
+			    &&
+			    ( mfsGutsRecordProducer.isAlive()
+			      ||
+			      mfsGutsRecordProducer.mfsGutsStdoutRecordProducerIsAlive()
+			    )
+			  )
+			)
+			{
+				try {
+					Thread.sleep(1000);
+				} catch (Exception e){}
+			}
+			
+			LOG.info("Raw record producers have shut down.");
+			
+			//Step 2 of shutdown, kill running persistance input MetricActions, wait for other MetricActions to finish running
+			Iterator<Map.Entry<String, Future<MetricAction>>> i = metricActionsIdFuturesMap.entrySet().iterator();
+			while(i.hasNext()){
+				Map.Entry<String, Future<MetricAction>> e = i.next();
+				String metricId = e.getKey();
+				Future<MetricAction> f = e.getValue();
+				MetricAction ma = metricActionsIdMap.get(metricId);
+				if( !f.isDone() && 
+					!f.isCancelled() &&
+					ma.getConfig().getInputQueueType() != null &&
+					isPersistanceInputQueueType(ma.getConfig().getInputQueueType()) )
+				{
+					LOG.info("Attempting to stop running MetricAction " + 
+							metricId + " from consuming from " + 
+							ma.getConfig().getInputQueueType());
+					f.cancel(true);
+				}
+			}
+			LOG.info("Waiting for running MetricActions to complete.");
+			metricActionsIdFuturesMap.entrySet().iterator();
+			while(i.hasNext()){
+				Map.Entry<String, Future<MetricAction>> e = i.next();
+				Future<MetricAction> f = e.getValue();
+				while(!f.isDone() && !f.isCancelled()){
+					try {
+						Thread.sleep(1000);
+					} catch (Exception e2) {}
+				}
+			}
+			
+			//Step 3, delete MetricActions that are disabled, delete/disable any MetricActions that read data from a persisted location
+			LOG.info("Disabling MetricActions that use Persistance input queues");
+			int numChecked=0;
+			while(numChecked != metricActionsIdMap.size()){
+				numChecked=0;
+				Iterator<Map.Entry<String, MetricAction>> maI = metricActionsIdMap.entrySet().iterator();
+				while(maI.hasNext()){
+					Map.Entry<String, MetricAction> e = maI.next();
+					MetricAction ma = e.getValue();
+					if(!metricActionsEnableMap.get(ma.getId())){
+						try {
+							LOG.debug("Deleting disabled Metric: " + ma.getId());
+							deleteMetric(ma.getId());
+							break;
+						} catch (Exception e2){}
+					} 
+					else if
+					( ma.getConfig().getInputQueueType() != null &&
+					  ( ma.getConfig().getInputQueueType().equals(Constants.LOCAL_FILE_INPUT_RECORD_QUEUE)
+						||
+						ma.getConfig().getInputQueueType().equals(Constants.MAPRDB_INPUT_RECORD_QUEUE)
+					  )
+					)
+					{
+						try {
+							LOG.debug("Disabled and deleting Metric with persistance input queue: " + ma.getId());
+							disableMetricAction(ma);
+							deleteMetric(ma.getId());
+							break;
+						} catch (Exception e2){
+							LOG.error("Failed to disable/delete MetricAction, clean shutdown is not possible. " + ma.getId(), e2);
+							cleanShutdown = false;
+						}
+					}
+					numChecked++;
+				}
+			}
+			
+			//Step 4, flush all data through the MetricActions.
+			LOG.info("Flushing all in-memory Records through MetricActions.");
+			
+			/**
+			 * The following code block calls run and flushRelatedSelection for each MetricAction until 
+			 * the sum of record counters from all MetricActions returns the same after 2 consecutive 
+			 * iterations through the loop.  This ensures all records are pushed out of the lowest 
+			 * level of MetricAction, which are those MetricActions that have input queues with no
+			 * producers.  flushLastRecords is called for those lowest level MetricActions, then the
+			 * MetricActions are deleted and the loop is repeated until all MetricActions have been
+			 * disabled/deleted.
+			 */
+			int consecutiveIterationsWithNoChanges=0;
+			int maxIterationsWithNoChanges=3;
+			while(metricActionsIdMap.size() != 0 && consecutiveIterationsWithNoChanges<maxIterationsWithNoChanges){
+				LOG.debug("Beginning flush attempt with " + metricActionsIdMap.size() + " MetricActions left to disable/delete");
+				long counterSum = 0, newCounterSum = 0;
+				int consecutiveIterationsWithSameSum=0;
+				int maxIterationsWithSameSum=2;
+				while(consecutiveIterationsWithSameSum < maxIterationsWithSameSum){
+					counterSum = newCounterSum;
+					newCounterSum = 0;
+					for(MetricAction ma : metricActionsIdMap.values()){
+						metricActionScheduler.unschedule(ma);
+						ma.run();
+						ma.flushRelatedSelection();
+						long[] counters = ma.getCounters();
+						for(int x=0; x<5; x++) {
+							newCounterSum += counters[x];
+						}
+					}
+					if(counterSum == newCounterSum){
+						consecutiveIterationsWithSameSum++;
+					} else {
+						consecutiveIterationsWithSameSum=0;
+					}
+					LOG.info("Finished running " + metricActionsIdMap.size() + " metric actions with ncs: " + newCounterSum + " and ocs: " + counterSum + 
+							" ciwss: " + consecutiveIterationsWithSameSum + " miwss: " + maxIterationsWithSameSum);
+					
+				}
+				Iterator<Map.Entry<String, MetricAction>> maI = metricActionsIdMap.entrySet().iterator();
+				LinkedList<MetricAction> maToDelete = new LinkedList<MetricAction>();
+				boolean disabledAMetric=false;
+				while(maI.hasNext()){
+					Map.Entry<String, MetricAction> e = maI.next();
+					MetricAction ma = e.getValue();
+					if ( recordQueueManager.getQueueProducers(ma.getConfig().getInputQueue()).length == 0 && 
+						 ( !ma.getConfig().getRelatedSelectorEnabled() ||
+						   recordQueueManager.getQueueProducers(ma.getConfig().getRelatedInputQueueName()).length == 0
+					     )
+					   )
+					{
+						maToDelete.add(ma);
+					} else {
+						LOG.info("Not deleting " + ma.getId() + 
+								" inQ: " + ma.getConfig().getInputQueue() +
+								" inQP: " + recordQueueManager.getQueueProducers(ma.getConfig().getInputQueue()).length + 
+								" riQ: " + ma.getConfig().getRelatedInputQueueName() + 
+								" riQP: " + ((ma.getConfig().getRelatedInputQueueName()==null) ? "null" : recordQueueManager.getQueueProducers(ma.getConfig().getRelatedInputQueueName()).length));
+					}
+				}
+				for(MetricAction ma : maToDelete){
+					ma.flushLastRecords();
+					try {
+						disableMetricAction(ma);
+						deleteMetric(ma.getId());
+						disabledAMetric=true;
+						LOG.debug("Disabled and deleted MetricAction with no input queue producers: " + ma.getId());
+					} catch (Exception e) {
+						LOG.warn("Failed to disable/delete MetricAction " + ma.getId(), e);
+					}
+				}
+				if(disabledAMetric)
+					consecutiveIterationsWithNoChanges=0;
+				else
+					consecutiveIterationsWithNoChanges++;
+			}
+			
+			//Step 5, shutdown any persistance managers, which will force them to flush persisted records.
+			LOG.info("Shutting down persistance managers.");
+			if(maprdbSyncPersistanceManager != null){
+				LOG.info("Requesting MapRDBSyncPersistanceManager to shutdown");
+				try {
+					maprdbSyncPersistanceManager.requestShutdown();
+				} catch (Exception e){}
+			}
+			if(localFileSystemPersistanceManager != null){
+				LOG.info("Requesting LocalFileSystemPersistanceManager to shutdown");
+				try {
+					localFileSystemPersistanceManager.requestShutdown();
+				} catch (Exception e){}
+			}
+			
+			boolean threadsStillRunning=true;
+			while(threadsStillRunning){
+				threadsStillRunning = false;
+				if(maprdbSyncPersistanceManager != null && maprdbSyncPersistanceManager.isAlive()){
+					LOG.info("Waiting for MapRDBSyncPersistanceManager thread to exit");
+					threadsStillRunning = true;
+				}
+				if(localFileSystemPersistanceManager != null && localFileSystemPersistanceManager.isAlive()){
+					LOG.info("Waiting for LocalFileSystemPersistanceManager thread to exit");
+					threadsStillRunning = true;
+				}
+				if(threadsStillRunning){
+					try {
+						Thread.sleep(1000);
+					} catch (Exception e){}
+				}
+			}
+			LOG.info("MapRDBSyncPersistors: " + ((maprdbSyncPersistanceManager == null) ? "null" : maprdbSyncPersistanceManager.getPersistors().size()) + 
+					" LocalFileSystemPersistors: " + ((localFileSystemPersistanceManager == null) ? "null" : localFileSystemPersistanceManager.getPersistors().size()) + 
+					" MetricConfigs: " + metricConfigMap.size() + 
+					" MetricActions: " + metricActionsIdMap.size() + 
+					" enabledActions: " + metricActionsEnableMap.size() + 
+					" futureActions: " + metricActionsIdFuturesMap.size() + 
+					" ProcRecordProducer: " + ((procRecordProducer == null) ? "null" : procRecordProducer.isAlive()) + 
+					" MfsGutsRecordProducer: " + ((mfsGutsRecordProducer == null) ? "null" : mfsGutsRecordProducer.isAlive()) + 
+					" MfsGutsStdoutRecordProducer: " + ((mfsGutsRecordProducer == null) ? "null" : mfsGutsRecordProducer.mfsGutsStdoutRecordProducerIsAlive()));
+			for(MetricAction ma : metricActionsIdMap.values())
+				LOG.info("MetricAction: " + ma.getId());
+			LOG.info("Shutdown complete");
+			
+			System.exit(0);
 		}
 	}
 }

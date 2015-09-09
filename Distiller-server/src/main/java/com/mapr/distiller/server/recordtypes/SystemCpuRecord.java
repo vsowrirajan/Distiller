@@ -2,6 +2,7 @@ package com.mapr.distiller.server.recordtypes;
 
 import java.math.BigInteger;
 import java.io.RandomAccessFile;
+import java.text.DecimalFormat;
 import java.util.LinkedList;
 
 import org.slf4j.Logger;
@@ -29,6 +30,7 @@ public class SystemCpuRecord extends Record {
 	//For single core
 	private BigInteger[] acpu_user, acpu_nice, acpu_sys, acpu_idle, acpu_iowait, acpu_hardirq, acpu_softirq, acpu_steal, acpu_other, atotal_jiffies;
 
+	private double idleCpuUtilPctExcluding2, iowaitCpuUtilPctExcluding2, idleCpuUtilPctExcluding4, iowaitCpuUtilPctExcluding4;
 	@Override
 	public String getRecordType(){
 		return Constants.SYSTEM_CPU_RECORD;
@@ -43,6 +45,10 @@ public class SystemCpuRecord extends Record {
 		super(System.currentTimeMillis());
 		this.idleCpuUtilPct=-1d;
 		this.iowaitCpuUtilPct=-1d;
+		this.idleCpuUtilPctExcluding2=-1d;
+		this.iowaitCpuUtilPctExcluding2=-1d;
+		this.idleCpuUtilPctExcluding4=-1d;
+		this.iowaitCpuUtilPctExcluding4=-1d;
 		RandomAccessFile proc_stat = null;
 		try {
 			proc_stat = new RandomAccessFile("/proc/stat", "r");
@@ -133,13 +139,17 @@ public class SystemCpuRecord extends Record {
 		}
 	}
 	public SystemCpuRecord(SystemCpuRecord rec1, SystemCpuRecord rec2) throws Exception {
-		if(rec1.getIdleCpuUtilPct()!=-1d || rec2.getIdleCpuUtilPct()!=-1d || rec1.getPreviousTimestamp()!=-1l || rec2.getPreviousTimestamp()!=-1l)
-			throw new Exception("Differential SystemCpuRecord can only be generated from raw SystemCpuRecords");
 		if(rec1.getTimestamp() == rec2.getTimestamp())
 			throw new Exception("Can not generate differential SystemCpuRecord from input records with matching timestamp values");
-		if(rec1.get_total_jiffies().equals(rec2.get_total_jiffies()))
-			throw new Exception("Can not generate differential SystemCpuRecord from input records with matching total_jiffies");
-		
+		if(rec1.get_total_jiffies().equals(rec2.get_total_jiffies()) && rec1.getPreviousTimestamp() == -1)
+			throw new Exception("Can not generate differential SystemCpuRecord from raw input records with matching total_jiffies");
+		if( ( rec1.getPreviousTimestamp()==-1 && rec2.getPreviousTimestamp()!=-1 ) || 
+			( rec2.getPreviousTimestamp()==-1 && rec1.getPreviousTimestamp()!=-1 ) )
+		{
+			throw new Exception("Can not generate differential SystemCpuRecord from one raw input record and one differential input record");
+		}
+		if(rec1.get_acpu_hardirq().length != rec2.get_acpu_hardirq().length)
+			throw new Exception("Can not generate differential SysemCpuRecord form input records with differing numbers of CPU cores");
 		SystemCpuRecord oldRecord, newRecord;
 		if(rec1.getTimestamp() < rec2.getTimestamp()){
 			oldRecord = rec1;
@@ -149,19 +159,110 @@ public class SystemCpuRecord extends Record {
 			newRecord = rec1;
 		}
 		
-		this.setTimestamp(newRecord.getTimestamp());
-		this.setPreviousTimestamp(oldRecord.getTimestamp());
-		this.cpu_user = newRecord.get_cpu_user().subtract(oldRecord.get_cpu_user());
-		this.cpu_nice = newRecord.get_cpu_nice().subtract(oldRecord.get_cpu_nice());
-		this.cpu_sys = newRecord.get_cpu_sys().subtract(oldRecord.get_cpu_sys());
-		this.cpu_idle = newRecord.get_cpu_idle().subtract(oldRecord.get_cpu_idle());
-		this.cpu_iowait = newRecord.get_cpu_iowait().subtract(oldRecord.get_cpu_iowait());
-		this.cpu_hardirq = newRecord.get_cpu_hardirq().subtract(oldRecord.get_cpu_hardirq());
-		this.cpu_softirq = newRecord.get_cpu_softirq().subtract(oldRecord.get_cpu_softirq());
-		this.cpu_steal = newRecord.get_cpu_steal().subtract(oldRecord.get_cpu_steal());
-		this.cpu_other = newRecord.get_cpu_other().subtract(oldRecord.get_cpu_other());
-		this.total_jiffies = newRecord.get_total_jiffies().subtract(oldRecord.get_total_jiffies());
+		if(oldRecord.getPreviousTimestamp() != -1 && newRecord.getPreviousTimestamp() != -1 && oldRecord.getTimestamp() != newRecord.getPreviousTimestamp())
+			throw new Exception("Can not generate differential SystemCpuRecords from non-chronologically consecutive differential input records");
 
+		int numCores = newRecord.get_acpu_hardirq().length;
+		this.acpu_user = new BigInteger[numCores];
+		this.acpu_nice = new BigInteger[numCores];
+		this.acpu_sys = new BigInteger[numCores];
+		this.acpu_idle = new BigInteger[numCores];
+		this.acpu_iowait = new BigInteger[numCores];
+		this.acpu_hardirq = new BigInteger[numCores];
+		this.acpu_softirq = new BigInteger[numCores];
+		this.acpu_steal = new BigInteger[numCores];
+		this.acpu_other = new BigInteger[numCores];
+		this.atotal_jiffies = new BigInteger[numCores];
+		this.setTimestamp(newRecord.getTimestamp());
+		if(oldRecord.getTimestamp() == newRecord.getPreviousTimestamp()){
+			this.setPreviousTimestamp(oldRecord.getPreviousTimestamp());
+			this.cpu_user = newRecord.get_cpu_user().add(oldRecord.get_cpu_user());
+			this.cpu_nice = newRecord.get_cpu_nice().add(oldRecord.get_cpu_nice());
+			this.cpu_sys = newRecord.get_cpu_sys().add(oldRecord.get_cpu_sys());
+			this.cpu_idle = newRecord.get_cpu_idle().add(oldRecord.get_cpu_idle());
+			this.cpu_iowait = newRecord.get_cpu_iowait().add(oldRecord.get_cpu_iowait());
+			this.cpu_hardirq = newRecord.get_cpu_hardirq().add(oldRecord.get_cpu_hardirq());
+			this.cpu_softirq = newRecord.get_cpu_softirq().add(oldRecord.get_cpu_softirq());
+			this.cpu_steal = newRecord.get_cpu_steal().add(oldRecord.get_cpu_steal());
+			this.cpu_other = newRecord.get_cpu_other().add(oldRecord.get_cpu_other());
+			this.total_jiffies = newRecord.get_total_jiffies().add(oldRecord.get_total_jiffies());
+			for (int x=0; x<numCores; x++){
+				this.acpu_user[x] = newRecord.get_acpu_user()[x].add(oldRecord.get_acpu_user()[x]);
+				this.acpu_nice[x] = newRecord.get_acpu_nice()[x].add(oldRecord.get_acpu_nice()[x]);
+				this.acpu_sys[x] = newRecord.get_acpu_sys()[x].add(oldRecord.get_acpu_sys()[x]);
+				this.acpu_idle[x] = newRecord.get_acpu_idle()[x].add(oldRecord.get_acpu_idle()[x]);
+				this.acpu_iowait[x] = newRecord.get_acpu_iowait()[x].add(oldRecord.get_acpu_iowait()[x]);
+				this.acpu_hardirq[x] = newRecord.get_acpu_hardirq()[x].add(oldRecord.get_acpu_hardirq()[x]);
+				this.acpu_softirq[x] = newRecord.get_acpu_softirq()[x].add(oldRecord.get_acpu_softirq()[x]);
+				this.acpu_steal[x] = newRecord.get_acpu_steal()[x].add(oldRecord.get_acpu_steal()[x]);
+				this.acpu_other[x] = newRecord.get_acpu_other()[x].add(oldRecord.get_acpu_other()[x]);
+				this.atotal_jiffies[x] = 	
+						this.acpu_user[x].add(
+						this.acpu_nice[x].add(
+						this.acpu_sys[x].add(
+						this.acpu_idle[x].add(
+						this.acpu_iowait[x].add(
+						this.acpu_hardirq[x].add(
+						this.acpu_softirq[x].add(
+						this.acpu_steal[x].add(
+						this.acpu_other[x]))))))));		
+			}
+		} else {
+			if (newRecord.get_cpu_user().compareTo(oldRecord.get_cpu_user()) == -1 || 
+				newRecord.get_cpu_nice().compareTo(oldRecord.get_cpu_nice()) == -1 || 
+				newRecord.get_cpu_sys().compareTo(oldRecord.get_cpu_sys()) == -1 || 
+				newRecord.get_cpu_idle().compareTo(oldRecord.get_cpu_idle()) == -1 || 
+				newRecord.get_cpu_hardirq().compareTo(oldRecord.get_cpu_hardirq()) == -1 || 
+				newRecord.get_cpu_softirq().compareTo(oldRecord.get_cpu_softirq()) == -1 || 
+				newRecord.get_cpu_steal().compareTo(oldRecord.get_cpu_steal()) == -1 || 
+				newRecord.get_cpu_other().compareTo(oldRecord.get_cpu_other()) == -1 || 
+				newRecord.get_total_jiffies().compareTo(oldRecord.get_total_jiffies()) ==-1 ){		
+				throw new Exception("Can not generate differential record from raw input records where counters have rolled over between samples. " + 
+						" old: " + oldRecord.toString() + " new: " + newRecord.toString());
+			} 
+			//This check is here because IOWait counters can go backwards... derp...
+			//https://lkml.org/lkml/2014/5/7/559
+			if( newRecord.get_cpu_iowait().compareTo(oldRecord.get_cpu_iowait()) == -1 &&
+				oldRecord.get_cpu_iowait().subtract(newRecord.get_cpu_iowait()).compareTo(new BigInteger("1024")) == 1 ) {
+				throw new Exception("Can not generate differential record from raw input records where counters have rolled over between samples. " + 
+						" old: " + oldRecord.toString() + " new: " + newRecord.toString());
+				
+			}
+			this.setPreviousTimestamp(oldRecord.getTimestamp());
+			this.cpu_user = newRecord.get_cpu_user().subtract(oldRecord.get_cpu_user());
+			this.cpu_nice = newRecord.get_cpu_nice().subtract(oldRecord.get_cpu_nice());
+			this.cpu_sys = newRecord.get_cpu_sys().subtract(oldRecord.get_cpu_sys());
+			this.cpu_idle = newRecord.get_cpu_idle().subtract(oldRecord.get_cpu_idle());
+			this.cpu_iowait = newRecord.get_cpu_iowait().subtract(oldRecord.get_cpu_iowait());
+			this.cpu_hardirq = newRecord.get_cpu_hardirq().subtract(oldRecord.get_cpu_hardirq());
+			this.cpu_softirq = newRecord.get_cpu_softirq().subtract(oldRecord.get_cpu_softirq());
+			this.cpu_steal = newRecord.get_cpu_steal().subtract(oldRecord.get_cpu_steal());
+			this.cpu_other = newRecord.get_cpu_other().subtract(oldRecord.get_cpu_other());
+			this.total_jiffies = newRecord.get_total_jiffies().subtract(oldRecord.get_total_jiffies());
+			for (int x=0; x<numCores; x++){
+				this.acpu_user[x] = newRecord.get_acpu_user()[x].subtract(oldRecord.get_acpu_user()[x]);
+				this.acpu_nice[x] = newRecord.get_acpu_nice()[x].subtract(oldRecord.get_acpu_nice()[x]);
+				this.acpu_sys[x] = newRecord.get_acpu_sys()[x].subtract(oldRecord.get_acpu_sys()[x]);
+				this.acpu_idle[x] = newRecord.get_acpu_idle()[x].subtract(oldRecord.get_acpu_idle()[x]);
+				this.acpu_iowait[x] = newRecord.get_acpu_iowait()[x].subtract(oldRecord.get_acpu_iowait()[x]);
+				this.acpu_hardirq[x] = newRecord.get_acpu_hardirq()[x].subtract(oldRecord.get_acpu_hardirq()[x]);
+				this.acpu_softirq[x] = newRecord.get_acpu_softirq()[x].subtract(oldRecord.get_acpu_softirq()[x]);
+				this.acpu_steal[x] = newRecord.get_acpu_steal()[x].subtract(oldRecord.get_acpu_steal()[x]);
+				this.acpu_other[x] = newRecord.get_acpu_other()[x].subtract(oldRecord.get_acpu_other()[x]);
+				this.atotal_jiffies[x] = 	
+						this.acpu_user[x].add(
+						this.acpu_nice[x].add(
+						this.acpu_sys[x].add(
+						this.acpu_idle[x].add(
+						this.acpu_iowait[x].add(
+						this.acpu_hardirq[x].add(
+						this.acpu_softirq[x].add(
+						this.acpu_steal[x].add(
+						this.acpu_other[x]))))))));		
+			}
+		}
+		
+		
 		//Count iowait as idle time since other things could be done during idle time if so needed.
 		//We will track iowait % usage separately
 		//This var should be used to decide if the system is running low on free CPU capacity
@@ -173,7 +274,38 @@ public class SystemCpuRecord extends Record {
 		//The IO wait time indicates how much running processes are bottlenecking on IO.
 		//You can use this in conjunction with the iowaitCpuUtilPct for threads/processes to understand how things are bottlenecking on IO
 		this.iowaitCpuUtilPct = this.cpu_iowait.doubleValue() / this.total_jiffies.doubleValue();
-				
+		if(this.acpu_hardirq.length<3){
+			this.idleCpuUtilPctExcluding2=-1d;
+			this.iowaitCpuUtilPctExcluding2=-1d;
+			this.idleCpuUtilPctExcluding4=-1d;
+			this.iowaitCpuUtilPctExcluding4=-1d;
+		} else {
+			BigInteger ex2IdleJiffies = new BigInteger("0");
+			BigInteger ex2IowaitJiffies = new BigInteger("0");
+			BigInteger ex2TotalJiffies = new BigInteger("0");
+			for(int x=2; x<this.acpu_hardirq.length; x++){
+				ex2IdleJiffies = ex2IdleJiffies.add(this.acpu_idle[x]);
+				ex2IowaitJiffies = ex2IowaitJiffies.add(this.acpu_iowait[x]);
+				ex2TotalJiffies = ex2TotalJiffies.add(this.atotal_jiffies[x]);
+			}
+			this.idleCpuUtilPctExcluding2 = ex2IdleJiffies.add(ex2IowaitJiffies).doubleValue() / ex2TotalJiffies.doubleValue();
+			this.iowaitCpuUtilPctExcluding2 = ex2IowaitJiffies.doubleValue() / ex2TotalJiffies.doubleValue();
+			if(this.acpu_hardirq.length<5){
+				this.idleCpuUtilPctExcluding4=-1d;
+				this.iowaitCpuUtilPctExcluding4=-1d;
+			} else {
+				BigInteger ex4IdleJiffies = new BigInteger("0");
+				BigInteger ex4IowaitJiffies = new BigInteger("0");
+				BigInteger ex4TotalJiffies = new BigInteger("0");
+				for(int x=4; x<this.acpu_hardirq.length; x++){
+					ex4IdleJiffies = ex4IdleJiffies.add(this.acpu_idle[x]);
+					ex4IowaitJiffies = ex4IowaitJiffies.add(this.acpu_iowait[x]);
+					ex4TotalJiffies = ex4TotalJiffies.add(this.atotal_jiffies[x]);
+				}
+				this.idleCpuUtilPctExcluding4 = ex4IdleJiffies.add(ex4IowaitJiffies).doubleValue() / ex4TotalJiffies.doubleValue();
+				this.iowaitCpuUtilPctExcluding4 = ex4IowaitJiffies.doubleValue() / ex4TotalJiffies.doubleValue();
+			}
+		}
 	}
 
 	/**
@@ -203,7 +335,8 @@ public class SystemCpuRecord extends Record {
 	 * OTHER METHODS
 	 */
 	public String toString(){
-		return super.toString() + " SystemCPU user:" + cpu_user + 
+		DecimalFormat doubleDisplayFormat = new DecimalFormat("#0.00");
+		return super.toString() + " " + Constants.SYSTEM_CPU_RECORD + " user:" + cpu_user + 
 				" nice:" + cpu_nice +
 				" sys:" + cpu_sys + 
 				" idle:" + cpu_idle + 
@@ -213,9 +346,13 @@ public class SystemCpuRecord extends Record {
 				" steal:" + cpu_steal + 
 				" other:" + cpu_other +
 				" jiffies:" + total_jiffies + 
-				" idleCpuUtilPct:" + idleCpuUtilPct + 
-				" iowaitCpuUtilPct:" + iowaitCpuUtilPct;
+				" idle%:" + doubleDisplayFormat.format(idleCpuUtilPct) + 
+				" iowait%:" + doubleDisplayFormat.format(iowaitCpuUtilPct) + 
+				" idle%-2:" + doubleDisplayFormat.format(idleCpuUtilPctExcluding2) + 
+				" iowait%-2:" + doubleDisplayFormat.format(iowaitCpuUtilPctExcluding2) + 
+				" numCPUs:" + acpu_user.length;
 	}
+	
 	public BigInteger get_cpu_user(){
 		return cpu_user;
 	}
@@ -252,4 +389,47 @@ public class SystemCpuRecord extends Record {
 	public double getIowaitCpuUtilPct(){
 		return iowaitCpuUtilPct;
 	}
+	public double getIdleCpuUtilPctExcluding2(){
+		return idleCpuUtilPctExcluding2;
+	}
+	public double getIowaitCpuUtilPctExcluding2(){
+		return iowaitCpuUtilPctExcluding2;
+	}
+	public double getIdleCpuUtilPctExcluding4(){
+		return idleCpuUtilPctExcluding4;
+	}
+	public double getIowaitCpuUtilPctExcluding4(){
+		return iowaitCpuUtilPctExcluding4;
+	}
+	public BigInteger[] get_acpu_user(){
+		return acpu_user;
+	}
+	public BigInteger[] get_acpu_nice(){
+		return acpu_nice;
+	}
+	public BigInteger[] get_acpu_sys(){
+		return acpu_sys;
+	}
+	public BigInteger[] get_acpu_idle(){
+		return acpu_idle;
+	}
+	public BigInteger[] get_acpu_iowait(){
+		return acpu_iowait;
+	}
+	public BigInteger[] get_acpu_hardirq(){
+		return acpu_hardirq;
+	}
+	public BigInteger[] get_acpu_softirq(){
+		return acpu_softirq;
+	}
+	public BigInteger[] get_acpu_steal(){
+		return acpu_steal;
+	}
+	public BigInteger[] get_acpu_other(){
+		return acpu_other;
+	}
+	public BigInteger[] get_atotal_jiffies(){
+		return atotal_jiffies;
+	}
+
 }

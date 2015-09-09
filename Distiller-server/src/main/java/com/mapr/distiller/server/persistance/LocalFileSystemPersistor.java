@@ -104,7 +104,23 @@ public class LocalFileSystemPersistor implements Persistor{
 		tempOutputFilePath = outputDirPath + "/" + tempOutputFileName;
 	}
 	
-	public long[] writeRecordsToDisk(){
+	public void shutdown(){
+		if(firstRecordInFilePreviousTimestamp != -1){
+			try {
+				currentOutputFileStream.close();
+				currentOutputFileStream = null;
+				currentOutputFile.renameTo(new File(tempOutputFilePath + "_" + 
+													firstRecordInFilePreviousTimestamp + "_" + 
+													firstRecordInFileTimestamp + "_" + 
+													lastRecordInFilePreviousTimestamp + "_" + 
+													lastRecordInFileTimestamp));
+				currentOutputFile = null;
+			} catch (Exception e){}
+		}
+		LOG.info("LocalFileSystemPersistor-" + System.identityHashCode(this) + ": Shutdown, persisted: " + persistedRecords + " failed: " + persistanceFailures + " most recent file: " + tempOutputFilePath);
+	}
+	
+	public long[] writeRecordsToDisk(boolean shutdown){
 		long[] ret = new long[]{0, 0};
 		while(recordsToPersist.size()!=0){
 			try {
@@ -133,7 +149,8 @@ public class LocalFileSystemPersistor implements Persistor{
 			lastRecordInFilePreviousTimestamp = recordsToWrite[recordsToWrite.length - 1 ].getPreviousTimestamp();
 			for(int x=0; x<recordsToWrite.length; x++){
 				try {
-					currentOutputFileStream.writeObject(recordsToWrite[x]);
+					currentOutputFileStream.writeObject((recordsToWrite[x]));
+					LOG.debug(producerId + " persisted record " + recordsToWrite[x].toString());
 					recordsInCurrentFile++;
 					persistedRecords.incrementAndGet();
 					ret[0]++;
@@ -152,15 +169,19 @@ public class LocalFileSystemPersistor implements Persistor{
 			}
 		}
 		try {
-			currentOutputFileStream.flush();
-			currentOutputFileStream.reset();
+			if(currentOutputFileStream != null){
+				currentOutputFileStream.flush();
+				currentOutputFileStream.reset();
+			}
 		} catch (Exception e) {
-			LOG.error("Ouptut records may have been lost, caught exception while flushing output stream to " + tempOutputFilePath, e);
+			LOG.error("LocalFileSystemPersistor-" + System.identityHashCode(this) + ": Ouptut records may have been lost, caught exception while flushing output stream to " + tempOutputFilePath, e);
 		}
-		try {
-			setOutputFile();
-		} catch (Exception e) {
-			LOG.error("Failed to setup output file " + tempOutputFilePath, e);
+		if(!shutdown){
+			try {
+				setOutputFile();
+			} catch (Exception e) {
+				LOG.error("Failed to setup output file " + tempOutputFilePath, e);
+			}
 		}
 		lastFlushTime = System.currentTimeMillis();
 		return ret;

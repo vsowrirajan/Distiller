@@ -23,11 +23,15 @@ public class MapRDBPutter extends Thread{
 		this.shouldExit = false;
 	}
 	
+	public void requestExit(){
+		shouldExit = true;
+	}
+	
 	public void run(){
 		while (!shouldExit){
 			Object[] nextPutObjects = null;
 			synchronized(maprdbSyncPersistanceManager.newRecordToBePut){
-				while(nextPutObjects == null){
+				while(nextPutObjects == null && !shouldExit){
 					nextPutObjects = maprdbSyncPersistanceManager.getNextPut();
 					if(nextPutObjects == null){
 						try {
@@ -36,6 +40,9 @@ public class MapRDBPutter extends Thread{
 					}
 				}
 			}
+			if(shouldExit)
+				break;
+			
 			//We have a Record to put...
 			Long putStartTime = System.currentTimeMillis();
 			MapRDBSyncPersistor p = (MapRDBSyncPersistor)(nextPutObjects[0]);

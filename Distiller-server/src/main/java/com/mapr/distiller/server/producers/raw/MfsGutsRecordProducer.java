@@ -23,8 +23,12 @@ public class MfsGutsRecordProducer extends Thread {
 	
 	private String producerName;
 	private RecordQueue outputQueue, producerStatsQueue;
-	MfsGutsStdoutRecordProducer mfsGutsStdoutRecordProducer;
+	private MfsGutsStdoutRecordProducer mfsGutsStdoutRecordProducer;
 	boolean shouldExit;
+	
+	public boolean mfsGutsStdoutRecordProducerIsAlive(){
+		return ((mfsGutsStdoutRecordProducer == null) ? false : mfsGutsStdoutRecordProducer.isAlive());
+	}
 	
 	public RecordQueue getOutputQueue(){
 		return outputQueue;

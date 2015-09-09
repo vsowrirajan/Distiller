@@ -30,17 +30,22 @@ public class LocalFileSystemPersistanceManager extends Thread {
 	
 	//Used to indicate to the MapRDBSyncPersistanceManager thread that it should shut down
 	private boolean shouldExit;
+	private Object shutdownNotifier = new Object();
 	
     //Counters
   	private AtomicLong persistedRecords;
   	private AtomicLong persistanceFailures;
+	
+  	public List<LocalFileSystemPersistor> getPersistors(){
+		return persistors;
+	}
 	
 	public boolean hasPersistor(LocalFileSystemPersistor persistor) {
 		synchronized(persistors){
 			return persistors.contains(persistor);
 		}
 	}
-	
+
 	public void registerPersistor(LocalFileSystemPersistor persistor) throws Exception{
 		synchronized(persistors){
 			persistors.add(persistor);
@@ -84,10 +89,18 @@ public class LocalFileSystemPersistanceManager extends Thread {
 	}
 	
 	private void flushRecordsToDisk(LocalFileSystemPersistor p){
-		long[] results = p.writeRecordsToDisk();
+		long[] results = p.writeRecordsToDisk(shouldExit);
 		persistedRecords.addAndGet(results[0]);
 		persistanceFailures.addAndGet(results[1]);
 	}
+	
+	public void requestShutdown(){
+		shouldExit = true;
+		synchronized(shutdownNotifier){
+			shutdownNotifier.notify();
+		}
+	}
+
 	
 	public void run(){
 		while(!shouldExit){
@@ -104,9 +117,18 @@ public class LocalFileSystemPersistanceManager extends Thread {
 					}
 				}
 			}
-			try {
-				Thread.sleep(10000);
-			} catch (Exception e){}
+			synchronized(shutdownNotifier){
+				try {
+					shutdownNotifier.wait(10000);
+				} catch (Exception e){}
+			}
+		}
+		LOG.info("Received shutdown request");
+		while(persistors.size() != 0){
+			LocalFileSystemPersistor p = persistors.get(0);
+			flushRecordsToDisk(p);
+			p.shutdown();
+			persistors.remove(p);
 		}
 	}
 }
