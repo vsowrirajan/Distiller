@@ -19,9 +19,10 @@ CLI_LOG_DIR=${CLI_HOME}/logs
 CLI_LOG_FILE=${CLI_LOG_DIR}/distiller-cli-${CURRENT_USER}-${CURRENT_USER_ID}.log
 
 CLI_CLASSPATH=""
-for i in ${CLI_HOME}/conf/*.conf; do
+for i in ${CLI_HOME}/conf/; do
   CLI_CLASSPATH=${CLI_CLASSPATH}:$i;
 done
+
 
 command="DistillerCLI"
 log=${CLI_LOG_DIR}/maprcli.log
@@ -64,7 +65,7 @@ CallJavaCmd()
 #"
 
   PWD=`pwd`
-  echo "$JAVA -cp "$CLI_CLASSPATH:$PWD/Distiller-cli/target/Distiller-cli-0.0.1-SNAPSHOT.jar:$PWD/Distiller-client/target/Distiller-client-0.0.1-SNAPSHOT.jar" com.mapr.distiller.cli.driver.CLIMainDriver "$@""
+  #echo "$JAVA -cp "$CLI_CLASSPATH:$PWD/Distiller-cli/target/Distiller-cli-0.0.1-SNAPSHOT.jar:$PWD/Distiller-client/target/Distiller-client-0.0.1-SNAPSHOT.jar" com.mapr.distiller.cli.driver.CLIMainDriver "$@""
   $JAVA -cp "$CLI_CLASSPATH:$PWD/Distiller-cli/target/Distiller-cli-0.0.1-SNAPSHOT.jar:$PWD/Distiller-client/target/Distiller-client-0.0.1-SNAPSHOT.jar" com.mapr.distiller.cli.driver.CLIMainDriver "$@"
   return $?
 }
