@@ -2352,7 +2352,7 @@ metricActionsEnableMap.remove(metricConfig.getId());
 				}
 			}
 			LOG.info("Waiting for running MetricActions to complete.");
-			metricActionsIdFuturesMap.entrySet().iterator();
+			i = metricActionsIdFuturesMap.entrySet().iterator();
 			while(i.hasNext()){
 				Map.Entry<String, Future<MetricAction>> e = i.next();
 				Future<MetricAction> f = e.getValue();
@@ -2360,7 +2360,7 @@ metricActionsEnableMap.remove(metricConfig.getId());
 					try {
 						Thread.sleep(1000);
 					} catch (Exception e2) {}
-				}
+				}		
 			}
 			
 			//Step 3, delete MetricActions that are disabled, delete/disable any MetricActions that read data from a persisted location
