@@ -24,7 +24,7 @@ public class MapRDBSyncPersistanceManager extends Thread{
 	private Object logFrequencyLock = new Object();
 	private long lastSerializationFailureLogTime=-1;
 	private int numSerializationFailuresSinceLastLog=0;
-	private long lastPersistFailureLogTime=-1;
+	private long lastPersistFailureLogTime=System.currentTimeMillis();
 	private int numPersistFailuresSinceLastLog=0;
 	private int minimumLogInterval = 10000;
 	
@@ -139,8 +139,7 @@ public class MapRDBSyncPersistanceManager extends Thread{
       	this.droppedRecords = new AtomicLong(0);
       	this.persistors = new LinkedList<MapRDBSyncPersistor>();
       	this.hbaseConfiguration = new HBaseConfiguration();
-      	//this.hbaseConfiguration.set("fs.mapr.rpc.timeout", Long.toString(maprdbPutTimeout));
-      	//this.hbaseConfiguration.set("fs.mapr.trace", "debug");
+      	this.hbaseConfiguration.set("fs.mapr.rpc.timeout", Long.toString(maprdbPutTimeout));
       	this.shouldExit = false;
       	this.numDiskBufferedFiles = 0;
 	}
